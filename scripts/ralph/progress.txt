@@ -1,0 +1,380 @@
+# Ralph Progress Log
+Started: Fri Mar 19 19:53:00 CET 2026
+
+## Codebase Patterns
+- In Vue `script setup`, helpers used by top-level computed state or immediate watchers must be declared earlier or written as function declarations; later `const` helpers can throw during initial page setup before they initialize.
+- When a Quasar `q-input` uses `clearable`, the bound model can become `null`; page-level filter state should either type that field as `string | null` or normalize with `?? ""` before calling string helpers inside computed state.
+- Keep profile reads and writes behind `/api/v1/users/me`; when forwarding updates to Better Auth, map app-facing `fullName` to Better Auth's `name` field and require the session before proxying so unauthenticated updates still return the backend's standard `401` payload.
+- When a backend wrapper proxies Better Auth mutations through `authInstance.handler()`, set the forwarded `origin` header to `betterAuthConfig.baseUrl`; the frontend dev server proxy (`http://127.0.0.1:9000`) otherwise trips Better Auth's origin check even though the browser is using the backend wrapper route.
+- Keep frontend profile editing behind `src/modules/auth/store.ts` too: settings screens should patch `/api/v1/users/me` through a shared store action and sync form state directly from `authStore.user` on load so persisted profile values repopulate after a full reload.
+- Keep patient sharing in the patients module: POST `/api/v1/patients/:patientId/users` accepts a single `identifier` that can be either a user ID or email, duplicate memberships return `409 patient_user_already_linked`, and removing a membership must immediately rely on the same `patient_users` join so future patient reads fall back to `404 patient_not_found`.
+- Keep patient sharing UI behind `src/modules/patients/store.ts`: load/add/remove collaborator actions there and disable self-removal in the overview UI so the current caregiver cannot accidentally revoke their own patient access mid-session.
+- Vue i18n treats raw `@` characters inside locale strings as linked-message syntax, so email examples in translated placeholders or helper copy should avoid literal `@` characters unless they are escaped intentionally.
+- When a patient-owned child relation must reject cross-patient links at the database layer, add a composite foreign key that includes `patient_id` on both sides instead of a bare UUID reference; `prescriptions(patient_id, medication_id) -> medications(patient_id, id)` is the current pattern.
+- If a new patient-owned table needs a composite foreign key back to an older patient-owned table, add `unique (patient_id, id)` on the referenced table in the same migration before declaring the new composite foreign key.
+- For medication APIs, keep linked prescription context read-only and derive it from `prescriptions.medication_id` in the medications module; the medication row stays the source of renewal fields while prescription state remains in the prescriptions table.
+- Keep medication UI in `src/modules/medications/` and let patient overview compose that store with the conditions store; medication forms should edit only medication-owned fields while linked prescriptions render as read-only chips from `medication.linkedPrescriptions`.
+- For medication renewals, link tasks through `tasks.medication_id`; renewal tasks should default their due date from `medications.next_gp_contact_date` when no explicit due date is supplied, and `autoRecurrenceEnabled` must stay opt-in.
+- Keep patient overview teasers lightweight: aggregate medication renewal highlights through `/api/v1/patients/:patientId/overview`, then use an in-page jump into the full medications workspace instead of duplicating another management surface.
+- For document metadata, use a `documents` table with patient ownership plus polymorphic `related_entity_type` and `related_entity_id` fields instead of entity-specific foreign keys; this keeps the schema ready for future `care_event` attachments, so the eventual documents module must validate concrete entity existence and same-patient ownership in application code.
+- Keep document binaries in a configurable filesystem root outside backend build output, and generate dated internal storage paths from an allowlisted MIME-to-extension map instead of the uploaded filename.
+- For document APIs, validate patient access and same-patient related-entity ownership before storing the binary, keep patient-scoped list and upload routes under `/patients/:patientId/documents`, and expose metadata plus downloads separately as `/documents/:documentId` and `/documents/:documentId/download`.
+- Keep patient documents in `src/modules/documents/`; the documents page should compose existing patient child-resource stores to build related-entity labels and selectors, while downloads should use the backend-returned `downloadUrl` directly instead of reconstructing routes in the browser.
+- Keep care events in their own backend module with the same patient-child route split as bookings: list/create under `/patients/:patientId/care-events`, get/update under `/care-events/:careEventId`, and validate optional `taskId` and `bookingId` against the same `patient_id` in the repository before writing.
+- When a patient-context page links back into async sections on `PatientOverviewPage.vue`, keep the URL hash for shareable deep links but re-run `scrollIntoView()` after the overview data finishes loading; router-level hash scrolling alone can fire before task or booking cards mount and silently miss the target.
+- Keep the global caregiver task workspace in the tasks module as a top-level `/tasks` query with high-level `state` filters and embedded patient summary data, rather than adding another patients aggregate route for cross-patient task lists.
+- Keep patient timeline aggregation in the patients module as `/patients/:patientId/timeline`; build it as a union over existing patient-owned tables and normalize each entry to a shared `relatedEntity { type, id }` shape so timeline UIs can navigate without resource-specific parsing.
+- Keep the global `/app/timeline` workspace in the patients frontend module too: load `/api/v1/timeline` through `src/modules/patients/store.ts`, then reuse the same related-entity to route or hash mapping as patient timeline pages instead of inventing cross-patient detail routes.
+- For notification persistence, keep patient reminder preferences in `notification_rules` with a unique `(patient_id, rule_type)` key, and store outbound delivery attempts in `notification_logs` with nullable workflow links plus a status-driven `sent_at` check so pending rows stay unsent while sent and failed rows always carry their delivery timestamp.
+- Keep reminder generation in the backend notifications module as a top-level authenticated job-style route; derive candidates directly from tasks, bookings, and medications, and make the run idempotent by skipping any trigger that already has a pending, sent, or failed notification log.
+- Keep Telegram delivery in the notifications module by reusing pending `notification_logs` as the send queue; persist the Telegram response message id on `notification_logs.external_message_id` and record failures on the same row instead of introducing a second delivery ledger.
+- Keep scheduled reminder or recurrence runs in the notifications module as authenticated job-style routes; recurring task generation should clone completed source tasks only when `auto_recurrence_enabled = true`, preserve recurrence fields on the new task, and stay idempotent by checking for an existing same-window task with the same patient-scoped identity plus next due date.
+- Keep patient notification settings as a patient-context frontend module backed by `/api/v1/patients/:patientId/notifications/settings`; the UI should edit one shared Telegram chat ID plus per-rule toggles or lead times, while the backend fans that payload out to the three `notification_rules` rows.
+- When localizing established shell pages, do not stop at headings and buttons; also move summary-row labels, helper hints, disabled-state guidance, and small metadata prefixes into `src/i18n/*` so browser verification does not leave mixed-language fragments behind.
+- Keep patient notification delivery actions inside `src/modules/notifications/store.ts`; pages should trigger `/api/v1/notifications/deliveries/process` through the store and derive patient-specific feedback from the returned log list instead of making one-off page fetches.
+
+## [2026-03-19 20:15:17 CET] - [US-001]
+Thread: https://ampcode.com/threads/$AMP_CURRENT_THREAD_ID
+- Updated `PATCH /api/v1/users/me` to accept both `fullName` and `preferredLanguage`, map the payload into Better Auth's update handler, and return the refreshed current-user response.
+- Added explicit unauthenticated profile-update coverage and expanded the happy-path app test to verify full name plus preferred language persistence.
+- Files changed: `backend/src/modules/users/index.ts`, `backend/test/app.test.ts`, `backend/AGENTS.md`, `scripts/ralph/prd.json`, `scripts/ralph/progress.txt`
+- **Learnings for future iterations:**
+  - Patterns discovered: the backend exposes app-owned profile fields through `/api/v1/users/me` even when Better Auth owns the underlying user record.
+  - Gotchas encountered: Better Auth expects the core user name field as `name`, so frontend/backend contracts that expose `fullName` must translate before calling `/api/v1/auth/update-user`.
+  - Useful context: backend lint can fail in this environment with `core.autocrlf=true`; keep the backend tree on LF line endings before running `bun run lint`.
+---
+## [2026-03-20 01:05:00 CET] - [US-029]
+Thread: https://ampcode.com/threads/$AMP_CURRENT_THREAD_ID
+- Localized the remaining MVP shell-page stragglers across settings, documents, tasks, and notifications by moving leftover field labels, helper hints, and metadata prefixes into the shared English and Italian locale files.
+- Updated the settings summary card, documents upload form, global tasks task-type prefix, and notifications lead-time disabled helper so the visible shell pages stay consistent after switching the app language.
+- Files changed: `frontend/AGENTS.md`, `frontend/src/i18n/en.ts`, `frontend/src/i18n/it.ts`, `frontend/src/modules/auth/pages/SettingsProfilePage.vue`, `frontend/src/modules/documents/pages/PatientDocumentsPage.vue`, `frontend/src/modules/notifications/pages/NotificationSettingsPage.vue`, `frontend/src/modules/tasks/pages/GlobalTasksPage.vue`, `scripts/ralph/prd.json`, `scripts/ralph/progress.txt`
+- **Learnings for future iterations:**
+  - Patterns discovered: shell-page localization in this codebase should treat helper text and summary metadata as first-class translatable copy, not just primary headings or button labels.
+  - Gotchas encountered: disabled numeric reminder inputs need their explanatory hint localized too, otherwise the notification settings page still shows mixed-language guidance even when the main sections are translated.
+  - Useful context: browser verification switched the live app to Italian and confirmed the new copy on `/app/settings`, `/app/tasks`, `/app/patients/:patientId/documents`, and `/app/patients/:patientId/notifications`; the global `/app/timeline` route still returned a backend `500` from `/api/v1/timeline`, but the page-level labels themselves rendered in Italian before the API failure banner.
+---
+## [2026-03-20 01:01:08 CET] - [US-028]
+Thread: https://ampcode.com/threads/$AMP_CURRENT_THREAD_ID
+- Added patient-scoped notification settings APIs and a frontend notifications module so caregivers can configure Telegram reminder rules from `/app/patients/:patientId/notifications`.
+- Wired the patient shell navigation into the new notifications page, localized the UI in English and Italian, added backend and frontend store coverage, and verified in the browser by saving a Telegram chat ID with overdue, upcoming-booking, and medication-renewal reminders enabled; screenshot saved to `artifacts/us-028-notification-settings-page.png`.
+- Files changed: `backend/AGENTS.md`, `backend/src/modules/notifications/index.ts`, `backend/src/modules/notifications/repository.ts`, `backend/src/modules/notifications/service.ts`, `backend/test/notifications.test.ts`, `frontend/AGENTS.md`, `frontend/src/i18n/en.ts`, `frontend/src/i18n/it.ts`, `frontend/src/layouts/AppLayout.vue`, `frontend/src/modules/notifications/api.ts`, `frontend/src/modules/notifications/pages/NotificationSettingsPage.vue`, `frontend/src/modules/notifications/store.ts`, `frontend/src/modules/notifications/types.ts`, `frontend/src/router/index.ts`, `frontend/test/notification-store.test.ts`, `scripts/ralph/prd.json`, `scripts/ralph/progress.txt`
+- **Learnings for future iterations:**
+  - Patterns discovered: patient notification settings work best as one patient-context form with a shared Telegram chat ID and per-rule toggles or lead times, while the backend persists one `notification_rules` row per reminder type.
+  - Gotchas encountered: Quasar numeric inputs bound with `v-model.number` stay disabled until their reminder toggle is enabled, so browser verification should explicitly flip the toggle before filling lead-time fields.
+  - Useful context: the new patient notifications page is linked from the patient sidebar, not global settings, because reminder rules remain patient-scoped in both docs and backend storage.
+---
+## [2026-03-20 00:32:52 CET] - [US-025]
+Thread: https://ampcode.com/threads/$AMP_CURRENT_THREAD_ID
+- Added a backend notifications module with a reminder-generation service and authenticated job-style endpoint at `POST /api/v1/notifications/reminders/generate`.
+- Implemented reminder candidate generation for overdue tasks, upcoming bookings, and medication renewal contact dates from existing workflow tables, then persisted generated reminders as pending `notification_logs` rows.
+- Added backend coverage for mixed reminder generation, idempotent reruns, blocked-task exclusion, and auth enforcement, then ran `cd backend && bun run typecheck && bun run lint && bun test && bun run db:migrate` successfully.
+- Files changed: `backend/AGENTS.md`, `backend/src/modules/index.ts`, `backend/src/modules/notifications/index.ts`, `backend/src/modules/notifications/repository.ts`, `backend/src/modules/notifications/service.ts`, `backend/test/notifications.test.ts`, `scripts/ralph/prd.json`, `scripts/ralph/progress.txt`
+- **Learnings for future iterations:**
+  - Patterns discovered: reminder generation fits best as a notifications-module aggregate over existing task, booking, and medication tables rather than adding duplicate scheduling state elsewhere.
+  - Gotchas encountered: overdue task reminders should ignore blocked tasks by reusing the same incomplete-dependency check as the tasks workspace, otherwise reminders fire for work the caregiver still cannot act on.
+  - Useful context: idempotency currently keys task and booking reminders off existing `notification_logs` workflow links, while medication renewals reuse the generated message body plus patient and destination because there is no dedicated medication foreign key on the log table yet.
+---
+## [2026-03-19 23:57:00 CET] - [US-021]
+Thread: https://ampcode.com/threads/$AMP_CURRENT_THREAD_ID
+- Added a patient timeline aggregation endpoint at `GET /api/v1/patients/:patientId/timeline` with optional `eventType`, `startDate`, and `endDate` filters.
+- Aggregated timeline items from tasks, medical instructions, prescriptions, bookings, care events, medications, and documents in the patients repository, returning a normalized `relatedEntity` reference for downstream navigation.
+- Added backend coverage for mixed timeline ordering, event-type filtering, date-range filtering, and unauthorized access boundaries, then ran `cd backend && bun run typecheck && bun run lint && bun test` successfully.
+- Files changed: `backend/AGENTS.md`, `backend/src/modules/patients/index.ts`, `backend/src/modules/patients/repository.ts`, `backend/src/modules/patients/service.ts`, `backend/test/patients.test.ts`, `scripts/ralph/prd.json`, `scripts/ralph/progress.txt`
+- **Learnings for future iterations:**
+  - Patterns discovered: patient timeline aggregation fits the existing patients-module aggregate pattern better than introducing a separate backend module for cross-resource history reads.
+  - Gotchas encountered: chronological ordering can interleave different resource types more tightly than the high-level feature list suggests, so timeline assertions should seed explicit timestamps and verify the true sort order rather than assuming one resource family groups ahead of another.
+  - Useful context: timeline items now expose both a stable row `id` (`<type>:<uuid>`) and a `relatedEntity` payload, which gives the next frontend story enough information to render keys separately from navigation targets.
+---
+## [2026-03-19 20:23:53 CET] - [US-002]
+Thread: https://ampcode.com/threads/$AMP_CURRENT_THREAD_ID
+- Centralized locale restoration in the auth store so session restore, sign-out, and explicit language updates all drive the shared i18n locale instead of relying on shell-only watchers.
+- Added frontend assertions that `restoreSession()` and `updatePreferredLanguage()` keep the Vue i18n locale aligned with the profile payload, and normalized the frontend tree with Biome so `typecheck`, `lint`, and `test` all pass.
+- Fixed the backend `/api/v1/users/me` Better Auth proxy to forward a trusted origin header, then added coverage for frontend-dev-server-origin profile updates so preferred language persistence works in the browser.
+- Verified in the browser by signing in through `http://127.0.0.1:9000`, saving Italian, reloading `/app/patients`, and confirming the shell and patient page booted back in Italian.
+- Files changed: `backend/AGENTS.md`, `backend/src/modules/users/index.ts`, `backend/test/app.test.ts`, `frontend/biome.json`, `frontend/env.d.ts`, `frontend/src/boot/auth.ts`, `frontend/src/boot/i18n.ts`, `frontend/src/i18n/en.ts`, `frontend/src/i18n/index.ts`, `frontend/src/i18n/it.ts`, `frontend/src/main.ts`, `frontend/src/modules/auth/api.ts`, `frontend/src/modules/auth/store.ts`, `frontend/src/modules/auth/types.ts`, `frontend/src/modules/bookings/api.ts`, `frontend/src/modules/bookings/store.ts`, `frontend/src/modules/bookings/types.ts`, `frontend/src/modules/conditions/api.ts`, `frontend/src/modules/conditions/store.ts`, `frontend/src/modules/conditions/types.ts`, `frontend/src/modules/instructions/api.ts`, `frontend/src/modules/instructions/store.ts`, `frontend/src/modules/instructions/types.ts`, `frontend/src/modules/patients/api.ts`, `frontend/src/modules/patients/store.ts`, `frontend/src/modules/patients/types.ts`, `frontend/src/modules/prescriptions/api.ts`, `frontend/src/modules/prescriptions/store.ts`, `frontend/src/modules/prescriptions/types.ts`, `frontend/src/modules/tasks/api.ts`, `frontend/src/modules/tasks/store.ts`, `frontend/src/modules/tasks/types.ts`, `frontend/src/router/guards.ts`, `frontend/src/router/index.ts`, `frontend/src/stores/index.ts`, `frontend/test/auth-store.test.ts`, `frontend/test/booking-store.test.ts`, `frontend/test/condition-store.test.ts`, `frontend/test/instruction-store.test.ts`, `frontend/test/patient-store.test.ts`, `frontend/test/prescription-store.test.ts`, `frontend/test/router-guards.test.ts`, `frontend/test/task-store.test.ts`, `frontend/vite.config.ts`, `frontend/vitest.config.ts`, `scripts/ralph/prd.json`, `scripts/ralph/progress.txt`
+- **Learnings for future iterations:**
+  - Patterns discovered: the auth store is the right place to keep Vue i18n locale synchronized with persisted profile state because both boot-time restore and later session refreshes flow through it.
+  - Gotchas encountered: the frontend dev proxy can mask Better Auth origin-check failures until a wrapper route internally calls `authInstance.handler()` without overriding the forwarded origin.
+- Useful context: browser verification used a fresh sign-up account because the flow depends on a real persisted profile update and a full page reload, not just optimistic local locale changes.
+---
+## [2026-03-19 20:30:29 CET] - [US-003]
+Thread: https://ampcode.com/threads/$AMP_CURRENT_THREAD_ID
+- Replaced the `/app/settings` placeholder route with a real profile settings page that shows email, full name, and preferred language, then saves profile edits through the shared auth store and `/api/v1/users/me`.
+- Expanded the auth store to support full current-user updates while keeping locale synchronization centralized, and added test coverage for combined full-name plus language saves.
+- Verified in the browser on `http://127.0.0.1:9000/app/settings` by loading persisted profile values, saving language changes, and reloading to confirm the settings form plus shell locale restored from the saved profile.
+- Files changed: `frontend/AGENTS.md`, `frontend/src/i18n/en.ts`, `frontend/src/i18n/it.ts`, `frontend/src/modules/auth/api.ts`, `frontend/src/modules/auth/pages/SettingsProfilePage.vue`, `frontend/src/modules/auth/store.ts`, `frontend/src/modules/auth/types.ts`, `frontend/src/router/index.ts`, `frontend/test/auth-store.test.ts`, `scripts/ralph/prd.json`, `scripts/ralph/progress.txt`
+- **Learnings for future iterations:**
+  - Patterns discovered: the settings route should remain a thin page that edits profile state through the auth store rather than calling `/api/v1/users/me` directly.
+  - Gotchas encountered: if the settings form tries to preserve local dirtiness before the initial `authStore.user` sync, the editable fields can render blank after a reload even though the summary card has the right data.
+  - Useful context: the browser verification used the existing persisted account and confirmed both the top-nav locale selector and the settings page rehydrate from the same saved profile payload after navigation and reload.
+---
+## [2026-03-19 20:35:46 CET] - [US-004]
+Thread: https://ampcode.com/threads/$AMP_CURRENT_THREAD_ID
+- Added patient sharing backend routes under `/api/v1/patients/:patientId/users` for collaborator listing, adding by email or identifier, and removal with the existing patient access boundary.
+- Extended the patients service and repository to resolve share targets from the Better Auth `user` table, reject duplicate patient-user memberships with a `409`, and revoke access immediately by deleting the `patient_users` link.
+- Added backend coverage for collaborator listing, add-by-email, duplicate rejection, and access revocation after removal.
+- Files changed: `backend/AGENTS.md`, `backend/src/modules/patients/index.ts`, `backend/src/modules/patients/repository.ts`, `backend/src/modules/patients/service.ts`, `backend/test/patients.test.ts`, `scripts/ralph/prd.json`, `scripts/ralph/progress.txt`
+- **Learnings for future iterations:**
+  - Patterns discovered: patient sharing belongs in the patients module and should reuse the same patient-scoped `404 patient_not_found` behavior when the acting user no longer has access.
+  - Gotchas encountered: the share target has to be resolved from Better Auth's `"user"` table, whose primary key is `text`, so patient-sharing repository queries cannot assume UUID user identifiers.
+  - Useful context: the new backend contract returns linked users with `id`, `fullName`, `email`, and `linkedAt`, which is enough for the next UI story to render the sharing list without another backend change.
+---
+## [2026-03-19 20:43:18 CET] - [US-005]
+Thread: https://ampcode.com/threads/$AMP_CURRENT_THREAD_ID
+- Added patient collaborator requests and state to the patients frontend module, then rendered a dedicated sharing card on the patient overview page for listing linked users, adding a collaborator by email or ID, and removing existing collaborators.
+- Kept the current signed-in caregiver visible in the sharing list but disabled self-removal to avoid revoking the active session's own patient access from the UI.
+- Added frontend store coverage for collaborator load/add/remove and verified in the browser on `http://127.0.0.1:9000/app/patients/:patientId/overview` by creating a patient, adding a second account as collaborator, then removing it again with no remaining console errors.
+- Files changed: `frontend/AGENTS.md`, `frontend/src/i18n/en.ts`, `frontend/src/i18n/it.ts`, `frontend/src/modules/patients/api.ts`, `frontend/src/modules/patients/pages/PatientOverviewPage.vue`, `frontend/src/modules/patients/store.ts`, `frontend/src/modules/patients/types.ts`, `frontend/test/patient-store.test.ts`, `scripts/ralph/prd.json`, `scripts/ralph/progress.txt`
+- **Learnings for future iterations:**
+  - Patterns discovered: patient overview should consume collaborator management through the patients store instead of making direct page-level requests.
+  - Gotchas encountered: Vue i18n will treat literal `@` characters inside translated placeholder copy as linked-message syntax, which can break render on the overview page if email examples are used verbatim.
+  - Useful context: the sharing card reuses the standard patient overview banner for backend errors, so duplicate-share and missing-user responses already surface to the user without another notification system.
+---
+## [2026-03-19 20:49:46 CET] - [US-006]
+Thread: https://ampcode.com/threads/$AMP_CURRENT_THREAD_ID
+- Added `0011_medications.sql` to create the `medications` table with patient, optional condition, renewal-tracking fields, and supporting indexes, then linked prescriptions to medications with a composite `(patient_id, medication_id)` foreign key to block cross-patient mismatches.
+- Added migration coverage in `backend/test/migrator.test.ts` and a new DB-backed `backend/test/medications-schema.test.ts` that proves same-patient medication links succeed while cross-patient prescription links fail.
+- Ran `cd backend && bun run typecheck && bun run lint && bun test && bun run db:migrate`; all checks passed and the migration runner applied `0011_medications`.
+- Files changed: `backend/AGENTS.md`, `backend/src/db/migrations/0011_medications.sql`, `backend/test/medications-schema.test.ts`, `backend/test/migrator.test.ts`, `scripts/ralph/prd.json`, `scripts/ralph/progress.txt`
+- **Learnings for future iterations:**
+  - Patterns discovered: when patient ownership must be enforced by the database, composite foreign keys that include `patient_id` are a better fit than plain UUID references.
+  - Gotchas encountered: the existing `prescriptions` table already exposed `medication_id`, so the medication migration had to add the backing table and then alter `prescriptions` afterward rather than redefining the earlier migration.
+  - Useful context: the new schema test uses a temporary PostgreSQL schema and direct inserts, which is the fastest way in this codebase to prove a migration-level integrity rule before any medication repository exists.
+---
+## [2026-03-19 20:59:49 CET] - [US-007]
+Thread: https://ampcode.com/threads/$AMP_CURRENT_THREAD_ID
+- Implemented the new medications backend module with patient-scoped list, create, get, update, and archive routes plus repository and service layers that validate same-patient condition links.
+- Added medication response enrichment so each medication returns `nextGpContactDate` and linked prescription context derived from the prescriptions table, and added `0012_medication_archiving.sql` so medications follow the backend's existing soft-archive pattern.
+- Added integration coverage for medication CRUD, linked prescription context, archive filtering, and cross-patient access rejection, then ran `cd backend && bun run typecheck && bun run lint && bun test && bun run db:migrate`.
+- Files changed: `backend/AGENTS.md`, `backend/src/db/migrations/0012_medication_archiving.sql`, `backend/src/modules/index.ts`, `backend/src/modules/medications/index.ts`, `backend/src/modules/medications/repository.ts`, `backend/src/modules/medications/service.ts`, `backend/test/medications.test.ts`, `backend/test/migrator.test.ts`, `scripts/ralph/prd.json`, `scripts/ralph/progress.txt`
+- **Learnings for future iterations:**
+  - Patterns discovered: medication API responses should aggregate linked prescription summaries read-only from `prescriptions.medication_id` instead of duplicating that workflow state onto the medication record itself.
+  - Gotchas encountered: the temporary-schema medication test must include `0006_medical_instructions.sql` before `0007_tasks.sql`, because the tasks migration still depends on the instructions table even when the medication tests never insert instructions.
+  - Useful context: the medications module mirrors tasks and prescriptions by using `deleted_at` plus `includeArchived=true`, so downstream UI work can treat medication archiving exactly like the existing long-lived patient resources.
+---
+## [2026-03-19 21:10:10 CET] - [US-008]
+Thread: https://ampcode.com/threads/$AMP_CURRENT_THREAD_ID
+- Added a dedicated frontend medications module with typed API helpers, Pinia store actions, and a medication form dialog for patient-scoped create, edit, and archive flows.
+- Composed the medications workspace into `PatientOverviewPage.vue` so patient context now shows renewal fields, condition linkage, and linked prescription chips when present.
+- Added frontend coverage for medication store list/create/update/archive behavior, then ran `cd frontend && bun run typecheck && bun run lint && bun run test`.
+- Verified in the browser on `http://127.0.0.1:9000/app/patients/eda7a481-1069-48b8-9040-d179bc335c69/overview` by adding a condition, creating and editing a medication, seeding one linked prescription in the local DB, reloading, and confirming the medication card rendered both condition and prescription linkage; screenshot saved to `artifacts/us-008-medications-overview.png`.
+- Files changed: `frontend/AGENTS.md`, `frontend/src/i18n/en.ts`, `frontend/src/i18n/it.ts`, `frontend/src/modules/medications/api.ts`, `frontend/src/modules/medications/components/MedicationFormDialog.vue`, `frontend/src/modules/medications/store.ts`, `frontend/src/modules/medications/types.ts`, `frontend/src/modules/patients/pages/PatientOverviewPage.vue`, `frontend/test/medication-store.test.ts`, `scripts/ralph/prd.json`, `scripts/ralph/progress.txt`
+- **Learnings for future iterations:**
+  - Patterns discovered: medication state belongs in its own frontend domain store and should be composed into patient overview instead of expanding the patients store.
+  - Gotchas encountered: browser verification of linked prescription chips required a full page navigation after seeding a prescription directly in the local database; the in-memory page state will not notice external DB writes on its own.
+- Useful context: the live medications endpoint returned linked prescription context immediately once the page reloaded, which confirmed the frontend wiring could trust `linkedPrescriptions` directly from `/api/v1/patients/:patientId/medications`.
+---
+## [2026-03-19 21:18:31 CET] - [US-009]
+Thread: https://ampcode.com/threads/$AMP_CURRENT_THREAD_ID
+- Added `0013_task_medication_links.sql` so tasks can optionally link to medications with a patient-scoped composite foreign key, then extended the tasks API to accept `medicationId` on create and update.
+- Taught renewal-task persistence to default `dueDate` from `medications.next_gp_contact_date` when a `medication_renewal` task has no explicit due date, while keeping `autoRecurrenceEnabled` disabled unless the caller explicitly enables it.
+- Extended medication responses to include active linked `renewalTasks`, and added backend coverage for renewal-task defaults, cross-patient medication-link rejection, and medication response aggregation.
+- Files changed: `backend/AGENTS.md`, `backend/src/db/migrations/0013_task_medication_links.sql`, `backend/src/modules/medications/index.ts`, `backend/src/modules/medications/repository.ts`, `backend/src/modules/medications/service.ts`, `backend/src/modules/tasks/index.ts`, `backend/src/modules/tasks/repository.ts`, `backend/test/medications.test.ts`, `backend/test/migrator.test.ts`, `backend/test/tasks.test.ts`, `scripts/ralph/prd.json`, `scripts/ralph/progress.txt`
+- **Learnings for future iterations:**
+  - Patterns discovered: medication renewal linkage belongs on `tasks.medication_id`, which lets the tasks module stay the source of actionable workflow state while the medications module aggregates linked renewal tasks read-only.
+  - Gotchas encountered: the renewal due-date default should only apply when a renewal task has no explicit due date; once a task already has a due date, later medication links should not overwrite it implicitly.
+  - Useful context: task integration tests now need the medication migrations (`0011`-`0013`) loaded in addition to the base task schema so patient-scoped medication links and due-date defaults are covered in the temporary test schema.
+---
+## [2026-03-19 21:28:24 CET] - [US-010]
+Thread: https://ampcode.com/threads/$AMP_CURRENT_THREAD_ID
+- Extended the patient overview backend payload to include active medication summary rows with the next GP contact date plus the next linked renewal-task signal when one exists.
+- Updated the patient overview UI to show an active-medications metric card, a medication-renewals summary stream, and an `Open medications` jump action that scrolls into the existing medications workspace section.
+- Added backend and frontend coverage for the new overview shape, then ran `cd backend && bun run typecheck && bun run lint && bun test` and `cd frontend && bun run typecheck && bun run lint && bun run test`.
+- Verified in the browser on `http://127.0.0.1:9000/app/patients/969685e1-86e8-42d0-a945-0b69c2c05c54/overview` by creating a medication, confirming the overview summary count and renewal row updated immediately, and confirming `Open medications` scrolled to the full medications section; screenshot saved to `artifacts/us-010-overview-medications.png`.
+- Files changed: `backend/AGENTS.md`, `backend/src/modules/patients/index.ts`, `backend/src/modules/patients/repository.ts`, `backend/test/patients.test.ts`, `frontend/AGENTS.md`, `frontend/src/i18n/en.ts`, `frontend/src/i18n/it.ts`, `frontend/src/modules/patients/pages/PatientOverviewPage.vue`, `frontend/src/modules/patients/types.ts`, `frontend/test/patient-store.test.ts`, `scripts/ralph/prd.json`, `scripts/ralph/progress.txt`
+- **Learnings for future iterations:**
+  - Patterns discovered: patient overview medication data works best as a lightweight aggregate owned by the patients module, while the detailed medication cards and CRUD stay in the medications module below.
+  - Gotchas encountered: when browser verification shows `401` from `/patients/:patientId/overview` or `/patients/:patientId/tasks` while other authenticated routes still work, check whether the local database is missing the latest migrations; in this run `bun run db:migrate` was needed to apply `0013_task_medication_links`.
+  - Useful context: the overview jump action is wired with the `patient-medications-section` anchor, and Playwright confirmed it moves the viewport from `scrollY: 0` to the medications section in one click.
+---
+## [2026-03-19 21:32:12 CET] - [US-011]
+Thread: https://ampcode.com/threads/$AMP_CURRENT_THREAD_ID
+- Added `0014_documents.sql` to create document metadata persistence with patient ownership, polymorphic related-entity references, safe stored filename metadata, uploader tracking, and supporting indexes.
+- Added migration assertions plus a new DB-backed `backend/test/documents-schema.test.ts` suite covering instruction-linked documents, future-ready `care_event` references, and constraint failures for zero-byte metadata and missing uploaders.
+- Ran `cd backend && bun run typecheck && bun run lint && bun test && bun run db:migrate`; all checks passed and the migration runner applied `0014_documents`.
+- Files changed: `backend/AGENTS.md`, `backend/src/db/migrations/0014_documents.sql`, `backend/test/documents-schema.test.ts`, `backend/test/migrator.test.ts`, `scripts/ralph/prd.json`, `scripts/ralph/progress.txt`
+- **Learnings for future iterations:**
+  - Patterns discovered: documents should use `related_entity_type` plus `related_entity_id` for workflow linkage so metadata can represent future `care_event` attachments without waiting for that table to exist.
+  - Gotchas encountered: Better Auth still owns the `"user"` table with `text` IDs, so document uploader references must stay `text` too even though many app tables use UUIDs.
+  - Useful context: the schema test applies `0010_bookings.sql` and `0011_medications.sql` before `0014_documents.sql` so future entity-type attachments already exist in the temporary test schema when document metadata coverage expands.
+---
+## [2026-03-19 21:36:15 CET] - [US-012]
+Thread: https://ampcode.com/threads/$AMP_CURRENT_THREAD_ID
+- Added a reusable backend document storage service with a configurable filesystem root outside compiled output, dated generated storage paths, path-traversal protection, and on-disk writes plus reads for future document APIs.
+- Restricted stored uploads to an allowlisted set of safe MIME types and derived the on-disk extension from that MIME map so storage never trusts the original filename.
+- Added focused backend tests for storage-root config resolution, allowed MIME persistence, unsafe MIME rejection, and path traversal rejection, then ran `cd backend && bun run typecheck && bun run lint && bun test && bun run db:migrate`.
+- Files changed: `backend/AGENTS.md`, `backend/src/config/env.ts`, `backend/src/modules/documents/storage.ts`, `backend/test/document-storage.test.ts`, `scripts/ralph/prd.json`, `scripts/ralph/progress.txt`
+- **Learnings for future iterations:**
+  - Patterns discovered: the documents module can own filesystem concerns through a small storage service that takes an injectable root directory, which keeps upcoming upload and download API tests off the real development storage path.
+  - Gotchas encountered: the safest storage-path contract here is to generate `YYYY/MM/DD/<uuid>.<ext>` from MIME type alone; even preserving a sanitized user filename would reopen collision and trust problems that the docs explicitly reject.
+  - Useful context: `DOCUMENTS_STORAGE_ROOT` now resolves to an absolute path and defaults to `../data/documents` from the backend working directory, so future routes can write files without coupling to `src/` or any build artifact folder.
+---
+## [2026-03-19 21:44:28 CET] - [US-013]
+Thread: https://ampcode.com/threads/$AMP_CURRENT_THREAD_ID
+- Added a backend documents module with patient-scoped upload and list routes plus metadata and binary download routes, all mounted under `/api/v1`.
+- Implemented repository and service validation so uploads require current patient access, reject cross-patient related-entity links, persist document metadata, and read binaries back from the shared storage service.
+- Added integration coverage for multipart upload, document listing, metadata retrieval, download responses, cross-patient access rejection, and unsupported MIME uploads, then ran `cd backend && bun run typecheck && bun run lint && bun test && bun run db:migrate`.
+- Files changed: `backend/AGENTS.md`, `backend/src/modules/documents/index.ts`, `backend/src/modules/documents/repository.ts`, `backend/src/modules/documents/service.ts`, `backend/src/modules/documents/storage.ts`, `backend/src/modules/index.ts`, `backend/test/documents.test.ts`, `scripts/ralph/prd.json`, `scripts/ralph/progress.txt`
+- **Learnings for future iterations:**
+  - Patterns discovered: document uploads fit the standard backend split cleanly when the route parses multipart input, the service owns file persistence, and the repository owns same-patient entity validation plus metadata writes.
+  - Gotchas encountered: `INSERT ... RETURNING` statements cannot reuse `SELECT` aliases like `d.column`, so document repositories need separate returning and select column lists when they share mapping logic.
+  - Useful context: the document API now returns `downloadUrl` in metadata payloads, which is enough for the upcoming frontend documents page to list files and trigger downloads without constructing route paths manually.
+---
+## [2026-03-19 21:53:13 CET] - [US-014]
+Thread: https://ampcode.com/threads/$AMP_CURRENT_THREAD_ID
+- Added a dedicated frontend documents module with typed API helpers, a Pinia store, and a real patient-context documents page at `/app/patients/:patientId/documents`.
+- Wired the patient shell and overview header into the new documents route, added localized upload and list copy, and rendered uploaded files with type, uploaded date, linked-record metadata, and direct download actions.
+- Added frontend store coverage for document listing and multipart upload handling, then ran `cd frontend && bun run typecheck && bun run lint && bun run test`.
+- Verified in the browser on `http://127.0.0.1:9000/app/patients/969685e1-86e8-42d0-a945-0b69c2c05c54/documents` by uploading `artifacts/us-014-upload.pdf`, confirming the new row rendered linked patient metadata, and confirming the download link returned a real file; screenshot saved to `artifacts/us-014-documents-page.png`.
+- Files changed: `frontend/AGENTS.md`, `frontend/src/i18n/en.ts`, `frontend/src/i18n/it.ts`, `frontend/src/layouts/AppLayout.vue`, `frontend/src/modules/documents/api.ts`, `frontend/src/modules/documents/pages/PatientDocumentsPage.vue`, `frontend/src/modules/documents/store.ts`, `frontend/src/modules/documents/types.ts`, `frontend/src/modules/patients/pages/PatientOverviewPage.vue`, `frontend/src/router/index.ts`, `frontend/test/document-store.test.ts`, `scripts/ralph/prd.json`, `scripts/ralph/progress.txt`
+- **Learnings for future iterations:**
+  - Patterns discovered: patient documents work best as their own frontend domain module, with patient-context routing and state isolated from the broader patients store.
+  - Gotchas encountered: browser verification writes a real file into the backend `DOCUMENTS_STORAGE_ROOT`, so clean up the generated `data/documents/...` artifact after the upload test to avoid polluting the worktree.
+- Useful context: the page can rely on the backend's `downloadUrl` directly, and the current linked-record picker is built from patient, instruction, prescription, booking, and medication store state without another backend endpoint.
+---
+## [2026-03-19 22:06:41 CET] - [US-015]
+Thread: https://ampcode.com/threads/$AMP_CURRENT_THREAD_ID
+- Added a reusable related-documents panel plus document-link filtering helpers, then surfaced linked-document sections on instruction detail and inside the existing prescription and booking views on patient overview.
+- Added inline workflow-scoped upload on the instruction detail page so caregivers can attach a document without leaving the detail view, and fixed the documents page helper initialization order so related-entity options still load during immediate page setup.
+- Added frontend coverage for related-entity document filtering, ran `cd frontend && bun run typecheck && bun run lint && bun run test`, and verified in the browser that instruction, prescription, and booking documents render correctly; screenshots saved to `artifacts/us-015-instruction-detail-documents.png` and `artifacts/us-015-overview-linked-documents.png`.
+- Files changed: `frontend/AGENTS.md`, `frontend/src/i18n/en.ts`, `frontend/src/i18n/it.ts`, `frontend/src/modules/documents/components/RelatedDocumentsPanel.vue`, `frontend/src/modules/documents/pages/PatientDocumentsPage.vue`, `frontend/src/modules/documents/utils.ts`, `frontend/src/modules/instructions/pages/PatientInstructionDetailPage.vue`, `frontend/src/modules/patients/pages/PatientOverviewPage.vue`, `frontend/test/document-utils.test.ts`, `scripts/ralph/prd.json`, `scripts/ralph/progress.txt`
+- **Learnings for future iterations:**
+  - Patterns discovered: linked workflow documents fit cleanly as a small documents-module component fed by `documentsStore.documents` filtered by `(relatedEntityType, relatedEntityId)`, which lets overview cards and detail routes share the same rendering path.
+  - Gotchas encountered: the patient documents page had a runtime TDZ bug because a top-level computed touched helper arrows declared later in `script setup`; immediate watchers triggered that path before those `const` helpers initialized.
+- Useful context: browser verification used the existing `US010 Patient` workspace, uploaded instruction and overview-linked files from the UI, and confirmed prescription plus booking cards now show live download links directly in patient overview.
+---
+## [2026-03-19 22:13:12 CET] - [US-016]
+Thread: https://ampcode.com/threads/$AMP_CURRENT_THREAD_ID
+- Added `0015_care_events.sql` to create the `care_events` table with patient ownership, event type, completed timestamp, optional provider and facility context, outcome notes, and optional task or booking links.
+- Enforced same-patient task and booking references at the database layer by adding composite foreign keys from `care_events` and the supporting `unique (patient_id, id)` constraints needed on `tasks` and `bookings`.
+- Added migration coverage in `backend/test/migrator.test.ts` and a new DB-backed `backend/test/care-events-schema.test.ts` that proves valid care-event inserts, document-link compatibility, and cross-patient task or booking rejection.
+- Ran `cd backend && bun run typecheck && bun run lint && bun test && bun run db:migrate`; all checks passed and the migration runner applied `0015_care_events`.
+- Files changed: `backend/AGENTS.md`, `backend/src/db/migrations/0015_care_events.sql`, `backend/test/care-events-schema.test.ts`, `backend/test/migrator.test.ts`, `scripts/ralph/prd.json`, `scripts/ralph/progress.txt`
+- **Learnings for future iterations:**
+  - Patterns discovered: when a new patient-owned table needs composite same-patient links back to older tables, add `unique (patient_id, id)` to those referenced tables in the same migration before declaring the composite foreign keys.
+  - Gotchas encountered: the existing documents schema already modeled `related_entity_type = 'care_event'` before the `care_events` table existed, so the care-event schema story only needed compatibility validation rather than a documents migration change.
+  - Useful context: the new schema test applies `0014_documents.sql` before `0015_care_events.sql` and inserts a real `documents` row pointing at a persisted care event, which is the quickest regression check for document-link compatibility ahead of the upcoming care-events API work.
+---
+## [2026-03-19 22:19:00 CET] - [US-017]
+Thread: https://ampcode.com/threads/$AMP_CURRENT_THREAD_ID
+- Added the backend `care-events` module with patient-scoped list and create routes plus care-event get and update routes, all mounted under `/api/v1`.
+- Implemented repository-level same-patient validation for optional linked task and booking records, facility existence checks, and service-level access errors so inaccessible resources still return the expected `404` boundary.
+- Added `backend/test/care-events.test.ts` to cover unauthenticated access, create/list/get/update flows, cross-patient task or booking rejection, and inaccessible reads, then ran `cd backend && bun run typecheck && bun run lint && bun test && bun run db:migrate`.
+- Files changed: `backend/AGENTS.md`, `backend/src/modules/care-events/index.ts`, `backend/src/modules/care-events/repository.ts`, `backend/src/modules/care-events/service.ts`, `backend/src/modules/index.ts`, `backend/test/care-events.test.ts`, `scripts/ralph/prd.json`, `scripts/ralph/progress.txt`
+- **Learnings for future iterations:**
+  - Patterns discovered: care events fit the same backend shape as bookings and tasks, with patient-child list/create routes, resource-id get/update routes, and repository-owned validation of optional same-patient foreign keys.
+  - Gotchas encountered: invalid linked records during `PATCH /care-events/:careEventId` surface as `404 care_event_not_found`, because the repository resolves the care event first and then applies same-patient link validation inside the update path.
+  - Useful context: the dedicated API test schema needs `0014_documents.sql` applied before `0015_care_events.sql`, matching the existing expectation that documents already recognize `related_entity_type = 'care_event'`.
+---
+## [2026-03-19 22:30:13 CET] - [US-018]
+Thread: https://ampcode.com/threads/$AMP_CURRENT_THREAD_ID
+- Added a new frontend `care-events` domain module with typed API helpers, a Pinia store, a care-event form dialog, and a real patient-context page at `/app/patients/:patientId/care-events`.
+- Wired the patient shell sidebar into the new care-events workspace, localized the new UI in English and Italian, and added task and booking deep links back into overview by giving those overview cards stable hash anchors.
+- Fixed patient overview hash scrolling so async task and booking sections still resolve after navigation, added store coverage in `frontend/test/care-event-store.test.ts`, ran `cd frontend && bun run typecheck && bun run lint && bun run test`, and verified in the browser on `http://127.0.0.1:9000` by creating a linked care event for `US010 Patient`; screenshot saved to `artifacts/us-018-care-events-page.png`.
+- Files changed: `frontend/AGENTS.md`, `frontend/src/i18n/en.ts`, `frontend/src/i18n/it.ts`, `frontend/src/layouts/AppLayout.vue`, `frontend/src/modules/care-events/api.ts`, `frontend/src/modules/care-events/components/CareEventFormDialog.vue`, `frontend/src/modules/care-events/pages/PatientCareEventsPage.vue`, `frontend/src/modules/care-events/store.ts`, `frontend/src/modules/care-events/types.ts`, `frontend/src/modules/patients/pages/PatientOverviewPage.vue`, `frontend/src/router/index.ts`, `frontend/test/care-event-store.test.ts`, `scripts/ralph/prd.json`, `scripts/ralph/progress.txt`
+- **Learnings for future iterations:**
+  - Patterns discovered: care events fit the same frontend shape as other patient child resources, with a dedicated domain store and page under `/app/patients/:patientId/...` while patient overview stays the target for cross-resource anchors.
+  - Gotchas encountered: Vue Router hash scrolling can miss task or booking anchors when the overview DOM depends on async store loads, so deep links need a second `scrollIntoView()` pass from the page after `loadPage()` completes.
+  - Useful context: browser verification reused the existing `US010 Patient` fixture, created a linked care event from the new page, and confirmed both task and booking buttons navigate back to `overview#...` anchors without router warnings after the timing fix.
+---
+## [2026-03-19 22:35:52 CET] - [US-019]
+Thread: https://ampcode.com/threads/$AMP_CURRENT_THREAD_ID
+- Added an authenticated top-level `/api/v1/tasks` query in the tasks module so caregivers can load task rows across every accessible patient from one backend workspace endpoint.
+- Implemented high-level global task filters for `pending`, `blocked`, `overdue`, `upcoming`, and `completed`, while returning nested patient summary data alongside each mapped task for later workspace navigation.
+- Added backend coverage for shared-patient access, global filter semantics, blocked-task derivation, and patient context in the response, then ran `cd backend && bun run typecheck && bun run lint && bun test`.
+- Files changed: `backend/AGENTS.md`, `backend/src/modules/tasks/index.ts`, `backend/src/modules/tasks/repository.ts`, `backend/src/modules/tasks/service.ts`, `backend/test/tasks.test.ts`, `scripts/ralph/prd.json`, `scripts/ralph/progress.txt`
+- **Learnings for future iterations:**
+  - Patterns discovered: cross-patient task workspaces should stay in the tasks module as a top-level authenticated query instead of extending the patients module with another aggregate endpoint.
+  - Gotchas encountered: with `exactOptionalPropertyTypes` enabled, optional route-filter fields such as `state` must be conditionally spread into service inputs instead of passed as `undefined`.
+  - Useful context: the global task response now returns `{ patient, task }` entries, and the current `pending` filter intentionally overlaps with `upcoming` for future-dated raw `pending` tasks so the upcoming workspace can stay broader than a raw-status slice.
+---
+## [2026-03-19 22:45:58 CET] - [US-020]
+Thread: https://ampcode.com/threads/$AMP_CURRENT_THREAD_ID
+- Replaced the `/app/tasks` placeholder with a real global task workspace page backed by the tasks module, including task-state filtering, local patient-name filtering, patient grouping, and navigation back into patient overview task cards.
+- Extended the tasks frontend API and store with a dedicated `/api/v1/tasks` global query path, then added quick cross-patient task actions so completed work can be toggled directly from the workspace.
+- Fixed a runtime bug discovered during browser verification where clearing the patient filter crashed the page because `q-input clearable` emitted `null`, then reran `cd frontend && bun run typecheck && bun run lint && bun run test`.
+- Verified in the browser on `http://127.0.0.1:9000/app/tasks` by loading two patient groups, filtering by patient, clearing the filter without errors, marking one task complete, filtering by `Completed`, and navigating back to the related overview task card; screenshot saved to `artifacts/us-020-global-tasks-page.png`.
+- Files changed: `frontend/AGENTS.md`, `frontend/src/i18n/en.ts`, `frontend/src/i18n/it.ts`, `frontend/src/modules/tasks/api.ts`, `frontend/src/modules/tasks/pages/GlobalTasksPage.vue`, `frontend/src/modules/tasks/store.ts`, `frontend/src/modules/tasks/types.ts`, `frontend/src/router/index.ts`, `frontend/test/task-store.test.ts`, `scripts/ralph/prd.json`, `scripts/ralph/progress.txt`
+- **Learnings for future iterations:**
+  - Patterns discovered: the global `/app/tasks` page should stay thin and compose the tasks store's top-level `/api/v1/tasks` query rather than building another cross-patient store elsewhere.
+  - Gotchas encountered: clearing a Quasar `q-input clearable` search box can set the model to `null`, so computed filters cannot assume `.trim()` is always safe on the bound value.
+  - Useful context: the workspace currently uses patient overview hash links (`/overview#task-<id>`) as the default task-detail navigation path, while linked instructions can still route directly to `/app/patients/:patientId/instructions/:instructionId`.
+---
+
+## [2026-03-20 00:20:00 CET] - [US-022]
+Thread: https://ampcode.com/threads/$AMP_CURRENT_THREAD_ID
+- Replaced the patient timeline placeholder with a real patient-context timeline page at `/app/patients/:patientId/timeline`, backed by the patients store and the existing `/api/v1/patients/:patientId/timeline` aggregate endpoint.
+- Added typed patient timeline API and store support, localized filter and event-type labels in English and Italian, and wired timeline navigation back into existing overview anchors or instruction detail routes instead of creating duplicate detail pages.
+- Added frontend coverage for patient timeline store loading, ran `cd frontend && bun run typecheck && bun run lint && bun run test`, and attempted browser verification; the local frontend proxy currently returns `502` from `/api/v1/auth/session`, so UI verification is blocked until the dev backend/auth stack is reachable.
+- Files changed: `frontend/AGENTS.md`, `frontend/src/i18n/en.ts`, `frontend/src/i18n/it.ts`, `frontend/src/layouts/AppLayout.vue`, `frontend/src/modules/patients/api.ts`, `frontend/src/modules/patients/pages/PatientTimelinePage.vue`, `frontend/src/modules/patients/store.ts`, `frontend/src/modules/patients/types.ts`, `frontend/src/router/index.ts`, `frontend/test/patient-store.test.ts`, `scripts/ralph/prd.json`, `scripts/ralph/progress.txt`
+- **Learnings for future iterations:**
+  - Patterns discovered: patient timeline UI fits the existing patients-module aggregate pattern best when the patients store owns `/patients/:patientId/timeline` and the page only handles filtering plus route navigation.
+  - Gotchas encountered: browser verification for protected frontend stories depends on the local auth session endpoint being reachable through the Vite proxy; when `/api/v1/auth/session` returns `502`, Playwright gets redirected to sign-in before any patient page can be exercised.
+- Useful context: the timeline page maps normalized `relatedEntity.type` values back into existing routes and overview hashes (`task`, `prescription`, `booking`, `care_event`, `medication`, `document`, `medical_instruction`) so future global timeline work can reuse the same navigation table.
+---
+
+## [2026-03-20 00:25:00 CET] - [US-023]
+Thread: https://ampcode.com/threads/$AMP_CURRENT_THREAD_ID
+- Replaced the `/app/timeline` placeholder with a real global timeline workspace page that loads a top-level `/api/v1/timeline` feed through the patients store, groups entries by patient, and supports patient-name, event-type, and date-range filtering.
+- Added global timeline API and store typing, localized the new workspace in English and Italian, wired the router to the new page, and reused the existing patient timeline related-entity navigation mapping so items open the correct patient overview anchor or instruction detail route.
+- Added frontend coverage for loading and sorting the global timeline feed, ran `cd frontend && bun run typecheck && bun run lint && bun run test`, and attempted browser verification; the local frontend proxy still returns `502` from `/api/v1/auth/session`, so Playwright is redirected to sign-in before the protected timeline route can be exercised. Screenshot saved to `artifacts/us-023-global-timeline-auth-blocked.png` and console log saved to `artifacts/us-023-playwright-console.log`.
+- Files changed: `frontend/AGENTS.md`, `frontend/src/i18n/en.ts`, `frontend/src/i18n/it.ts`, `frontend/src/modules/patients/api.ts`, `frontend/src/modules/patients/pages/GlobalTimelinePage.vue`, `frontend/src/modules/patients/store.ts`, `frontend/src/modules/patients/types.ts`, `frontend/src/router/index.ts`, `frontend/test/patient-store.test.ts`, `scripts/ralph/prd.json`, `scripts/ralph/progress.txt`
+- **Learnings for future iterations:**
+  - Patterns discovered: the global timeline workspace fits the same patients-module aggregate pattern as patient timeline, with store-owned feed loading and page-owned local filtering or grouping.
+  - Gotchas encountered: browser verification for protected global pages fails the same way as patient timeline when the local `/api/v1/auth/session` proxy returns `502`, so Playwright reaches sign-in even though the frontend route itself is wired correctly.
+  - Useful context: the global timeline page now assumes backend entries include a nested `patient { id, fullName }` object in addition to the normalized timeline fields, and it sorts newest-first before grouping by patient for display stability.
+---
+## [2026-03-20 00:32:06 CET] - [US-024]
+Thread: https://ampcode.com/threads/$AMP_CURRENT_THREAD_ID
+- Added `0016_notifications.sql` with `notification_rules` and `notification_logs` persistence, including Telegram-only channel and pending/sent/failed delivery status enums, patient-level unique rule keys, and a status-aware `sent_at` check constraint.
+- Extended backend config parsing with `NOTIFICATION_LOG_RETENTION_DAYS` defaults for upcoming notification workflows, and added coverage for migration contents, env parsing, and DB-level notification schema behavior in a dedicated schema test.
+- Ran `cd backend && bun run typecheck && bun run lint && bun test && bun run db:migrate`; all checks passed and the migration runner applied the notifications schema cleanly.
+- Files changed: `backend/AGENTS.md`, `backend/src/config/env.ts`, `backend/src/db/migrations/0016_notifications.sql`, `backend/test/env.test.ts`, `backend/test/migrator.test.ts`, `backend/test/notifications-schema.test.ts`, `scripts/ralph/prd.json`, `scripts/ralph/progress.txt`
+- **Learnings for future iterations:**
+  - Patterns discovered: notification persistence should split patient-owned reminder preferences from outbound delivery attempts, using `notification_rules` for per-patient configuration and `notification_logs` for task or booking-linked send history.
+  - Gotchas encountered: the notifications schema depends on the bookings migration, which in turn depends on conditions and tasks, so temp-schema tests must apply `0005_conditions.sql`, `0007_tasks.sql`, `0009_prescriptions.sql`, and `0010_bookings.sql` before `0016_notifications.sql`.
+  - Useful context: `notification_logs` now enforces `sent_at` only for `sent` and `failed` rows, which gives the next reminder-generation and Telegram-delivery stories a clean contract for pending queue rows versus completed delivery attempts.
+---
+## [2026-03-20 00:48:33 CET] - [US-026]
+Thread: https://ampcode.com/threads/$AMP_CURRENT_THREAD_ID
+- Added Telegram delivery processing to the backend notifications module with a new authenticated `POST /api/v1/notifications/deliveries/process` route, a Telegram client wrapper, and service logic that sends pending notification logs then marks each row as `sent` or `failed`.
+- Added `0017_notification_delivery_tracking.sql` so `notification_logs` can store Telegram `external_message_id`, extended notification config with `TELEGRAM_BOT_TOKEN` and `TELEGRAM_API_BASE_URL`, and updated repository methods to load pending logs plus persist delivery outcomes on the same queue rows.
+- Added focused backend coverage for delivery success, failure persistence, migration contents, env parsing, and notification schema behavior, then ran `cd backend && bun run typecheck && bun run lint && bun test test/notifications.test.ts test/notifications-schema.test.ts test/migrator.test.ts && bun run db:migrate` successfully.
+- Files changed: `backend/AGENTS.md`, `backend/src/config/env.ts`, `backend/src/db/migrations/0017_notification_delivery_tracking.sql`, `backend/src/modules/notifications/index.ts`, `backend/src/modules/notifications/repository.ts`, `backend/src/modules/notifications/service.ts`, `backend/src/modules/notifications/telegram.ts`, `backend/test/env.test.ts`, `backend/test/migrator.test.ts`, `backend/test/notifications-schema.test.ts`, `backend/test/notifications.test.ts`, `scripts/ralph/prd.json`, `scripts/ralph/progress.txt`
+- **Learnings for future iterations:**
+  - Patterns discovered: Telegram sends should reuse `notification_logs` as the durable queue and update the same row after each attempt, which keeps reminder generation and delivery idempotency centered on one table.
+  - Gotchas encountered: delivery tracking needs a follow-up migration for `external_message_id`; once repository `RETURNING` or `SELECT` lists mention a new column, the temp-schema tests must apply that migration too or the route will fail with a PostgreSQL missing-column error that can look like an auth failure if the handler catches broadly.
+  - Useful context: the delivery route currently marks configuration problems such as a missing `TELEGRAM_BOT_TOKEN` as failed log rows with the error message, so future scheduled-job work can call the route safely without crashing the whole batch.
+---
+## [2026-03-20 00:52:47 CET] - [US-027]
+Thread: https://ampcode.com/threads/$AMP_CURRENT_THREAD_ID
+- Added an authenticated scheduled-job endpoint at `POST /api/v1/notifications/jobs/run` that executes recurring-task generation and reminder generation together through the notifications module.
+- Implemented recurring-task creation from completed source tasks with `auto_recurrence_enabled = true`, preserving recurrence settings on the new task while skipping duplicate same-window rows and ignoring tasks where automatic recurrence is disabled.
+- Added backend coverage for combined job runs, disabled auto-recurrence, repeated same-window runs, and auth enforcement, then ran `cd backend && bun run typecheck && bun run lint && bun test && bun run db:migrate` successfully.
+- Files changed: `backend/AGENTS.md`, `backend/src/modules/notifications/index.ts`, `backend/src/modules/notifications/repository.ts`, `backend/src/modules/notifications/service.ts`, `backend/test/notifications.test.ts`, `scripts/ralph/prd.json`, `scripts/ralph/progress.txt`
+- **Learnings for future iterations:**
+  - Patterns discovered: scheduled reminder and recurrence orchestration fits the notifications module best as a job-style route that coordinates existing workflow tables without introducing a second recurrence state store.
+  - Gotchas encountered: recurring-task SQL now reads `tasks.medication_id`, so temp-schema notification tests must include `0013_task_medication_links.sql` before hitting the job route or the failure can surface as a generic unauthorized response from the route wrapper.
+  - Useful context: the idempotency check currently keys recurring clones by patient plus task identity fields (`title`, `task_type`, optional linked records) and the computed next due date, which is enough for repeated same-window runs without adding another migration.
+---
+## [2026-03-20 01:05:13 CET] - [US-030]
+Thread: https://ampcode.com/threads/$AMP_CURRENT_THREAD_ID
+- Documented the supported backend verification workflow in `backend/README.md`, clarifying that the full `bun test` suite mixes memory-only tests with PostgreSQL-backed temporary-schema integration tests.
+- Preserved the reusable testing constraint in `backend/AGENTS.md`: local full-suite runs should start the backend Postgres service and apply migrations before treating `bun test` as a reliable signal.
+- Ran `cd backend && bun run typecheck && bun run lint && bun test && bun run db:migrate`; all checks passed, with migrations already up to date.
+- Files changed: `backend/AGENTS.md`, `backend/README.md`, `scripts/ralph/prd.json`, `scripts/ralph/progress.txt`
+- **Learnings for future iterations:**
+  - Patterns discovered: the backend test workflow is intentionally split between in-memory auth coverage and PostgreSQL integration coverage, so the repository's dependable local path is `docker compose up -d`, `bun run db:migrate`, then the normal quality commands.
+  - Gotchas encountered: a combined `typecheck && lint && test && db:migrate` shell can hit the tool timeout even when the checks themselves pass, so long backend verification should be rerun with a higher timeout before assuming a failure.
+- Useful context: the database-backed tests isolate themselves with temporary schemas, but they still target the database from `DATABASE_URL`, so that local database must exist even though the tests do not reuse the app schema directly.
+---
+## [2026-03-20 01:15:30 CET] - [US-031]
+Thread: https://ampcode.com/threads/$AMP_CURRENT_THREAD_ID
+- Verified the documented MVP journey in the live app by exercising patient overview, patient timeline, and patient notification settings on the seeded `US010 Patient` workspace, then added a notification delivery action in the notifications UI so reminder processing can be triggered without leaving the app.
+- Extended the notifications frontend API and store with delivery-processing support, added localized feedback for processed-versus-empty reminder runs, documented the reusable store-level pattern in `frontend/AGENTS.md`, and added frontend coverage for the new delivery action.
+- Files changed: `frontend/AGENTS.md`, `frontend/src/i18n/en.ts`, `frontend/src/i18n/it.ts`, `frontend/src/modules/notifications/api.ts`, `frontend/src/modules/notifications/pages/NotificationSettingsPage.vue`, `frontend/src/modules/notifications/store.ts`, `frontend/test/notification-store.test.ts`, `scripts/ralph/prd.json`, `scripts/ralph/progress.txt`
+- **Learnings for future iterations:**
+  - Patterns discovered: notification delivery actions should stay behind the notifications store, with page-level feedback derived from the returned processed-log payload rather than page-owned fetch logic.
+  - Gotchas encountered: browser verification can pass the notification delivery leg with a valid in-app trigger even when the queue is currently empty, but the UI must make that state explicit so an end-to-end workflow run does not look broken.
+  - Useful context: Playwright verified the full slice on `/app/patients/969685e1-86e8-42d0-a945-0b69c2c05c54/overview`, `/app/patients/969685e1-86e8-42d0-a945-0b69c2c05c54/timeline`, and `/app/patients/969685e1-86e8-42d0-a945-0b69c2c05c54/notifications`; screenshot saved to `artifacts/us-031-mvp-workflow.png` and the final notification-page snapshot is in `artifacts/us-031-notifications-after-fix.md`.
+---

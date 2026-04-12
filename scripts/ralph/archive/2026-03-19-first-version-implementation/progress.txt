@@ -1,0 +1,287 @@
+# Ralph Progress Log
+Started: Thu Mar 19 02:15:27 CET 2026
+## Codebase Patterns
+- Run backend quality checks from `backend/` with `bun run typecheck`, `bun run lint`, and `bun test`.
+- Keep shared Elysia setup in `backend/src/app.ts`, register domain routes through `backend/src/modules/index.ts`, and keep `backend/src/server.ts` limited to bootstrapping the process.
+- Keep backend database wiring lazy: parse DB env in `backend/src/config/env.ts`, create the client in `backend/src/db/client.ts`, and run SQL files from `backend/src/db/migrations/` so automated tests do not need a live PostgreSQL instance.
+- The SQL migration runner executes each migration with PostgreSQL `search_path` set to `DATABASE_SCHEMA`, so unqualified tables should be written for the configured app schema instead of `public`.
+- Better Auth currently stores authenticated user IDs as `text` in the `"user"` table, so app-owned foreign keys to users must use `text` references unless the auth schema is changed first.
+- Database-backed repositories should accept an explicit schema name and use schema-qualified table names so isolated test schemas can exercise real SQL without mutating the default development schema.
+- Shared backend config must work under both Bun and Node because the Better Auth CLI loads `src/auth/` config outside the Bun runtime.
+- App-specific user fields belong on Better Auth's `user.additionalFields`; add the matching SQL migration column and expose reads/writes through `/api/v1/users/me` instead of duplicating auth-owned user persistence elsewhere.
+- For patient-owned child backend resources, keep list/create routes nested under `/patients/:patientId/...`, keep child mutations on `/<resource>/:resourceId`, and authorize both through `patient_users` joins that return `404` for inaccessible patient or child records.
+- Keep frontend auth requests on relative `/api/v1/auth/*` URLs with `credentials: "include"` and let the frontend dev server proxy `/api` to the backend so cookie-backed sessions behave the same in browser verification and local development.
+- Run frontend quality checks from `frontend/` with `bun run typecheck`, `bun run lint`, and `bun run test`; use `bun run build` when touching Quasar/Vite config or styling setup.
+- Keep public auth routes under `/auth`, protected shell routes under `/app`, and centralize access rules in `frontend/src/router/guards.ts` instead of duplicating checks in pages.
+- Keep frontend labels in `frontend/src/i18n/` from the start; Biome currently lints TypeScript and config files while `vue-tsc` covers Vue SFC safety.
+- The frontend auth store now owns authenticated profile hydration: restore `/api/v1/auth/session` first, then fetch `/api/v1/users/me` so shell components can rely on app-specific user fields such as `preferredLanguage`.
+- Patient-context frontend screens should route through `/app/patients/:patientId/...` and derive shell overview links from the active route params so the same shell can navigate correctly after create and open actions.
+- Keep patient-owned child resources in their own frontend domain modules and stores, then compose them inside patient overview pages instead of turning the patients store into a catch-all workspace store.
+- Preserve doctor-authored narrative fields such as medical instruction `original_notes` exactly as submitted; trim optional metadata fields separately so filters and labels stay normalized without mutating the clinical note text.
+- For patient-owned child resources that need both list filtering and deeper narrative review, keep filtered list state in a domain store, compose the list into the patient overview, and add a dedicated `/app/patients/:patientId/<resource>/:resourceId` detail route for the full record.
+- For patient-owned child records with optional references to other patient-owned records, validate those links against the same `patient_id` in the repository layer; plain foreign keys do not stop cross-patient UUID mismatches.
+- For tasks, keep stored workflow status separate from derived blocked state: compute incomplete prerequisite IDs in the repository, expose them in API responses, and reject dependency additions that would create cross-patient or circular graphs.
+- On the frontend, task editors must treat `/api/v1/tasks/:taskId` and `/api/v1/tasks/:taskId/status` as separate writes, because the backend derives `completedAt` and enforces blocked-task completion rules through the dedicated status endpoint.
+- For patient child-resource action rows that mix conditional Quasar `q-btn` components, assign stable `:key` values to each button; otherwise Vue can reuse a sibling button instance after a workflow transition and leave the wrong click handler attached.
+- When repositories query custom PostgreSQL enum columns in temporary test schemas, schema-qualify the enum type in casts as well as the table names or list filters will fail outside the configured `search_path`.
+- Treat facilities as shared reference data: keep `/api/v1/facilities` as authenticated top-level routes, but keep bookings nested under `/patients/:patientId/bookings` and validate patient-owned task and prescription links in the booking repository.
+- For booking UI, load facilities through the bookings store alongside patient bookings and create inline facilities through that same store before saving the booking so the facility select stays synchronized without a second fetch.
+- Patient overview summary endpoints should stay in the patients module and aggregate existing patient child tables read-only in the patients repository, so dashboard payloads reuse source records instead of introducing duplicate workflow projections.
+- Keep the patient overview snapshot in the patients store and refresh it after patient child-resource mutations; otherwise the top-level care-summary cards drift behind the detail sections.
+---
+
+## 2026-03-19 05:25:46 CET - US-020
+Thread: https://ampcode.com/threads/$AMP_CURRENT_THREAD_ID (env var unavailable in this session)
+- Added a new frontend `bookings` domain module with typed booking and facility API helpers, a Pinia store, and a booking dialog that supports task and prescription linking, booking status, appointment timing, notes, and inline facility creation.
+- Extended the patient overview page with a bookings section that highlights upcoming appointments, renders facility and prescription context, and supports create, edit, and workflow advancement directly from the booking card.
+- Added English and Italian booking translations plus store tests for booking load, facility creation, and the split booking-edit versus status-update API flow.
+- Browser-verified the live flow on `http://localhost:9000`: created a booking from patient overview, created a facility inline during that flow, confirmed the upcoming booking rendered immediately, advanced status from `not_booked` to `booking_in_progress`, and captured `booking-overview-verification.png`.
+- Files changed: `frontend/src/modules/bookings/`, `frontend/src/modules/patients/pages/PatientOverviewPage.vue`, `frontend/src/i18n/en.ts`, `frontend/src/i18n/it.ts`, `frontend/test/booking-store.test.ts`, `frontend/AGENTS.md`, `booking-overview-verification.png`, `scripts/ralph/prd.json`, `scripts/ralph/progress.txt`
+- **Learnings for future iterations:**
+  - Booking UI should keep facilities in the same store as bookings so inline facility creation can update the select options without forcing a separate reload path.
+  - Booking field edits belong on `/api/v1/bookings/:bookingId`, while workflow changes belong on `/api/v1/bookings/:bookingId/status`; the frontend store should keep that split hidden from the page.
+  - When verifying booking UI in the browser, exercise the inline facility-creation path and at least one status transition because both are core acceptance paths and catch integration issues beyond simple list rendering.
+---
+## 2026-03-19 05:30:03 CET - US-021
+Thread: https://ampcode.com/threads/$AMP_CURRENT_THREAD_ID (env var unavailable in this session)
+- Added `GET /api/v1/patients/:patientId/overview` in the patients module with service and repository support for an authorized dashboard summary.
+- Implemented read-only aggregation of overdue task count, upcoming appointments, pending prescriptions, and active conditions directly from the existing patient-scoped tables.
+- Extended the patients integration test suite to cover overview aggregation correctness and `404` behavior for unauthorized patient members, and updated backend guidance with the reusable overview-endpoint pattern.
+- Files changed: `backend/src/modules/patients/index.ts`, `backend/src/modules/patients/repository.ts`, `backend/src/modules/patients/service.ts`, `backend/test/patients.test.ts`, `backend/AGENTS.md`, `scripts/ralph/prd.json`, `scripts/ralph/progress.txt`
+- **Learnings for future iterations:**
+  - Patient overview summaries should be assembled in the patients repository from child-domain tables so later UI work can consume one dashboard payload without creating a second source of truth.
+  - Aggregated booking summaries should exclude completed and cancelled rows and only treat non-null future `appointment_at` values as upcoming appointments.
+  - Pending prescription summaries map cleanly to the actionable workflow states `needed`, `requested`, and `available`; collected or terminal states should stay out of the dashboard queue.
+---
+## 2026-03-19 05:37:07 CET - US-022
+Thread: https://ampcode.com/threads/$AMP_CURRENT_THREAD_ID (env var unavailable in this session)
+- Added typed patient-overview API and store support so the frontend now loads `/api/v1/patients/:patientId/overview` through the patients module instead of leaving the summary header as static scaffold copy.
+- Replaced the overview scaffold card with a live care snapshot showing overdue tasks, upcoming appointments, pending prescriptions, and active conditions, plus quick actions for adding instructions, tasks, prescriptions, and bookings directly from the summary area.
+- Refreshed the overview snapshot after condition, task, prescription, and booking mutations so the summary cards stay aligned with the backend aggregate immediately after patient-context edits.
+- Added a patient store test for overview loading, browser-verified the overview on `http://localhost:9000`, created a booking from the new quick-action area, confirmed the upcoming-appointments summary updated from `0` to `1`, and captured `patient-overview-verification.png`.
+- Files changed: `frontend/src/modules/patients/`, `frontend/src/i18n/en.ts`, `frontend/src/i18n/it.ts`, `frontend/test/patient-store.test.ts`, `frontend/AGENTS.md`, `patient-overview-verification.png`, `scripts/ralph/prd.json`, `scripts/ralph/progress.txt`
+- **Learnings for future iterations:**
+  - Patient overview UI should treat the backend overview endpoint as the source for top-level summary cards instead of recomputing that snapshot independently in the page.
+  - When patient child-resource actions update overview aggregates, refresh the patients store overview after the mutation so quick-action workflows immediately reflect their own changes.
+  - Browser verification for the overview should exercise at least one quick-action mutation path and confirm the summary counts update without a manual page refresh.
+---
+
+## 2026-03-19 05:16:45 CET - US-019
+Thread: https://ampcode.com/threads/$AMP_CURRENT_THREAD_ID (env var unavailable in this session)
+- Added `0010_bookings.sql` with the shared `facilities` table, the `booking_status` enum, the patient-scoped `bookings` table, and indexes for facility lookup plus active appointment filtering.
+- Implemented backend `facilities` and `bookings` modules with route, service, and repository layers covering facility list/create/get/update plus patient-scoped booking list/create/get/update and dedicated status-change routes.
+- Enforced authenticated access to facilities, patient membership on bookings, repository-level validation for same-patient task and prescription links plus existing facility references, and server-side booking status transition rules.
+- Added integration tests for facility CRUD, booking CRUD flow, list filtering, invalid status transitions, and cross-patient link rejection; updated backend guidance with the shared-facility versus patient-scoped-booking pattern.
+- Files changed: `backend/src/db/migrations/0010_bookings.sql`, `backend/src/modules/bookings/`, `backend/src/modules/facilities/`, `backend/src/modules/index.ts`, `backend/test/bookings.test.ts`, `backend/test/migrator.test.ts`, `backend/AGENTS.md`, `scripts/ralph/prd.json`, `scripts/ralph/progress.txt`
+- **Learnings for future iterations:**
+  - Facilities are global reference data for authenticated users, but bookings must keep patient authorization boundaries and validate task and prescription ownership against the same patient in the repository.
+  - Booking workflow transitions belong on `/api/v1/bookings/:bookingId/status`; general edit routes should not mutate `booking_status` directly.
+  - The booking repository should validate optional `facility_id` existence alongside patient-owned task and prescription links so later UI flows can safely mix reusable facilities with patient-specific workflows.
+---
+
+## 2026-03-19 05:05:50 CET - US-018
+Thread: https://ampcode.com/threads/$AMP_CURRENT_THREAD_ID (env var unavailable in this session)
+- Added a new frontend `prescriptions` domain module with typed API helpers, a Pinia store, and a prescription form dialog that supports type, status, key dates, notes, and optional task linking.
+- Extended the patient overview page with a prescription tracker section, inline workflow advancement, task back-links into the task editor, and shared styling plus translations for English and Italian.
+- Added store tests for prescription load, create, and two-step edit-plus-status updates; browser-verified linked task creation, prescription creation, status advancement, and task back-link behavior. Captured `prescription-overview-verification.png` during verification.
+- Fixed a Vue component-reuse bug found during browser testing by keying conditional prescription action buttons so workflow-state changes do not leave stale click handlers attached.
+- Files changed: `frontend/src/modules/prescriptions/`, `frontend/src/modules/patients/pages/PatientOverviewPage.vue`, `frontend/src/i18n/en.ts`, `frontend/src/i18n/it.ts`, `frontend/test/prescription-store.test.ts`, `frontend/AGENTS.md`, `prescription-overview-verification.png`, `scripts/ralph/prd.json`, `scripts/ralph/progress.txt`
+- **Learnings for future iterations:**
+  - Prescription UI should follow the same two-step write split as tasks: general field edits on `/prescriptions/:id`, workflow changes on `/prescriptions/:id/status`.
+  - Patient child-resource action rows with conditional Quasar buttons need stable keys; browser verification exposed stale click handlers after status transitions when the buttons were unkeyed.
+  - Browser verification for linked workflow cards should exercise the action row after at least one status transition, because that is where Vue component reuse bugs can surface.
+---
+
+## 2026-03-19 04:51:58 CET - US-017
+Thread: https://ampcode.com/threads/$AMP_CURRENT_THREAD_ID (env var unavailable in this session)
+- Added `0009_prescriptions.sql` with prescription type and status enums, the patient-scoped `prescriptions` table, optional task and medication links, soft-delete support, and supporting indexes.
+- Implemented a backend `prescriptions` module with route, service, and repository layers covering patient-scoped list and create routes plus accessible get, update, and dedicated status-change routes.
+- Enforced patient membership on all prescription endpoints, validated optional task links against the same patient, and added server-side status transition rules so requested, available, and collected remain distinct workflow states.
+- Added database-backed integration tests for unauthenticated access, CRUD-style prescription flow, filtered list behavior, invalid status transitions, and cross-patient task-link rejection; updated backend guidance with the schema-qualified enum-cast pattern.
+- Files changed: `backend/src/db/migrations/0009_prescriptions.sql`, `backend/src/modules/prescriptions/`, `backend/src/modules/index.ts`, `backend/test/prescriptions.test.ts`, `backend/test/migrator.test.ts`, `backend/AGENTS.md`, `scripts/ralph/prd.json`, `scripts/ralph/progress.txt`
+- **Learnings for future iterations:**
+  - Prescription workflow transitions are now enforced in the service layer, so later booking or UI work should use `/api/v1/prescriptions/:prescriptionId/status` instead of mutating `status` through the general update route.
+  - The prescriptions module validates `task_id` against the same patient, but `medication_id` is currently stored as a nullable UUID until the medications module exists to own that relationship.
+  - Temporary-schema integration tests need custom enum casts schema-qualified in repository SQL; qualifying only the table names is not enough when filters cast to app-defined enum types.
+---
+
+## 2026-03-19 02:25:20 CET - US-001
+Thread: https://ampcode.com/threads/$AMP_CURRENT_THREAD_ID (env var unavailable in this session)
+- Implemented the initial `backend/` workspace with Bun, ElysiaJS, Biome, TypeScript, a base app/server split, and a health route mounted under `/api/v1`.
+- Added the planned backend directory skeleton for config, db, auth, domain modules, and shared utilities so later stories can extend the scaffold without reshaping it.
+- Added backend quality commands, a Bun test for the health endpoint, and updated repository guidance in `AGENTS.md` plus a dedicated `backend/AGENTS.md`.
+- Files changed: `backend/`, `AGENTS.md`, `scripts/ralph/prd.json`, `scripts/ralph/progress.txt`
+- **Learnings for future iterations:**
+  - This codebase now expects backend checks to run from `backend/`, not the repo root.
+  - Biome's `$schema` should match the installed CLI version or linting fails before source checks run.
+  - Elysia startup should be kept in `src/server.ts`; reusable app composition belongs in `src/app.ts` for tests and future module registration.
+---
+## 2026-03-19 02:41:58 CET - US-002
+Thread: https://ampcode.com/threads/$AMP_CURRENT_THREAD_ID (env var unavailable in this session)
+- Implemented the initial `frontend/` workspace with Quasar, Vue, Pinia, Vue Router, and Vue I18n, including a protected application shell and public auth routes.
+- Added a boot-time auth placeholder with local session restore, sign-in and sign-up pages, the base patient landing page, shell placeholders for future modules, and a guard unit test.
+- Added frontend developer guidance in `frontend/AGENTS.md` and updated the repository-level `AGENTS.md` to include frontend structure and commands.
+- Files changed: `frontend/`, `AGENTS.md`, `scripts/ralph/prd.json`, `scripts/ralph/progress.txt`
+- **Learnings for future iterations:**
+  - Quasar's Sass-based styling pipeline needs `sass-embedded` installed or production builds fail even if typecheck and lint pass.
+  - The current Biome setup should lint TypeScript and config files only; Vue SFC correctness is enforced through `vue-tsc` to avoid false unused-variable reports from template-bound values.
+  - Route protection is already wired through route meta and `src/router/guards.ts`, so future auth work should replace store internals before adding new page-level checks.
+---
+## 2026-03-19 02:49:29 CET - US-003
+Thread: https://ampcode.com/threads/$AMP_CURRENT_THREAD_ID (env var unavailable in this session)
+- Added backend PostgreSQL environment parsing, a lazy `postgres` client, connection verification command, and a SQL migration runner that tracks applied files in `app.schema_migrations`.
+- Added the first migration for PostgreSQL extensions, a local `compose.yaml` database setup, `.env.example`, and backend README guidance for DB startup and migration commands.
+- Added tests for env parsing and migration file discovery, and smoke-tested `bun run db:check` plus `bun run db:migrate` against a real PostgreSQL container on `localhost:5433`.
+- Files changed: `backend/`, `scripts/ralph/prd.json`, `scripts/ralph/progress.txt`
+- **Learnings for future iterations:**
+  - Database commands now live in `backend/package.json` as `bun run db:check` and `bun run db:migrate`; future schema work should add ordered `.sql` files under `backend/src/db/migrations/`.
+  - The migration runner creates the configured schema before applying files, so migration SQL should avoid hardcoding the schema name unless a story requires a fixed cross-schema object.
+  - The checked-in Compose stack targets `localhost:5432`; if that port is occupied on a workstation, override `DATABASE_URL` for smoke tests instead of changing the committed defaults.
+---
+## 2026-03-19 03:00:09 CET - US-004
+Thread: https://ampcode.com/threads/$AMP_CURRENT_THREAD_ID (env var unavailable in this session)
+- Integrated Better Auth into the backend with a dedicated `src/auth/` area, mounted framework-native auth handling under `/api/v1/auth/*`, and added thin wrapper routes for email/password sign-up, sign-in, and protected session retrieval.
+- Added an injectable app factory so auth flows can be tested with Better Auth's memory adapter, then covered sign-up, sign-in, session retrieval, and unauthenticated rejection in backend tests.
+- Generated and applied the Better Auth core SQL schema as `0002_better_auth_core.sql`, updated env/docs for `BETTER_AUTH_URL` and `BETTER_AUTH_SECRET`, and fixed the migration runner to apply `DATABASE_SCHEMA` as the local PostgreSQL `search_path`.
+- Files changed: `backend/`, `scripts/ralph/prd.json`, `scripts/ralph/progress.txt`
+- **Learnings for future iterations:**
+  - Better Auth CLI commands load the auth config with Node tooling, so shared env/config files must not assume `Bun` globals exist.
+  - Keep Better Auth runtime setup in `backend/src/auth/` and expose app-specific wrappers from `backend/src/modules/auth/` so future profile or sign-out work can reuse the same session plumbing.
+  - Use `createApp(customAuth)` plus the Better Auth memory adapter in tests when route behavior needs real auth flows without requiring PostgreSQL.
+---
+## 2026-03-19 03:08:48 CET - US-005
+Thread: https://ampcode.com/threads/$AMP_CURRENT_THREAD_ID (env var unavailable in this session)
+- Replaced the frontend demo local-storage auth flow with real backend-backed sign-up, sign-in, sign-out, and session restore calls through the auth store, while keeping `/auth` public routes and `/app` protected routes unchanged.
+- Added async auth boot/session restore, form validation and error banners on the sign-in/sign-up pages, a frontend Vite `/api` proxy for local cookie-based auth, and a backend sign-out wrapper route to keep the browser flow working during local development.
+- Added frontend store tests for session restore and sign-in, extended backend auth tests to cover sign-out, and browser-verified sign-up redirect, refresh-based session restore, sign-out, and protected-route redirect behavior.
+- Files changed: `backend/src/modules/auth/index.ts`, `backend/test/app.test.ts`, `backend/AGENTS.md`, `frontend/src/modules/auth/api.ts`, `frontend/src/modules/auth/store.ts`, `frontend/src/modules/auth/types.ts`, `frontend/src/modules/auth/pages/SignInPage.vue`, `frontend/src/modules/auth/pages/SignUpPage.vue`, `frontend/src/boot/auth.ts`, `frontend/src/main.ts`, `frontend/src/router/index.ts`, `frontend/src/components/AppTopNav.vue`, `frontend/src/i18n/en.ts`, `frontend/src/i18n/it.ts`, `frontend/vite.config.ts`, `frontend/test/auth-store.test.ts`, `frontend/AGENTS.md`, `scripts/ralph/prd.json`, `scripts/ralph/progress.txt`
+- **Learnings for future iterations:**
+  - The frontend auth store is now the single place that should translate backend auth responses into UI state; pages should not fetch auth endpoints directly.
+  - Local browser auth verification should use the Vite `/api` proxy because direct Better Auth handler endpoints can fail origin checks even when wrapper routes work.
+  - Sign-out needs the same backend wrapper pattern as sign-in and sign-up when the frontend is served on a different dev origin.
+---
+## 2026-03-19 03:18:20 CET - US-006
+Thread: https://ampcode.com/threads/$AMP_CURRENT_THREAD_ID (env var unavailable in this session)
+- Added persisted user profile support by defining `preferredLanguage` as a Better Auth user additional field, adding the `0003_user_profile_language.sql` migration, and exposing authenticated profile read/update routes at `/api/v1/users/me`.
+- Updated the frontend auth store to restore the current profile after session restore, wired the shell language selector to persist `preferredLanguage`, and synced the active i18n locale from the restored profile.
+- Extended backend and frontend tests to cover current-user retrieval, preferred-language updates, and profile hydration after sign-in/session restore.
+- Files changed: `backend/src/auth/index.ts`, `backend/src/modules/index.ts`, `backend/src/modules/users/index.ts`, `backend/src/db/migrations/0003_user_profile_language.sql`, `backend/test/app.test.ts`, `backend/AGENTS.md`, `frontend/src/modules/auth/api.ts`, `frontend/src/modules/auth/store.ts`, `frontend/src/modules/auth/types.ts`, `frontend/src/components/AppTopNav.vue`, `frontend/src/boot/auth.ts`, `frontend/test/auth-store.test.ts`, `frontend/AGENTS.md`, `scripts/ralph/prd.json`, `scripts/ralph/progress.txt`
+- **Learnings for future iterations:**
+  - Better Auth `user.additionalFields` is the cleanest place for app-owned auth-adjacent profile fields when tests need to keep working with the memory adapter.
+  - The `/api/v1/users/me` wrapper should remain the only frontend-facing entry point for profile state, even when the underlying write uses Better Auth's `/api/v1/auth/update-user`.
+  - After session restore, the frontend must load the current-user profile separately if shell behavior depends on fields that are outside the minimal auth-session contract.
+---
+## 2026-03-19 03:21:37 CET - US-007
+Thread: https://ampcode.com/threads/$AMP_CURRENT_THREAD_ID (env var unavailable in this session)
+- Added `0004_patient_access.sql` with the base `patients` and `patient_users` tables, patient soft-delete timestamps, and the unique patient membership constraint needed for patient-scoped authorization.
+- Added migration coverage in `backend/test/migrator.test.ts` and smoke-tested the full migration set on fresh temporary schemas to confirm the new tables and constraint are created on a clean PostgreSQL schema.
+- Updated backend guidance to document that auth-linked foreign keys must reference Better Auth's text user IDs.
+- Files changed: `backend/src/db/migrations/0004_patient_access.sql`, `backend/test/migrator.test.ts`, `backend/AGENTS.md`, `scripts/ralph/prd.json`, `scripts/ralph/progress.txt`
+- **Learnings for future iterations:**
+  - Patient-access tables should reference `patients(id)` with UUIDs but `"user"(id)` with `text`, because Better Auth currently owns the user table shape.
+  - A fresh-schema smoke test via `DATABASE_SCHEMA=<temp>` is the safest way to validate new migrations locally without disturbing the default development schema.
+  - Keep patient-domain SQL unqualified inside migration files so the configured `DATABASE_SCHEMA` search path continues to work across environments.
+---
+## 2026-03-19 03:28:53 CET - US-008
+Thread: https://ampcode.com/threads/$AMP_CURRENT_THREAD_ID (env var unavailable in this session)
+- Implemented a backend `patients` module with explicit route, service, and repository layers covering patient list, create, get, update, archive, and restore flows.
+- Enforced server-side patient membership authorization on all patient-specific routes, excluded archived patients from the default list response, and automatically added the creating user to `patient_users`.
+- Added database-backed integration tests that run the auth and patient migrations in a temporary schema, seed Better Auth users, and verify the full CRUD plus authorization behavior without touching the default app schema.
+- Updated backend guidance with the schema-qualified repository pattern used for isolated SQL integration tests.
+- Files changed: `backend/src/db/schema/index.ts`, `backend/src/modules/index.ts`, `backend/src/modules/patients/index.ts`, `backend/src/modules/patients/repository.ts`, `backend/src/modules/patients/service.ts`, `backend/test/patients.test.ts`, `backend/AGENTS.md`, `scripts/ralph/prd.json`, `scripts/ralph/progress.txt`
+- **Learnings for future iterations:**
+  - Patient-scoped routes should return `404` for inaccessible patient IDs and reserve `401` for missing authentication so resource visibility is not leaked across caregivers.
+  - Creating a patient must also create the initial `patient_users` membership row for the authenticated creator or later patient-scoped authorization fails immediately.
+  - For real-SQL module tests, seed the Better Auth `"user"` table directly inside the temporary schema when foreign keys point at auth-owned tables but the route auth layer is mocked.
+---
+## 2026-03-19 03:38:42 CET - US-009
+Thread: https://ampcode.com/threads/$AMP_CURRENT_THREAD_ID (env var unavailable in this session)
+- Implemented the frontend patient module with `/api/v1/patients` API helpers, a Pinia store, a patient list page with search and archived toggle, a reusable patient create or edit dialog, and a patient overview page tied to patient-context routes.
+- Verified that creating a patient redirects to `/app/patients/:patientId/overview`, editing updates the overview and list, archived patients disappear from the default list, and they can be shown and restored through the archived toggle path.
+- Added frontend store tests for patient list loading and archive or restore flows, added shared i18n date formats for patient birth dates, and updated frontend guidance for patient-context routing and store ownership.
+- Files changed: `frontend/src/boot/i18n.ts`, `frontend/src/i18n/en.ts`, `frontend/src/i18n/it.ts`, `frontend/src/layouts/AppLayout.vue`, `frontend/src/modules/patients/api.ts`, `frontend/src/modules/patients/components/PatientFormDialog.vue`, `frontend/src/modules/patients/pages/PatientListPage.vue`, `frontend/src/modules/patients/pages/PatientOverviewPage.vue`, `frontend/src/modules/patients/store.ts`, `frontend/src/modules/patients/types.ts`, `frontend/src/router/index.ts`, `frontend/test/patient-store.test.ts`, `frontend/AGENTS.md`, `scripts/ralph/prd.json`, `scripts/ralph/progress.txt`
+- **Learnings for future iterations:**
+  - Patient pages should let the patient store own list refresh and mutation state so archived-toggle behavior stays consistent after create, archive, and restore actions.
+  - Browser verification for patient stories should include both the default active-only list and the archived toggle path because the list behavior intentionally changes after soft deletion.
+  - Locale-aware date rendering in Vue I18n needs explicit `datetimeFormats` registration before calling `d(..., "short")` from patient-facing pages.
+---
+## 2026-03-19 03:44:00 CET - US-010
+Thread: https://ampcode.com/threads/$AMP_CURRENT_THREAD_ID (env var unavailable in this session)
+- Added `0005_conditions.sql` for the patient-scoped `conditions` table and index, then registered a new backend conditions module with route, service, and repository layers.
+- Implemented condition list and create routes under `/api/v1/patients/:patientId/conditions`, plus update and deactivate routes under `/api/v1/conditions/:conditionId`, with server-side access enforced through patient membership.
+- Added database-backed integration tests for unauthenticated access, full condition CRUD-style flow, inactive filtering, and `404` handling for inaccessible patient or condition records; updated backend guidance with the reusable nested-resource authorization pattern.
+- Files changed: `backend/src/db/migrations/0005_conditions.sql`, `backend/src/modules/conditions/index.ts`, `backend/src/modules/conditions/repository.ts`, `backend/src/modules/conditions/service.ts`, `backend/src/modules/index.ts`, `backend/test/conditions.test.ts`, `backend/test/migrator.test.ts`, `backend/AGENTS.md`, `scripts/ralph/prd.json`, `scripts/ralph/progress.txt`
+- **Learnings for future iterations:**
+  - Condition list routes now default to active-only results; use `includeInactive=true` when a later UI story needs inactive conditions visible in the same API.
+  - Repositories for patient-owned child data can reuse the same access pattern as patients by checking membership for patient-scoped routes and joining through `patient_users` for child-ID routes.
+  - Deactivation is currently modeled as `active = false` rather than a separate archive timestamp, so later task or instruction links should treat inactive conditions as existing but non-current records.
+---
+## 2026-03-19 03:58:38 CET - US-011
+Thread: https://ampcode.com/threads/$AMP_CURRENT_THREAD_ID (env var unavailable in this session)
+- Added a frontend `conditions` module with patient-scoped API helpers, a Pinia store, and a reusable condition dialog so the patient overview can load, create, update, and deactivate conditions through domain-owned state.
+- Extended the patient overview page with a clinical context section that shows active conditions by default, supports add and edit flows, and reveals inactive conditions through a dedicated toggle with distinct inactive styling and badges.
+- Added frontend store tests for active-only loading, inactive creation behavior, and include-inactive updates; browser-verified sign-up, patient creation, condition creation, condition editing, deactivation, and inactive-condition visibility on the overview page.
+- Updated frontend guidance to keep patient-owned child resources in their own domain stores instead of expanding the patient store into a workspace-wide abstraction.
+- Files changed: `frontend/src/modules/conditions/api.ts`, `frontend/src/modules/conditions/components/ConditionFormDialog.vue`, `frontend/src/modules/conditions/store.ts`, `frontend/src/modules/conditions/types.ts`, `frontend/src/modules/patients/pages/PatientOverviewPage.vue`, `frontend/src/i18n/en.ts`, `frontend/src/i18n/it.ts`, `frontend/test/condition-store.test.ts`, `frontend/AGENTS.md`, `scripts/ralph/prd.json`, `scripts/ralph/progress.txt`
+- **Learnings for future iterations:**
+  - For patient-context UI, keep each child resource in its own frontend module and let the overview page compose multiple stores rather than centralizing unrelated API state in `src/modules/patients/store.ts`.
+  - The conditions API defaults to active-only data, so UI flows that need historical context should explicitly reload with `includeInactive=true` instead of assuming inactive records remain visible after deactivation.
+  - Browser verification for patient child resources should cover both the default active-only state and the filtered inactive-visible state, because the list intentionally changes immediately after deactivation.
+---
+## 2026-03-19 04:04:25 CET - US-012
+Thread: https://ampcode.com/threads/$AMP_CURRENT_THREAD_ID (env var unavailable in this session)
+- Added `0006_medical_instructions.sql` with the `instruction_status` enum, the patient-scoped `medical_instructions` table, creator tracking via Better Auth user IDs, and supporting patient/date and patient/status indexes.
+- Implemented a backend `instructions` module with route, service, and repository layers covering patient-scoped list and create routes plus accessible get and update routes, including status and instruction-date filtering.
+- Added database-backed integration tests for unauthenticated access, create/list/filter/get/update flows, exact preservation of `originalNotes`, and `404` handling for inaccessible patient or instruction records; smoke-tested the new migration with `bun run db:migrate`.
+- Files changed: `backend/src/db/migrations/0006_medical_instructions.sql`, `backend/src/modules/instructions/index.ts`, `backend/src/modules/instructions/repository.ts`, `backend/src/modules/instructions/service.ts`, `backend/src/modules/index.ts`, `backend/test/instructions.test.ts`, `backend/test/migrator.test.ts`, `backend/AGENTS.md`, `scripts/ralph/prd.json`, `scripts/ralph/progress.txt`
+- **Learnings for future iterations:**
+  - For doctor-authored medical instruction notes, keep the original note body untouched and only normalize optional metadata fields around it.
+  - Optional enum and date filters can stay simple in patient-scoped repository SQL by comparing enum columns through `status::text` and casting nullable filter parameters in the query.
+  - The instruction module now owns `/api/v1/patients/:patientId/instructions` and `/api/v1/instructions/:instructionId`; future task-linking work should extend this module rather than duplicating instruction lookups elsewhere.
+---
+## 2026-03-19 04:15:04 CET - US-013
+Thread: https://ampcode.com/threads/$AMP_CURRENT_THREAD_ID (env var unavailable in this session)
+- Implemented a frontend `instructions` domain module with patient-scoped API helpers, a Pinia store, an instruction create or edit dialog, and a dedicated instruction detail page.
+- Extended the patient overview page with instruction cards, status and date filters, and navigation into `/app/patients/:patientId/instructions/:instructionId` so original notes and the linked-tasks placeholder are visible in patient context.
+- Added frontend store tests for filtered instruction loading, filtered create and update behavior, and browser-verified create, detail, edit, and status-filter flows; captured `instruction-overview-verification.png` during verification.
+- Updated frontend guidance with the reusable list-plus-detail pattern for patient-owned child resources.
+- Files changed: `frontend/src/modules/instructions/`, `frontend/src/modules/patients/pages/PatientOverviewPage.vue`, `frontend/src/router/index.ts`, `frontend/src/i18n/en.ts`, `frontend/src/i18n/it.ts`, `frontend/test/instruction-store.test.ts`, `frontend/AGENTS.md`, `instruction-overview-verification.png`, `scripts/ralph/prd.json`, `scripts/ralph/progress.txt`
+- **Learnings for future iterations:**
+  - Patient-owned child resources that include preserved narrative content work better with a list on the overview page and a dedicated detail route for the full text plus future linked sections.
+  - Keep overview-level filters local to the composing page, but let the domain store remember the last list filters so create and update actions can reconcile the visible list without a forced reload.
+  - Browser verification for patient child resources should cover both the filtered overview state and the detail route, because later task-linking work will depend on both surfaces staying aligned.
+---
+## 2026-03-19 04:22:12 CET - US-014
+Thread: https://ampcode.com/threads/$AMP_CURRENT_THREAD_ID (env var unavailable in this session)
+- Added `0007_tasks.sql` with the `task_status` enum, the patient-scoped `tasks` table, linkable condition and medical-instruction foreign keys, soft-delete support, and task-oriented indexes.
+- Implemented a backend `tasks` module with route, service, and repository layers covering patient-scoped list and create routes plus accessible get, update, archive, and dedicated status-change routes.
+- Enforced patient membership on all task endpoints, excluded archived tasks from default list responses, defaulted new tasks to `auto_recurrence_enabled = false`, and validated optional condition or instruction links against the same patient before insert or update.
+- Added database-backed integration tests for unauthenticated access, full task CRUD-style flow, archived-list behavior, status transitions, and inaccessible or invalidly linked resources; extended migration assertions for the new task schema.
+- Files changed: `backend/src/db/migrations/0007_tasks.sql`, `backend/src/modules/index.ts`, `backend/src/modules/tasks/index.ts`, `backend/src/modules/tasks/repository.ts`, `backend/src/modules/tasks/service.ts`, `backend/test/migrator.test.ts`, `backend/test/tasks.test.ts`, `backend/AGENTS.md`, `scripts/ralph/prd.json`, `scripts/ralph/progress.txt`
+- **Learnings for future iterations:**
+  - Keep task status updates on a dedicated route when `completed_at` must stay aligned with the status transition instead of general field edits.
+  - Optional patient-owned links on tasks should be checked against the same patient in the repository layer because standalone UUID foreign keys cannot enforce that boundary.
+  - Archived task lists should stay opt-in through `includeArchived=true` so default patient-context views remain focused on active work.
+---
+## 2026-03-19 04:31:12 CET - US-015
+Thread: https://ampcode.com/threads/$AMP_CURRENT_THREAD_ID (env var unavailable in this session)
+- Added `0008_task_dependencies.sql` for patient task prerequisite links with uniqueness, self-reference protection, and dependency indexes.
+- Extended the backend task module with dependency list/add/remove routes, repository-level cross-patient and circular-graph validation, derived blocked-state evaluation, and completion rejection while prerequisites remain incomplete.
+- Added migration assertions plus database-backed task integration tests covering blocked evaluation, dependency CRUD, circular dependency rejection, and cross-patient authorization failures.
+- Files changed: `backend/src/db/migrations/0008_task_dependencies.sql`, `backend/src/modules/tasks/index.ts`, `backend/src/modules/tasks/repository.ts`, `backend/src/modules/tasks/service.ts`, `backend/test/migrator.test.ts`, `backend/test/tasks.test.ts`, `backend/AGENTS.md`, `scripts/ralph/prd.json`, `scripts/ralph/progress.txt`
+- **Learnings for future iterations:**
+  - Keep task dependency validation close to repository reads so task responses can derive blocked state from the same SQL that authorizes access.
+  - Expose incomplete prerequisite IDs in task payloads instead of mutating stored task workflow state, so later UI work can explain why a task is blocked.
+  - Reject `completed` transitions when prerequisite tasks are still incomplete unless a later story introduces an explicit override path.
+---
+## 2026-03-19 04:41:53 CET - US-016
+Thread: https://ampcode.com/threads/$AMP_CURRENT_THREAD_ID (env var unavailable in this session)
+- Implemented a frontend `tasks` domain module with patient-scoped API helpers, a Pinia store, and a reusable task editor dialog that keeps field updates and status transitions aligned with the backend's separate endpoints.
+- Extended the patient overview page with grouped overdue, blocked, upcoming, and completed task sections, contextual badges and styling, and create/edit flows that support title, description, task type, due date, scheduled time, and optional instruction and condition links.
+- Added frontend store tests for task loading, archive filtering, and combined edit-plus-status updates; browser-verified patient creation, linked task creation, grouped task rendering, blocked-task display, and editor-based status changes. Captured `task-overview-verification.png` during verification.
+- Files changed: `frontend/src/modules/tasks/`, `frontend/src/modules/patients/pages/PatientOverviewPage.vue`, `frontend/src/i18n/en.ts`, `frontend/src/i18n/it.ts`, `frontend/test/task-store.test.ts`, `frontend/AGENTS.md`, `task-overview-verification.png`, `scripts/ralph/prd.json`, `scripts/ralph/progress.txt`
+- **Learnings for future iterations:**
+  - The frontend task store should own the two-step edit flow so pages do not need to know when a task change requires `/tasks/:id` versus `/tasks/:id/status`.
+  - Browser verification for task UI should cover a real blocked task, which currently requires seeded dependencies because dependency management is a separate story from the task editor.
+  - Keeping task grouping logic in the composing patient overview page makes it easier to present the same store data in different operational slices without overfitting the store to one screen.
+---

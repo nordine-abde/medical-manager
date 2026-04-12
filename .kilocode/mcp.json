@@ -1,0 +1,14 @@
+{
+  "mcpServers": {
+    "playwright": {
+      "command": "npx",
+      "args": ["@playwright/mcp@latest"],
+      "disabled": false
+    },
+    "better-auth": {
+      "type": "sse",
+      "disabled": false,
+      "url": "https://mcp.inkeep.com/better-auth/mcp"
+    }
+  }
+}

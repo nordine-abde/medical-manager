@@ -1,0 +1,22 @@
+{
+  "$schema": "https://biomejs.dev/schemas/2.4.8/schema.json",
+  "formatter": {
+    "enabled": true,
+    "indentStyle": "space"
+  },
+  "linter": {
+    "enabled": true,
+    "rules": {
+      "recommended": true
+    }
+  },
+  "files": {
+    "includes": [
+      "env.d.ts",
+      "src/**/*.ts",
+      "test/**/*.ts",
+      "vite.config.ts",
+      "vitest.config.ts"
+    ]
+  }
+}

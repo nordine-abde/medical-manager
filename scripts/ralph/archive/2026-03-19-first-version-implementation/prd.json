@@ -1,0 +1,353 @@
+{
+  "project": "Medical Manager",
+  "branchName": "ralph/first-version-implementation",
+  "description": "Implement the first usable vertical slice of the medical care management app: authentication, patient management, conditions, medical instructions, tasks with dependencies, prescriptions, bookings, and the patient overview.",
+  "userStories": [
+    {
+      "id": "US-001",
+      "title": "Scaffold backend workspace",
+      "description": "As a developer, I want a backend project skeleton so that domain modules can be implemented on a stable foundation.",
+      "acceptanceCriteria": [
+        "Create backend directory structure aligned with docs/tecnical/implementation-plan.md",
+        "Backend starts locally with Bun + ElysiaJS",
+        "Formatting and linting commands are configured for backend code",
+        "Typecheck passes"
+      ],
+      "priority": 1,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-002",
+      "title": "Scaffold frontend workspace",
+      "description": "As a developer, I want a frontend project skeleton so that authenticated patient workflows can be built consistently.",
+      "acceptanceCriteria": [
+        "Create frontend directory structure aligned with docs/tecnical/implementation-plan.md",
+        "Frontend starts locally with Quasar",
+        "Basic authenticated shell routing structure exists",
+        "Formatting and linting commands are configured for frontend code",
+        "Typecheck passes"
+      ],
+      "priority": 2,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-003",
+      "title": "Set up PostgreSQL connection and migration tooling",
+      "description": "As a developer, I want database connectivity and migrations in place so that patient-scoped domain tables can be added safely.",
+      "acceptanceCriteria": [
+        "Backend connects to PostgreSQL using environment configuration",
+        "Migration tooling is configured and runnable locally",
+        "Shared environment variable conventions are documented",
+        "Typecheck passes",
+        "Tests pass"
+      ],
+      "priority": 3,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-004",
+      "title": "Integrate Better Auth session flow",
+      "description": "As a caregiver, I want to sign up, sign in, and keep a session so that only authenticated users can access the app.",
+      "acceptanceCriteria": [
+        "Email/password sign-up route is available",
+        "Email/password sign-in route is available",
+        "Session retrieval route returns the active session",
+        "Protected backend routes reject unauthenticated requests",
+        "Typecheck passes",
+        "Tests pass"
+      ],
+      "priority": 4,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-005",
+      "title": "Add authentication screens and auth boot flow",
+      "description": "As a caregiver, I want sign-in and sign-up screens so that I can enter the authenticated app shell from the browser.",
+      "acceptanceCriteria": [
+        "Frontend has sign-in screen with email and password fields",
+        "Frontend has sign-up screen with full name, email, password, and confirm password fields",
+        "Authenticated users are redirected into the app shell after login",
+        "Unauthenticated users cannot access protected frontend routes",
+        "Typecheck passes",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 5,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-006",
+      "title": "Create user profile support",
+      "description": "As a user, I want my profile and language preference stored so that the app can identify me and support i18n from the start.",
+      "acceptanceCriteria": [
+        "Current-user endpoint returns id, full name, email, and preferred language",
+        "Preferred language supports values it and en",
+        "Frontend authenticated shell loads current-user data after session restore",
+        "Typecheck passes",
+        "Tests pass"
+      ],
+      "priority": 6,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-007",
+      "title": "Add core patient access tables",
+      "description": "As a developer, I want patient and patient-user tables in the database so that all later domain data can be authorized per patient.",
+      "acceptanceCriteria": [
+        "Add patients table with UUID primary key, optional date_of_birth, notes, deleted_at, created_at, and updated_at",
+        "Add patient_users table with unique patient_id and user_id pair",
+        "Migration runs successfully on a clean database",
+        "Typecheck passes",
+        "Tests pass"
+      ],
+      "priority": 7,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-008",
+      "title": "Implement patient backend CRUD and authorization",
+      "description": "As a caregiver, I want patient CRUD APIs so that I can manage the people whose care workflows I track.",
+      "acceptanceCriteria": [
+        "Implement patient list, create, get, update, archive, and restore endpoints",
+        "Archive operation performs soft deletion by setting deleted_at",
+        "All patient routes enforce patient membership authorization server-side",
+        "Archived patients are excluded from default list responses",
+        "Typecheck passes",
+        "Tests pass"
+      ],
+      "priority": 8,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-009",
+      "title": "Build patient list and patient form UI",
+      "description": "As a caregiver, I want patient list and create/edit flows so that I can enter and access patient records from the app.",
+      "acceptanceCriteria": [
+        "Patient list page shows accessible active patients",
+        "Patient form supports full name, date of birth, and notes",
+        "Patient list supports archived toggle or restore path",
+        "Creating a patient navigates to patient overview",
+        "Typecheck passes",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 9,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-010",
+      "title": "Add condition schema and backend routes",
+      "description": "As a caregiver, I want conditions stored per patient so that instructions and tasks can be organized in clinical context.",
+      "acceptanceCriteria": [
+        "Add conditions table linked to patients with name, notes, active, created_at, and updated_at",
+        "Implement condition list, create, update, and deactivate or archive routes",
+        "Condition routes enforce patient-scoped authorization",
+        "Typecheck passes",
+        "Tests pass"
+      ],
+      "priority": 10,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-011",
+      "title": "Build condition management UI",
+      "description": "As a caregiver, I want to add and update conditions inside patient context so that the patient overview stays clinically organized.",
+      "acceptanceCriteria": [
+        "Patient context shows active conditions list",
+        "User can add a condition with name, notes, and active state",
+        "User can edit an existing condition",
+        "Inactive or archived conditions are distinguishable from active ones",
+        "Typecheck passes",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 11,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-012",
+      "title": "Add medical instruction schema and backend routes",
+      "description": "As a caregiver, I want specialist instructions stored with original notes so that the care plan is preserved and can generate tasks.",
+      "acceptanceCriteria": [
+        "Add medical_instructions table with doctor name or specialty, instruction date, original notes, target timing text, status, and created_by_user_id",
+        "Implement instruction list, create, get, and update routes",
+        "Original notes are stored exactly as entered",
+        "Instruction routes support status and date filtering",
+        "Typecheck passes",
+        "Tests pass"
+      ],
+      "priority": 12,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-013",
+      "title": "Build instruction list and form UI",
+      "description": "As a caregiver, I want to create and review medical instructions from the browser so that specialist plans are visible in patient context.",
+      "acceptanceCriteria": [
+        "Instruction list shows doctor or specialty, instruction date, summary, and status",
+        "Instruction form supports doctor name, specialty, instruction date, original notes, and target timing text",
+        "Instruction detail shows original notes and linked tasks section",
+        "Instruction list supports status or date filtering",
+        "Typecheck passes",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 13,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-014",
+      "title": "Add task schema and backend CRUD",
+      "description": "As a caregiver, I want structured tasks stored per patient so that care actions can be tracked with due dates and statuses.",
+      "acceptanceCriteria": [
+        "Add tasks table with patient_id, optional medical_instruction_id, optional condition_id, title, description, task_type, status, due_date, scheduled_at, auto_recurrence_enabled, recurrence_rule, completed_at, deleted_at, created_at, and updated_at",
+        "Task status supports pending, blocked, scheduled, completed, cancelled, and deferred",
+        "Implement task list, create, get, update, archive, and status change routes",
+        "Automatic recurrence is disabled by default for new tasks",
+        "Typecheck passes",
+        "Tests pass"
+      ],
+      "priority": 14,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-015",
+      "title": "Add task dependency validation",
+      "description": "As a caregiver, I want task prerequisites enforced so that blocked steps and next actions are reliable.",
+      "acceptanceCriteria": [
+        "Add task_dependencies table with task_id and depends_on_task_id",
+        "Create route or service support to add task dependencies",
+        "Reject circular dependencies",
+        "Reject dependencies across different patients",
+        "Blocked task evaluation uses incomplete prerequisites",
+        "Typecheck passes",
+        "Tests pass"
+      ],
+      "priority": 15,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-016",
+      "title": "Build task list and task editor UI",
+      "description": "As a caregiver, I want to create, update, and review tasks so that I can see overdue, blocked, upcoming, and completed work clearly.",
+      "acceptanceCriteria": [
+        "Task list separates overdue, blocked, upcoming, and completed items",
+        "Task form supports title, description, task type, due date, optional scheduled datetime, instruction link, and condition link",
+        "Task detail or editor allows status updates",
+        "Blocked tasks are visually distinct from actionable tasks",
+        "Typecheck passes",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 16,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-017",
+      "title": "Add prescription schema and backend workflow",
+      "description": "As a caregiver, I want prescriptions tracked with explicit states so that GP-related work is visible and auditable.",
+      "acceptanceCriteria": [
+        "Add prescriptions table with patient_id, optional task_id, optional medication_id, prescription_type, status, requested_at, received_at, collected_at, issue_date, expiration_date, notes, deleted_at, created_at, and updated_at",
+        "Prescription status supports needed, requested, available, collected, used, expired, and cancelled",
+        "Implement prescription list, create, get, update, and status change routes",
+        "Server-side validation distinguishes requested, available, and collected as separate states",
+        "Typecheck passes",
+        "Tests pass"
+      ],
+      "priority": 17,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-018",
+      "title": "Build prescription tracker UI",
+      "description": "As a caregiver, I want to manage prescription states in patient context so that I can see what the GP workflow still requires.",
+      "acceptanceCriteria": [
+        "Prescription view lists patient prescriptions with type and status",
+        "User can create or edit a prescription with key dates and notes",
+        "User can update prescription workflow state from the UI",
+        "Prescription records can link back to the related task when present",
+        "Typecheck passes",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 18,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-019",
+      "title": "Add booking and facility schema with backend routes",
+      "description": "As a caregiver, I want bookings stored with facility context so that appointments can be tracked against tasks and prescriptions.",
+      "acceptanceCriteria": [
+        "Add facilities table with name, type, location details, notes, created_at, and updated_at",
+        "Add bookings table with patient_id, task_id, optional prescription_id, optional facility_id, provider or facility fields, booking date, appointment datetime, status, notes, created_at, and updated_at",
+        "Booking status supports not_booked, booking_in_progress, booked, completed, and cancelled",
+        "Implement facility CRUD needed for booking creation",
+        "Implement booking list, create, get, update, and status change routes",
+        "Server-side validation rejects invalid booking status transitions",
+        "Typecheck passes",
+        "Tests pass"
+      ],
+      "priority": 19,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-020",
+      "title": "Build booking management UI",
+      "description": "As a caregiver, I want to create and review bookings so that upcoming exams and visits are visible in patient context.",
+      "acceptanceCriteria": [
+        "Booking form supports task link, optional prescription link, facility or provider, booking date, appointment datetime, status, and notes",
+        "Booking list shows upcoming appointments clearly",
+        "User can update booking status from the UI",
+        "Facility selection or creation path is available during booking management",
+        "Typecheck passes",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 20,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-021",
+      "title": "Add patient overview aggregation endpoint",
+      "description": "As a caregiver, I want a summarized patient overview API so that the UI can present the current operational state quickly.",
+      "acceptanceCriteria": [
+        "Create patient overview endpoint returning overdue task count, upcoming appointments, pending prescriptions, and active conditions",
+        "Overview endpoint only returns data for authorized patient members",
+        "Overview aggregates use existing patient-scoped domain data without duplicating source records",
+        "Typecheck passes",
+        "Tests pass"
+      ],
+      "priority": 21,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-022",
+      "title": "Build patient overview UI",
+      "description": "As a caregiver, I want a patient overview page so that I can understand the current care state and take the next action quickly.",
+      "acceptanceCriteria": [
+        "Patient overview shows overdue tasks, upcoming appointments, pending prescriptions, and active conditions",
+        "Overview provides quick actions for adding instruction, task, prescription, and booking",
+        "Overview is reachable after patient creation and when opening an existing patient",
+        "Typecheck passes",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 22,
+      "passes": true,
+      "notes": ""
+    }
+  ]
+}

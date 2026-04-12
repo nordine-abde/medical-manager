@@ -1,0 +1,471 @@
+{
+  "project": "Medical Manager",
+  "branchName": "ralph/v1-mvp-completion",
+  "description": "Complete the documented MVP on top of the existing v1 baseline by finishing persistent settings, patient sharing, medications, documents, care events, timeline, notifications, global workspaces, and end-to-end readiness.",
+  "userStories": [
+    {
+      "id": "US-001",
+      "title": "Fix backend current-user update flow",
+      "description": "As a user, I want profile updates to persist so that preferred language and profile edits survive reloads.",
+      "acceptanceCriteria": [
+        "Authenticated PATCH /api/v1/users/me updates full name and preferred language successfully",
+        "Unauthorized profile updates return the expected auth error response",
+        "Typecheck passes",
+        "Tests pass"
+      ],
+      "priority": 1,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-002",
+      "title": "Restore persisted language on frontend boot",
+      "description": "As a user, I want the app to boot in my saved language so that the interface is consistent after refresh.",
+      "acceptanceCriteria": [
+        "Frontend restores preferred language from the current-user profile after session restore",
+        "Reloading the app keeps the selected language instead of falling back to English",
+        "Typecheck passes",
+        "Tests pass",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 2,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-003",
+      "title": "Build settings profile page",
+      "description": "As a user, I want a real settings page so that I can manage my profile without relying on a placeholder route.",
+      "acceptanceCriteria": [
+        "Replace /app/settings placeholder with a real profile settings screen",
+        "Settings screen shows current full name, email, and preferred language",
+        "Profile edits save through the existing current-user API",
+        "Typecheck passes",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 3,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-004",
+      "title": "Add patient sharing backend routes",
+      "description": "As a caregiver, I want patient sharing APIs so that collaboration can be enforced through real patient-user membership rules.",
+      "acceptanceCriteria": [
+        "Implement patient user list, add, and remove routes under /api/v1/patients/:patientId/users",
+        "Duplicate patient-user links are rejected",
+        "Removing a user revokes future access to that patient",
+        "Typecheck passes",
+        "Tests pass"
+      ],
+      "priority": 4,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-005",
+      "title": "Build patient sharing management UI",
+      "description": "As a caregiver, I want to manage which users can access a patient so that family collaboration works from the app.",
+      "acceptanceCriteria": [
+        "Patient context shows the current linked users",
+        "User can add another existing account to the patient",
+        "User can remove an existing collaborator from the patient",
+        "Typecheck passes",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 5,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-006",
+      "title": "Add medications database schema",
+      "description": "As a developer, I need medication tables and relations so that medication workflows can be stored per patient.",
+      "acceptanceCriteria": [
+        "Add medication persistence with patient linkage and fields for name, condition, dosage, quantity, cadence, next GP contact date, and notes",
+        "Medication records can link to prescription records without cross-patient mismatches",
+        "Migration runs successfully on a clean database",
+        "Typecheck passes",
+        "Tests pass"
+      ],
+      "priority": 6,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-007",
+      "title": "Implement medication backend CRUD",
+      "description": "As a caregiver, I want medication APIs so that recurring treatments can be tracked per patient.",
+      "acceptanceCriteria": [
+        "Implement medication list, create, get, update, and archive or deactivate routes",
+        "Medication routes enforce patient-scoped authorization",
+        "Medication responses include next GP contact date and linked prescription context",
+        "Typecheck passes",
+        "Tests pass"
+      ],
+      "priority": 7,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-008",
+      "title": "Build medication management UI",
+      "description": "As a caregiver, I want medication screens in patient context so that I can manage active therapies from the browser.",
+      "acceptanceCriteria": [
+        "Patient context shows medication list with key renewal data",
+        "User can create and edit a medication from the UI",
+        "Medication UI exposes condition and prescription linkage when available",
+        "Typecheck passes",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 8,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-009",
+      "title": "Add medication renewal task support",
+      "description": "As a caregiver, I want medication renewals tied to actionable tasks so that the GP contact workflow is not missed.",
+      "acceptanceCriteria": [
+        "Medication workflow can create or link renewal-related tasks",
+        "Next GP contact date is available in renewal task logic",
+        "Automatic recurrence stays disabled by default unless explicitly enabled",
+        "Typecheck passes",
+        "Tests pass"
+      ],
+      "priority": 9,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-010",
+      "title": "Show medications in patient overview",
+      "description": "As a caregiver, I want active medications visible in the overview so that renewal work is visible alongside other patient tasks.",
+      "acceptanceCriteria": [
+        "Patient overview API includes active medication summary data",
+        "Patient overview UI shows active medications and next renewal-related information",
+        "Quick navigation from overview leads into medication management",
+        "Typecheck passes",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 10,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-011",
+      "title": "Add documents metadata schema",
+      "description": "As a developer, I need document metadata persisted so that uploaded files can be linked to patient workflows securely.",
+      "acceptanceCriteria": [
+        "Add document persistence with patient linkage, document type, stored filename, original filename, uploader, and related entity references",
+        "Schema supports linking documents to patient, instruction, prescription, booking, care event, or medication records",
+        "Migration runs successfully on a clean database",
+        "Typecheck passes",
+        "Tests pass"
+      ],
+      "priority": 11,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-012",
+      "title": "Implement document storage service",
+      "description": "As a developer, I want a file storage layer so that document uploads are stored outside the compiled app output.",
+      "acceptanceCriteria": [
+        "Add filesystem-backed document storage rooted outside compiled build output",
+        "Allowed file types are validated before storing files",
+        "Stored files use a safe generated path instead of trusting the original filename",
+        "Typecheck passes",
+        "Tests pass"
+      ],
+      "priority": 12,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-013",
+      "title": "Implement document upload and download APIs",
+      "description": "As a caregiver, I want document APIs so that patient files can be uploaded and retrieved securely.",
+      "acceptanceCriteria": [
+        "Implement document upload, list, metadata retrieval, and download endpoints",
+        "Document routes enforce patient-scoped authorization for list and download",
+        "Document API returns metadata needed for patient-context UI",
+        "Typecheck passes",
+        "Tests pass"
+      ],
+      "priority": 13,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-014",
+      "title": "Build patient documents page",
+      "description": "As a caregiver, I want a documents page in patient context so that reports and prescriptions can be uploaded and found quickly.",
+      "acceptanceCriteria": [
+        "Patient context includes a real documents page instead of missing functionality",
+        "Documents page lists uploaded files with type, date, and linked entity information",
+        "User can upload and download a document from the UI",
+        "Typecheck passes",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 14,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-015",
+      "title": "Expose document linking in workflow details",
+      "description": "As a caregiver, I want linked documents visible on the relevant records so that paperwork is accessible where decisions happen.",
+      "acceptanceCriteria": [
+        "Instruction detail shows linked documents",
+        "Prescription and booking views show linked documents when available",
+        "User can start a document upload from at least one workflow detail view",
+        "Typecheck passes",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 15,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-016",
+      "title": "Add care events database schema",
+      "description": "As a developer, I need care-event persistence so that completed visits, exams, and treatments become first-class history records.",
+      "acceptanceCriteria": [
+        "Add care-event persistence with patient linkage, event type, performed date, provider or facility, notes, and optional related task or booking references",
+        "Schema supports document linkage through the existing document metadata design",
+        "Migration runs successfully on a clean database",
+        "Typecheck passes",
+        "Tests pass"
+      ],
+      "priority": 16,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-017",
+      "title": "Implement care events backend CRUD",
+      "description": "As a caregiver, I want care-event APIs so that actual completed medical steps can be recorded per patient.",
+      "acceptanceCriteria": [
+        "Implement care-event list, create, get, and update routes",
+        "Care-event routes enforce patient-scoped authorization",
+        "Care events can reference related task or booking records belonging to the same patient",
+        "Typecheck passes",
+        "Tests pass"
+      ],
+      "priority": 17,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-018",
+      "title": "Build care events UI",
+      "description": "As a caregiver, I want care-event creation and review in patient context so that clinical history is captured from the app.",
+      "acceptanceCriteria": [
+        "Patient context includes a care-event list or section with completed event history",
+        "User can create a care event with event type, performed date, provider or facility, and notes",
+        "Care-event UI can link back to related task or booking when present",
+        "Typecheck passes",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 18,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-019",
+      "title": "Add global task workspace API",
+      "description": "As a caregiver, I want cross-patient task data so that the global tasks page can show what needs attention across the family.",
+      "acceptanceCriteria": [
+        "Add an authenticated task query for all accessible patients",
+        "Global task query supports filtering for pending, blocked, overdue, upcoming, and completed states",
+        "Task results include enough patient context for navigation from the global workspace",
+        "Typecheck passes",
+        "Tests pass"
+      ],
+      "priority": 19,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-020",
+      "title": "Build global task workspace UI",
+      "description": "As a caregiver, I want a real /app/tasks page so that I can work across patients instead of landing on a placeholder.",
+      "acceptanceCriteria": [
+        "Replace /app/tasks placeholder with a real global task workspace",
+        "Workspace supports filtering or grouping by patient and task state",
+        "User can open the related patient or source record from a task item",
+        "Typecheck passes",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 20,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-021",
+      "title": "Implement patient timeline aggregation API",
+      "description": "As a caregiver, I want a patient timeline feed so that instructions, tasks, prescriptions, bookings, care events, medications, and documents can be reviewed chronologically.",
+      "acceptanceCriteria": [
+        "Add a patient timeline endpoint that aggregates chronological events from existing workflow entities",
+        "Timeline query supports event type and date-range filters",
+        "Timeline items expose related entity references for navigation",
+        "Typecheck passes",
+        "Tests pass"
+      ],
+      "priority": 21,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-022",
+      "title": "Build patient timeline page",
+      "description": "As a caregiver, I want a real patient timeline page so that the history view exists inside patient context.",
+      "acceptanceCriteria": [
+        "Patient timeline page replaces placeholder content with real timeline data",
+        "Timeline page supports event type and date-range filtering",
+        "User can navigate from a timeline item to its source record",
+        "Typecheck passes",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 22,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-023",
+      "title": "Build global timeline workspace UI",
+      "description": "As a caregiver, I want a real /app/timeline page so that recent care activity across patients is visible from the shell.",
+      "acceptanceCriteria": [
+        "Replace /app/timeline placeholder with a real global timeline workspace",
+        "Workspace supports filtering by patient and event type",
+        "User can open the related patient or source entity from a timeline item",
+        "Typecheck passes",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 23,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-024",
+      "title": "Add notifications database schema",
+      "description": "As a developer, I need notification settings and delivery records stored so that reminder generation and Telegram sending can be tracked.",
+      "acceptanceCriteria": [
+        "Add notification persistence for patient-scoped Telegram configuration and delivery records",
+        "Notification status supports pending, sent, and failed",
+        "Migration runs successfully on a clean database",
+        "Typecheck passes",
+        "Tests pass"
+      ],
+      "priority": 24,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-025",
+      "title": "Implement reminder generation service",
+      "description": "As a caregiver, I want reminder records created for upcoming and overdue care items so that proactive notifications are possible.",
+      "acceptanceCriteria": [
+        "Reminder generation covers overdue tasks, upcoming appointments, and medication renewal contact dates",
+        "Generated reminder records are idempotent for the same scheduling window",
+        "Reminder generation respects patient access boundaries in stored records",
+        "Typecheck passes",
+        "Tests pass"
+      ],
+      "priority": 25,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-026",
+      "title": "Add Telegram delivery adapter",
+      "description": "As a caregiver, I want generated reminders sent to Telegram so that the application proactively alerts me.",
+      "acceptanceCriteria": [
+        "Add Telegram delivery integration for pending notification records",
+        "Delivery updates notification status to sent or failed",
+        "Errors from Telegram delivery are persisted for troubleshooting",
+        "Typecheck passes",
+        "Tests pass"
+      ],
+      "priority": 26,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-027",
+      "title": "Add scheduled jobs for reminders and recurrence",
+      "description": "As a developer, I want scheduled jobs so that reminders and optional recurring workflow generation run without manual triggers.",
+      "acceptanceCriteria": [
+        "Scheduled job entrypoints exist for reminder generation and recurring workflow handling",
+        "Recurring workflow job does nothing for tasks without explicit auto-recurrence enabled",
+        "Jobs can run repeatedly without generating duplicate records for the same window",
+        "Typecheck passes",
+        "Tests pass"
+      ],
+      "priority": 27,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-028",
+      "title": "Build notification settings UI",
+      "description": "As a caregiver, I want notification settings in the app so that Telegram reminders can be configured without manual database edits.",
+      "acceptanceCriteria": [
+        "Settings UI exposes the required Telegram notification configuration fields",
+        "User can enable or update reminder-related settings from the app",
+        "Notification settings UI shows validation or save feedback clearly",
+        "Typecheck passes",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 28,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-029",
+      "title": "Localize remaining MVP shell pages",
+      "description": "As a user, I want all visible MVP shell pages localized so that English and Italian are consistent across the app.",
+      "acceptanceCriteria": [
+        "Tasks, timeline, documents, settings, medications, and notification screens use translation keys instead of hardcoded English copy",
+        "Headers, empty states, and key actions are localized in English and Italian",
+        "Typecheck passes",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 29,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-030",
+      "title": "Make backend integration tests reliable",
+      "description": "As a developer, I want a dependable backend test path so that passing tests are a trustworthy signal during MVP completion work.",
+      "acceptanceCriteria": [
+        "Document one supported backend test workflow that works for this repository",
+        "Database-backed tests bootstrap their required state consistently",
+        "Backend bun test runs reliably in the intended local workflow",
+        "Typecheck passes",
+        "Tests pass"
+      ],
+      "priority": 30,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-031",
+      "title": "Verify complete MVP workflow end to end",
+      "description": "As a product owner, I want one validated end-to-end MVP journey so that the application is proven ready for practical use.",
+      "acceptanceCriteria": [
+        "A user can complete the documented MVP flow from patient creation through reminder delivery without manual database edits",
+        "Add at least one automated integration or end-to-end check for the full workflow or its critical cross-module path",
+        "Update docs to reflect delivered MVP behavior and remove claims that placeholder functionality is complete",
+        "Typecheck passes",
+        "Tests pass",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 31,
+      "passes": true,
+      "notes": ""
+    }
+  ]
+}

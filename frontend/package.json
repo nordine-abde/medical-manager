@@ -1,0 +1,35 @@
+{
+  "name": "medical-manager-frontend",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vue-tsc --noEmit && vite build",
+    "preview": "vite preview",
+    "typecheck": "vue-tsc --noEmit",
+    "lint": "biome check .",
+    "format": "biome check --write .",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@fontsource-variable/manrope": "^5.2.8",
+    "@fontsource/newsreader": "^5.2.10",
+    "@quasar/extras": "^1.17.0",
+    "pinia": "^3.0.4",
+    "quasar": "^2.18.7",
+    "vue": "^3.5.30",
+    "vue-i18n": "^11.3.0",
+    "vue-router": "^4.6.4"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "^2.4.8",
+    "@quasar/vite-plugin": "^1.10.0",
+    "@vitejs/plugin-vue": "^6.0.1",
+    "@vue/compiler-sfc": "^3.5.30",
+    "sass-embedded": "^1.93.2",
+    "typescript": "^5.9.3",
+    "vite": "^8.0.0",
+    "vitest": "^3.2.4",
+    "vue-tsc": "^3.1.1"
+  }
+}
