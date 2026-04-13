@@ -32,6 +32,16 @@ docker compose up -d
 
 This starts PostgreSQL on `localhost:5432` with credentials that match `.env.example`.
 
+## Container Image
+
+Build the backend image from `backend/`:
+
+```bash
+docker build -t medical-manager-backend .
+```
+
+The home-server deployment can use the Git context `https://github.com/nordine-abde/medical-manager.git#main:backend`, so the Dockerfile must be pushed to `main` before that remote build context can use it.
+
 ## Database Commands
 
 Run these from `backend/`:
