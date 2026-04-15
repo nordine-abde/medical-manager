@@ -59,6 +59,9 @@ const invalidMultipartPayload = {
     "A multipart form with file, documentType, relatedEntityType, and relatedEntityId is required.",
 } as const;
 
+const isAuthenticationRequiredError = (error: unknown): boolean =>
+  error instanceof Error && error.message === "AUTHENTICATION_REQUIRED";
+
 const formatDateTime = (value: Date): string => value.toISOString();
 
 const mapDocument = (document: {
@@ -180,7 +183,11 @@ export const createDocumentsModule = (
             return status(404, patientNotFoundPayload);
           }
 
-          return status(401, unauthorizedPayload);
+          if (isAuthenticationRequiredError(error)) {
+            return status(401, unauthorizedPayload);
+          }
+
+          throw error;
         }
       },
       {
@@ -194,7 +201,11 @@ export const createDocumentsModule = (
 
         try {
           session = await requireRequestSession(authInstance, request);
-        } catch {
+        } catch (error) {
+          if (!isAuthenticationRequiredError(error)) {
+            throw error;
+          }
+
           return status(401, unauthorizedPayload);
         }
 
@@ -241,7 +252,7 @@ export const createDocumentsModule = (
             return status(400, unsupportedDocumentTypePayload);
           }
 
-          return status(401, unauthorizedPayload);
+          throw error;
         }
       },
       {
@@ -266,7 +277,11 @@ export const createDocumentsModule = (
             return status(404, documentNotFoundPayload);
           }
 
-          return status(401, unauthorizedPayload);
+          if (isAuthenticationRequiredError(error)) {
+            return status(401, unauthorizedPayload);
+          }
+
+          throw error;
         }
       },
       {
@@ -292,7 +307,11 @@ export const createDocumentsModule = (
             return status(404, documentNotFoundPayload);
           }
 
-          return status(401, unauthorizedPayload);
+          if (isAuthenticationRequiredError(error)) {
+            return status(401, unauthorizedPayload);
+          }
+
+          throw error;
         }
       },
       {
