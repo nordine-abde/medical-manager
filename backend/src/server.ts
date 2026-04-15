@@ -8,9 +8,6 @@ app.listen({
 });
 
 console.log(
-  `${appConfig.appName} listening on http://${appConfig.host}:${appConfig.port}${appConfig.apiPrefix}`,
+  `${appConfig.appName} listening on http://${appConfig.host}:${appConfig.port}${appConfig.apiPrefix} log level is ${appConfig.logLevel}`,
 );
 
-logger.info("log_level_active", {
-  logLevel: appConfig.logLevel,
-});
