@@ -3,6 +3,7 @@ import { memoryAdapter } from "better-auth/adapters/memory";
 
 import { createApp } from "../src/app";
 import { createAuth } from "../src/auth";
+import { createLogger } from "../src/logging/logger";
 
 type SignUpResponse = {
   user: {
@@ -38,7 +39,7 @@ type SignOutResponse = {
   success: boolean;
 };
 
-const createTestApp = () =>
+const createTestApp = (appLogger?: ReturnType<typeof createLogger>) =>
   createApp(
     createAuth({
       baseURL: "http://localhost",
@@ -51,6 +52,7 @@ const createTestApp = () =>
       secret: "test-better-auth-secret-1234567890",
       trustedOrigins: ["http://localhost"],
     }),
+    appLogger,
   );
 
 describe("backend app", () => {
@@ -65,6 +67,33 @@ describe("backend app", () => {
     expect(payload).toEqual({
       status: "ok",
     });
+  });
+
+  it("logs API requests when the log level is debug", async () => {
+    const debugLogs: string[] = [];
+    const app = createTestApp(
+      createLogger("debug", {
+        debug: (line) => debugLogs.push(line),
+        error: () => undefined,
+        info: () => undefined,
+      }),
+    );
+
+    const response = await app.handle(
+      new Request("http://localhost/api/v1/health/"),
+    );
+
+    expect(response.status).toBe(200);
+    expect(debugLogs).toHaveLength(1);
+
+    const payload = JSON.parse(debugLogs[0] ?? "{}");
+
+    expect(payload.level).toBe("debug");
+    expect(payload.message).toBe("api_request");
+    expect(payload.method).toBe("GET");
+    expect(payload.path).toBe("/api/v1/health/");
+    expect(payload.status).toBe(200);
+    expect(typeof payload.durationMs).toBe("number");
   });
 
   it("rejects unauthenticated access to the protected session route", async () => {

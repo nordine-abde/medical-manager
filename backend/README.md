@@ -9,6 +9,7 @@ Supported variables:
 - `APP_NAME`
 - `API_PREFIX`
 - `HOST`
+- `LOG_LEVEL` (`debug`, `info`, or `error`; defaults to `info`)
 - `PORT`
 - `BETTER_AUTH_URL`
 - `BETTER_AUTH_SECRET`
@@ -21,6 +22,7 @@ Supported variables:
 `DATABASE_URL` is the canonical PostgreSQL connection setting for the backend and migration runner.
 `BETTER_AUTH_URL` should point to the backend base URL, and `BETTER_AUTH_SECRET` must be a long random secret.
 `DOCUMENTS_STORAGE_ROOT` should point to a writable directory for uploaded files. The default resolves outside the repository to `../../medical-manager-data/documents` from `backend/`.
+Set `LOG_LEVEL=debug` to log each API call with method, path, status, and duration. Error logs are always emitted by the backend error handler.
 
 ## Local PostgreSQL
 

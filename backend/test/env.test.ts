@@ -13,8 +13,31 @@ describe("env configuration", () => {
       apiPrefix: "/api/v1",
       appName: "medical-manager-backend",
       host: "0.0.0.0",
+      logLevel: "info",
       port: 3000,
     });
+  });
+
+  it("builds app config with a debug log level", () => {
+    expect(
+      buildAppConfig({
+        LOG_LEVEL: "debug",
+      }),
+    ).toEqual({
+      apiPrefix: "/api/v1",
+      appName: "medical-manager-backend",
+      host: "0.0.0.0",
+      logLevel: "debug",
+      port: 3000,
+    });
+  });
+
+  it("rejects invalid log levels", () => {
+    expect(() =>
+      buildAppConfig({
+        LOG_LEVEL: "verbose",
+      }),
+    ).toThrow("Invalid LOG_LEVEL value: verbose");
   });
 
   it("builds database config with defaults", () => {

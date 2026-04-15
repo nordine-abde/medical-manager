@@ -1,10 +1,10 @@
 import path from "node:path";
 
-
 const DEFAULT_HOST = "0.0.0.0";
 const DEFAULT_PORT = 3000;
 const DEFAULT_APP_NAME = "medical-manager-backend";
 const DEFAULT_API_PREFIX = "/api/v1";
+const DEFAULT_LOG_LEVEL = "info";
 const DEFAULT_DATABASE_URL =
   "postgres://postgres:postgres@localhost:5432/medical_manager";
 const DEFAULT_DATABASE_SCHEMA = "app";
@@ -19,6 +19,7 @@ const DEFAULT_NOTIFICATION_LOG_RETENTION_DAYS = 90;
 const DEFAULT_TELEGRAM_API_BASE_URL = "https://api.telegram.org";
 
 type EnvSource = Record<string, string | undefined>;
+export type LogLevel = "debug" | "info" | "error";
 
 const runtimeEnv: EnvSource =
   typeof Bun !== "undefined" ? Bun.env : process.env;
@@ -71,11 +72,30 @@ const parseBoolean = (value: string | undefined, envName: string): boolean => {
   throw new Error(`Invalid ${envName} value: ${value}`);
 };
 
+const parseLogLevel = (value: string | undefined): LogLevel => {
+  if (!value) {
+    return DEFAULT_LOG_LEVEL;
+  }
+
+  const normalizedValue = value.toLowerCase();
+
+  if (
+    normalizedValue === "debug" ||
+    normalizedValue === "info" ||
+    normalizedValue === "error"
+  ) {
+    return normalizedValue;
+  }
+
+  throw new Error(`Invalid LOG_LEVEL value: ${value}`);
+};
+
 export const buildAppConfig = (env: EnvSource) =>
   ({
     appName: env.APP_NAME ?? DEFAULT_APP_NAME,
     apiPrefix: env.API_PREFIX ?? DEFAULT_API_PREFIX,
     host: env.HOST ?? DEFAULT_HOST,
+    logLevel: parseLogLevel(env.LOG_LEVEL),
     port: parsePort(env.PORT),
   }) as const;
 
@@ -99,8 +119,7 @@ export const buildBetterAuthConfig = (env: EnvSource) =>
 
 export const buildDocumentsStorageConfig = (env: EnvSource) =>
   ({
-    rootDirectory:
-      env.DOCUMENTS_STORAGE_ROOT ?? DEFAULT_DOCUMENTS_STORAGE_ROOT
+    rootDirectory: env.DOCUMENTS_STORAGE_ROOT ?? DEFAULT_DOCUMENTS_STORAGE_ROOT,
   }) as const;
 
 export const buildNotificationsConfig = (env: EnvSource) =>
@@ -120,5 +139,4 @@ export const appConfig = buildAppConfig(runtimeEnv);
 export const databaseConfig = buildDatabaseConfig(runtimeEnv);
 export const betterAuthConfig = buildBetterAuthConfig(runtimeEnv);
 export const documentsStorageConfig = buildDocumentsStorageConfig(runtimeEnv);
-console.log(documentsStorageConfig);
 export const notificationsConfig = buildNotificationsConfig(runtimeEnv);
