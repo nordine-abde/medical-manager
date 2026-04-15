@@ -96,6 +96,50 @@ describe("backend app", () => {
     expect(typeof payload.durationMs).toBe("number");
   });
 
+  it("logs failed API requests and errors", async () => {
+    const debugLogs: string[] = [];
+    const errorLogs: string[] = [];
+    const app = createTestApp(
+      createLogger("debug", {
+        debug: (line) => debugLogs.push(line),
+        error: (line) => errorLogs.push(line),
+        info: () => undefined,
+      }),
+    );
+
+    const response = await app.handle(
+      new Request("http://localhost/api/v1/not-found"),
+    );
+    const payload = await response.json();
+
+    expect(response.status).toBe(500);
+    expect(payload).toEqual({
+      error: "internal_server_error",
+      message: "An unexpected error occurred.",
+    });
+    expect(debugLogs).toHaveLength(1);
+    expect(errorLogs).toHaveLength(1);
+
+    const requestLog = JSON.parse(debugLogs[0] ?? "{}");
+    const errorLog = JSON.parse(errorLogs[0] ?? "{}");
+
+    expect(requestLog).toMatchObject({
+      level: "debug",
+      message: "api_request",
+      method: "GET",
+      path: "/api/v1/not-found",
+      status: 500,
+    });
+    expect(typeof requestLog.durationMs).toBe("number");
+    expect(errorLog).toMatchObject({
+      level: "error",
+      message: "api_error",
+      method: "GET",
+      path: "/api/v1/not-found",
+      status: 500,
+    });
+  });
+
   it("rejects unauthenticated access to the protected session route", async () => {
     const app = createTestApp();
     const response = await app.handle(

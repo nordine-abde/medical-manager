@@ -6,6 +6,7 @@ import { logger } from "./logging";
 import { createApiModules } from "./modules";
 
 const requestStartTimes = new WeakMap<Request, number>();
+const loggedRequests = new WeakSet<Request>();
 
 const getApiRequestMetadata = (request: Request) => {
   const url = new URL(request.url);
@@ -22,6 +23,34 @@ const isApiRequest = (request: Request) =>
 const getResponseStatus = (status: number | string | undefined) =>
   typeof status === "number" ? status : 200;
 
+const getRequestDurationMs = (request: Request): number | undefined => {
+  const startedAt = requestStartTimes.get(request);
+
+  if (startedAt === undefined) {
+    return undefined;
+  }
+
+  return Math.round(performance.now() - startedAt);
+};
+
+const logApiRequest = (
+  appLogger: typeof logger,
+  request: Request,
+  status: number,
+) => {
+  if (!isApiRequest(request) || loggedRequests.has(request)) {
+    return;
+  }
+
+  loggedRequests.add(request);
+
+  appLogger.debug("api_request", {
+    ...getApiRequestMetadata(request),
+    durationMs: getRequestDurationMs(request),
+    status,
+  });
+};
+
 export const createApp = (authInstance = auth, appLogger = logger) =>
   new Elysia({ name: appConfig.appName })
     .use(cors())
@@ -35,17 +64,7 @@ export const createApp = (authInstance = auth, appLogger = logger) =>
         return;
       }
 
-      const startedAt = requestStartTimes.get(request);
-      const durationMs =
-        startedAt === undefined
-          ? undefined
-          : Math.round(performance.now() - startedAt);
-
-      appLogger.debug("api_request", {
-        ...getApiRequestMetadata(request),
-        durationMs,
-        status: getResponseStatus(set.status),
-      });
+      logApiRequest(appLogger, request, getResponseStatus(set.status));
     })
     .get("/", () => ({
       name: appConfig.appName,
@@ -55,11 +74,15 @@ export const createApp = (authInstance = auth, appLogger = logger) =>
       api.use(createApiModules(authInstance)),
     )
     .onError(({ code, error, request, set }) => {
+      const responseStatus = code === "VALIDATION" ? 400 : 500;
+
+      logApiRequest(appLogger, request, responseStatus);
+
       appLogger.error("api_error", {
         ...getApiRequestMetadata(request),
         code,
         error,
-        status: code === "VALIDATION" ? 400 : 500,
+        status: responseStatus,
       });
 
       if (code === "VALIDATION") {

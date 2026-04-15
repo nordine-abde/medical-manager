@@ -66,4 +66,27 @@ describe("logger", () => {
     expect(payload.status).toBe(500);
     expect(payload.error.message).toBe("Database unavailable");
   });
+
+  it("emits error logs even when info and debug logs are suppressed", () => {
+    const debugLogs: string[] = [];
+    const errorLogs: string[] = [];
+    const infoLogs: string[] = [];
+    const logger = createLogger("error", {
+      debug: (line) => debugLogs.push(line),
+      error: (line) => errorLogs.push(line),
+      info: (line) => infoLogs.push(line),
+    });
+
+    logger.debug("debug_message");
+    logger.info("info_message");
+    logger.error("error_message");
+
+    expect(debugLogs).toEqual([]);
+    expect(infoLogs).toEqual([]);
+    expect(errorLogs).toHaveLength(1);
+    expect(JSON.parse(errorLogs[0] ?? "{}")).toEqual({
+      level: "error",
+      message: "error_message",
+    });
+  });
 });
