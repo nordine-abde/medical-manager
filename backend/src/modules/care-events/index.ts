@@ -250,11 +250,55 @@ const mapCareEvent = (careEvent: {
   updatedAt: formatDateTime(careEvent.updated_at),
 });
 
+const mapCareEventSubtypesByType = (
+  subtypes: Array<{
+    event_type: (typeof careEventTypes)[number];
+    subtype: string;
+  }>,
+) => {
+  const subtypeMap: Record<(typeof careEventTypes)[number], string[]> = {
+    exam: [],
+    specialist_visit: [],
+    treatment: [],
+  };
+
+  for (const subtype of subtypes) {
+    subtypeMap[subtype.event_type].push(subtype.subtype);
+  }
+
+  return subtypeMap;
+};
+
 export const createCareEventsModule = (
   authInstance: typeof auth,
   service = createCareEventsService(),
 ) =>
   new Elysia({ name: "care-events-module" })
+    .get(
+      "/patients/:patientId/care-event-subtypes",
+      async ({ params, request, status }) => {
+        try {
+          const session = await requireRequestSession(authInstance, request);
+          const subtypes = await service.listCareEventSubtypes(
+            session.user.id,
+            params.patientId,
+          );
+
+          return {
+            subtypesByType: mapCareEventSubtypesByType(subtypes),
+          };
+        } catch (error) {
+          if (error instanceof PatientCareEventAccessError) {
+            return status(404, patientNotFoundPayload);
+          }
+
+          return status(401, unauthorizedPayload);
+        }
+      },
+      {
+        params: patientIdParamsSchema,
+      },
+    )
     .get(
       "/patients/:patientId/care-events",
       async ({ params, query, request, status }) => {

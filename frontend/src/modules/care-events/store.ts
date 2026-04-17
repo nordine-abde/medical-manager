@@ -2,6 +2,7 @@ import { defineStore } from "pinia";
 
 import {
   createCareEventRequest,
+  listCareEventSubtypesRequest,
   listCareEventsRequest,
   updateCareEventRequest,
 } from "./api";
@@ -9,6 +10,7 @@ import type {
   CareEventListFilters,
   CareEventPagination,
   CareEventRecord,
+  CareEventSubtypesByType,
   CareEventUpsertPayload,
 } from "./types";
 
@@ -16,7 +18,14 @@ interface CareEventsState {
   careEvents: CareEventRecord[];
   pagination: CareEventPagination;
   status: "idle" | "loading" | "ready";
+  subtypesByType: CareEventSubtypesByType;
 }
+
+const emptyCareEventSubtypesByType = (): CareEventSubtypesByType => ({
+  exam: [],
+  specialist_visit: [],
+  treatment: [],
+});
 
 const sortCareEvents = (careEvents: CareEventRecord[]): CareEventRecord[] =>
   [...careEvents].sort((left, right) => {
@@ -62,6 +71,7 @@ export const useCareEventsStore = defineStore("care-events", {
       totalPages: 0,
     },
     status: "idle",
+    subtypesByType: emptyCareEventSubtypesByType(),
   }),
   actions: {
     async loadCareEvents(
@@ -93,6 +103,10 @@ export const useCareEventsStore = defineStore("care-events", {
         throw error;
       }
     },
+    async loadCareEventSubtypes(patientId: string) {
+      lastPatientId = patientId;
+      this.subtypesByType = await listCareEventSubtypesRequest(patientId);
+    },
     async refreshCareEvents() {
       if (!lastPatientId) {
         return;
@@ -100,13 +114,23 @@ export const useCareEventsStore = defineStore("care-events", {
 
       await this.loadCareEvents(lastPatientId);
     },
+    async refreshCareEventSubtypes() {
+      if (!lastPatientId) {
+        return;
+      }
+
+      await this.loadCareEventSubtypes(lastPatientId);
+    },
     async createCareEvent(
       patientId: string,
       payload: CareEventUpsertPayload,
     ): Promise<CareEventRecord> {
       const careEvent = await createCareEventRequest(patientId, payload);
       lastPatientId = patientId;
-      await this.refreshCareEvents();
+      await Promise.all([
+        this.refreshCareEvents(),
+        this.refreshCareEventSubtypes(),
+      ]);
       return careEvent;
     },
     async updateCareEvent(
@@ -116,7 +140,10 @@ export const useCareEventsStore = defineStore("care-events", {
       const careEvent = await updateCareEventRequest(careEventId, payload);
 
       if (lastPatientId) {
-        await this.refreshCareEvents();
+        await Promise.all([
+          this.refreshCareEvents(),
+          this.refreshCareEventSubtypes(),
+        ]);
       } else {
         this.careEvents = upsertCareEvent(this.careEvents, careEvent);
       }

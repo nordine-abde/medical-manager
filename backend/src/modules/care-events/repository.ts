@@ -63,6 +63,11 @@ export type CareEventListResult = {
   totalPages: number;
 };
 
+export type CareEventSubtypeOption = {
+  event_type: CareEventType;
+  subtype: string;
+};
+
 const patientsTable = (schemaName: string): string =>
   qualifyTableName(schemaName, "patients");
 
@@ -346,6 +351,32 @@ export const createCareEventsRepository = (
         total,
         totalPages: Math.ceil(total / filters.pageSize),
       };
+    },
+
+    async listSubtypesByPatient(
+      userId: string,
+      patientId: string,
+    ): Promise<CareEventSubtypeOption[] | null> {
+      const hasAccess = await this.hasPatientAccess(userId, patientId);
+
+      if (!hasAccess) {
+        return null;
+      }
+
+      return sql.unsafe<CareEventSubtypeOption[]>(
+        `
+          select
+            ce.event_type,
+            btrim(ce.subtype) as subtype
+          from ${qualifiedCareEventsTable} as ce
+          where ce.patient_id = $1
+            and ce.subtype is not null
+            and btrim(ce.subtype) <> ''
+          group by ce.event_type, btrim(ce.subtype)
+          order by ce.event_type, btrim(ce.subtype)
+        `,
+        [patientId],
+      );
     },
 
     async updateAccessible(

@@ -56,3 +56,5 @@ export interface CareEventListResult {
   careEvents: CareEventRecord[];
   pagination: CareEventPagination;
 }
+
+export type CareEventSubtypesByType = Record<CareEventType, string[]>;

@@ -58,33 +58,9 @@ const instructions = computed(() => instructionsStore.instructions);
 const careEvents = computed(() => careEventsStore.careEvents);
 const pagination = computed(() => careEventsStore.pagination);
 const documents = computed(() => documentsStore.documents);
-const careEventSubtypeOptionsByType = computed(() => {
-  const subtypeMap = {
-    exam: new Set<string>(),
-    specialist_visit: new Set<string>(),
-    treatment: new Set<string>(),
-  };
-
-  for (const careEvent of careEvents.value) {
-    const subtype = careEvent.subtype?.trim();
-
-    if (!subtype) {
-      continue;
-    }
-
-    subtypeMap[careEvent.eventType].add(subtype);
-  }
-
-  return {
-    exam: [...subtypeMap.exam].sort((left, right) => left.localeCompare(right)),
-    specialist_visit: [...subtypeMap.specialist_visit].sort((left, right) =>
-      left.localeCompare(right),
-    ),
-    treatment: [...subtypeMap.treatment].sort((left, right) =>
-      left.localeCompare(right),
-    ),
-  };
-});
+const careEventSubtypeOptionsByType = computed(
+  () => careEventsStore.subtypesByType,
+);
 const instructionsByCareEventId = computed(() => {
   const grouped = new Map<string, InstructionRecord[]>();
 
@@ -223,6 +199,7 @@ const loadPage = async () => {
       bookingsStore.loadFacilities(),
       documentsStore.loadDocuments(patientId.value),
       instructionsStore.loadInstructions(patientId.value),
+      careEventsStore.loadCareEventSubtypes(patientId.value),
       loadCareEvents(),
     ]);
   } catch (error) {

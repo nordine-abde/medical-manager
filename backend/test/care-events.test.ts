@@ -51,6 +51,14 @@ type CareEventListPayload = {
   };
 };
 
+type CareEventSubtypesPayload = {
+  subtypesByType: {
+    exam: string[];
+    specialist_visit: string[];
+    treatment: string[];
+  };
+};
+
 let testContext: TestContext | null = null;
 
 const getTestContext = (): TestContext => {
@@ -529,6 +537,58 @@ describe("care events module", () => {
       pageSize: 2,
       total: 3,
       totalPages: 2,
+    });
+  });
+
+  it("lists patient care event subtypes independently from event filters", async () => {
+    const { app, schemaName, sql } = getTestContext();
+    const patientId = "11111111-1111-4111-8111-111111111111";
+
+    await insertPatient(sql, schemaName, patientId, "user-1");
+
+    await insertCareEvent(sql, schemaName, patientId, {
+      completedAt: "2026-04-22T08:20:00.000Z",
+      eventType: "exam",
+      subtype: "Blood test",
+    });
+    await insertCareEvent(sql, schemaName, patientId, {
+      completedAt: "2026-04-23T09:30:00.000Z",
+      eventType: "exam",
+      subtype: "Urine test",
+    });
+    await insertCareEvent(sql, schemaName, patientId, {
+      completedAt: "2026-04-24T10:45:00.000Z",
+      eventType: "exam",
+      subtype: "Blood test",
+    });
+    await insertCareEvent(sql, schemaName, patientId, {
+      completedAt: "2026-04-25T10:45:00.000Z",
+      eventType: "specialist_visit",
+      subtype: "Cardiology",
+    });
+    await insertCareEvent(sql, schemaName, patientId, {
+      completedAt: "2026-04-26T10:45:00.000Z",
+      eventType: "treatment",
+      subtype: null,
+    });
+
+    const response = await app.handle(
+      new Request(
+        `http://localhost/api/v1/patients/${patientId}/care-event-subtypes`,
+        {
+          headers: {
+            "x-test-user-id": "user-1",
+          },
+        },
+      ),
+    );
+    const payload = (await response.json()) as CareEventSubtypesPayload;
+
+    expect(response.status).toBe(200);
+    expect(payload.subtypesByType).toEqual({
+      exam: ["Blood test", "Urine test"],
+      specialist_visit: ["Cardiology"],
+      treatment: [],
     });
   });
 

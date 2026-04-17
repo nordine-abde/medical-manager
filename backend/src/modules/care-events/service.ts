@@ -4,6 +4,7 @@ import {
   type CareEventListFilters,
   type CareEventListResult,
   type CareEventRecord,
+  type CareEventSubtypeOption,
   type CareEventsRepository,
   type CreateCareEventInput,
   createCareEventsRepository,
@@ -73,6 +74,19 @@ export const createCareEventsService = (
     }
 
     return careEvents;
+  },
+
+  async listCareEventSubtypes(
+    userId: string,
+    patientId: string,
+  ): Promise<CareEventSubtypeOption[]> {
+    const subtypes = await repository.listSubtypesByPatient(userId, patientId);
+
+    if (!subtypes) {
+      throw new PatientCareEventAccessError();
+    }
+
+    return subtypes;
   },
 
   async updateCareEvent(

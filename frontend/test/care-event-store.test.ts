@@ -163,6 +163,23 @@ describe("useCareEventsStore", () => {
             status: 200,
           },
         ),
+      )
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            subtypesByType: {
+              exam: [],
+              specialist_visit: [],
+              treatment: ["Physical therapy"],
+            },
+          }),
+          {
+            headers: {
+              "content-type": "application/json",
+            },
+            status: 200,
+          },
+        ),
       );
 
     await store.loadCareEvents("patient-1");
@@ -202,6 +219,52 @@ describe("useCareEventsStore", () => {
     expect(mockFetch).toHaveBeenNthCalledWith(
       3,
       "/api/v1/patients/patient-1/care-events?page=1&pageSize=20",
+      expect.objectContaining({
+        credentials: "include",
+        method: "GET",
+      }),
+    );
+    expect(mockFetch).toHaveBeenNthCalledWith(
+      4,
+      "/api/v1/patients/patient-1/care-event-subtypes",
+      expect.objectContaining({
+        credentials: "include",
+        method: "GET",
+      }),
+    );
+    expect(store.subtypesByType.treatment).toEqual(["Physical therapy"]);
+  });
+
+  it("loads care event subtype suggestions separately from filtered events", async () => {
+    const store = useCareEventsStore();
+
+    mockFetch.mockResolvedValueOnce(
+      new Response(
+        JSON.stringify({
+          subtypesByType: {
+            exam: ["Blood test", "Urine test"],
+            specialist_visit: ["Cardiology"],
+            treatment: ["Physical therapy"],
+          },
+        }),
+        {
+          headers: {
+            "content-type": "application/json",
+          },
+          status: 200,
+        },
+      ),
+    );
+
+    await store.loadCareEventSubtypes("patient-1");
+
+    expect(store.subtypesByType).toEqual({
+      exam: ["Blood test", "Urine test"],
+      specialist_visit: ["Cardiology"],
+      treatment: ["Physical therapy"],
+    });
+    expect(mockFetch).toHaveBeenCalledWith(
+      "/api/v1/patients/patient-1/care-event-subtypes",
       expect.objectContaining({
         credentials: "include",
         method: "GET",

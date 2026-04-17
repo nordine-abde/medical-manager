@@ -2,6 +2,7 @@ import type {
   CareEventListFilters,
   CareEventListResult,
   CareEventRecord,
+  CareEventSubtypesByType,
   CareEventUpsertPayload,
 } from "./types";
 
@@ -19,6 +20,10 @@ interface CareEventPayload {
 interface CareEventsPayload {
   careEvents: CareEventRecord[];
   pagination: CareEventListResult["pagination"];
+}
+
+interface CareEventSubtypesPayload {
+  subtypesByType: CareEventSubtypesByType;
 }
 
 const buildRequestHeaders = (body?: BodyInit | null): HeadersInit => {
@@ -83,6 +88,20 @@ export const listCareEventsRequest = async (
     careEvents: payload.careEvents,
     pagination: payload.pagination,
   };
+};
+
+export const listCareEventSubtypesRequest = async (
+  patientId: string,
+): Promise<CareEventSubtypesByType> => {
+  const payload = await requestJson<CareEventSubtypesPayload>(
+    `/patients/${patientId}/care-event-subtypes`,
+    {
+      method: "GET",
+    },
+    "Unable to load care event subtypes.",
+  );
+
+  return payload.subtypesByType;
 };
 
 const toQueryString = (filters: CareEventListFilters): string => {
