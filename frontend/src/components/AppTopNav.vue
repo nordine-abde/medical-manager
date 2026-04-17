@@ -10,6 +10,14 @@ const authStore = useAuthStore();
 const router = useRouter();
 const { locale, t } = useI18n();
 
+defineProps<{
+  menuOpen?: boolean;
+}>();
+
+const emit = defineEmits<{
+  toggleMenu: [];
+}>();
+
 const userMenuOpen = ref(false);
 
 const languageOptions = computed(() => [
@@ -62,6 +70,8 @@ const userInitials = computed(() => {
           icon="menu"
           class="app-top-nav__menu-btn lt-md"
           aria-label="Toggle menu"
+          :aria-expanded="menuOpen"
+          @click="emit('toggleMenu')"
         />
         <h1 class="app-top-nav__title">{{ t("shell.welcome") }}</h1>
       </div>

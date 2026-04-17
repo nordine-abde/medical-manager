@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed } from "vue";
+import { computed, ref, watch } from "vue";
 import { useRoute } from "vue-router";
 import { useI18n } from "vue-i18n";
 
@@ -7,6 +7,7 @@ import AppTopNav from "../components/AppTopNav.vue";
 
 const route = useRoute();
 const { t } = useI18n();
+const drawerOpen = ref(false);
 
 const patientId = computed(() =>
   typeof route.params.patientId === "string" ? route.params.patientId : null,
@@ -52,13 +53,24 @@ const patientNavItems = computed(() => {
     },
   ];
 });
+
+watch(
+  () => route.fullPath,
+  () => {
+    drawerOpen.value = false;
+  },
+);
 </script>
 
 <template>
   <q-layout view="hHh LpR lFr">
-    <AppTopNav />
+    <AppTopNav
+      :menu-open="drawerOpen"
+      @toggle-menu="drawerOpen = !drawerOpen"
+    />
 
     <q-drawer
+      v-model="drawerOpen"
       show-if-above
       :width="240"
       :breakpoint="768"
