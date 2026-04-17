@@ -336,6 +336,13 @@ const handleSubtypeInputValue = (value: string | number | null) => {
   form.subtypeInput = String(value ?? "");
 };
 
+const handleSubtypeModelValue = (value: string | number | null) => {
+  const subtype = normalizeSubtypeValue(String(value ?? ""));
+
+  form.subtype = subtype;
+  form.subtypeInput = subtype;
+};
+
 const handleSubtypeNewValue = (
   value: string,
   done: (value?: string, mode?: "add" | "add-unique" | "toggle") => void,
@@ -496,20 +503,22 @@ const handleSubmit = () => {
               :label="$t('careEvents.fields.providerName')"
             />
             <q-select
-              v-model="form.subtype"
+              :model-value="form.subtype"
               :input-value="form.subtypeInput"
               outlined
               use-input
-              hide-selected
               fill-input
+              clearable
               new-value-mode="add-unique"
               :disable="loading"
               :hint="$t('careEvents.subtypeHint')"
               :label="$t('careEvents.fields.subtype')"
               :options="subtypeOptions"
               @blur="commitSubtypeInput"
+              @clear="handleSubtypeInputValue(null)"
+              @input-value="handleSubtypeInputValue"
               @new-value="handleSubtypeNewValue"
-              @update:input-value="handleSubtypeInputValue"
+              @update:model-value="handleSubtypeModelValue"
             />
             <q-select
               v-model="form.facilityId"
