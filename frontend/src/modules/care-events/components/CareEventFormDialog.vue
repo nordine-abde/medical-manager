@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, reactive, watch } from "vue";
+import { computed, reactive, ref, watch } from "vue";
 import { useI18n } from "vue-i18n";
 
 import type { FacilityUpsertPayload } from "../../bookings/types";
@@ -54,6 +54,8 @@ const emit = defineEmits<{
 
 const { t } = useI18n();
 
+const subtypeFilterText = ref("");
+
 const form = reactive({
   bookingId: null as string | null,
   completedAt: "",
@@ -106,9 +108,16 @@ const eventTypeOptions = computed(() =>
   })),
 );
 
-const subtypeOptions = computed(
-  () => props.subtypeOptionsByType[form.eventType] ?? [],
-);
+const subtypeOptions = computed(() => {
+  const options = props.subtypeOptionsByType[form.eventType] ?? [];
+  const filterText = subtypeFilterText.value;
+
+  if (!filterText) {
+    return options;
+  }
+
+  return options.filter((option) => option.toLowerCase().includes(filterText));
+});
 
 const normalizedTaskOptions = computed(() => [
   {
@@ -235,6 +244,7 @@ const syncForm = () => {
   form.providerName = props.careEvent?.providerName ?? "";
   form.subtype = normalizeSubtypeValue(props.careEvent?.subtype);
   form.subtypeInput = form.subtype;
+  subtypeFilterText.value = "";
   form.taskId = props.careEvent?.taskId ?? null;
   resetFacilityForm();
 };
@@ -319,6 +329,10 @@ watch(
 
     form.subtype = "";
     form.subtypeInput = "";
+    subtypeFilterText.value = "";
+  },
+  {
+    flush: "sync",
   },
 );
 
@@ -343,6 +357,19 @@ const handleSubtypeModelValue = (value: string | number | null) => {
   form.subtypeInput = subtype;
 };
 
+const handleSubtypeFilter = (
+  value: string,
+  update: (callback: () => void) => void,
+) => {
+  update(() => {
+    const filterText = normalizeSubtypeValue(value).toLowerCase();
+    const currentSubtype = normalizeSubtypeValue(form.subtype).toLowerCase();
+
+    subtypeFilterText.value =
+      filterText && filterText !== currentSubtype ? filterText : "";
+  });
+};
+
 const handleSubtypeNewValue = (
   value: string,
   done: (value?: string, mode?: "add" | "add-unique" | "toggle") => void,
@@ -351,6 +378,7 @@ const handleSubtypeNewValue = (
 
   form.subtype = subtype;
   form.subtypeInput = subtype;
+  subtypeFilterText.value = "";
   done(subtype, "add-unique");
 };
 
@@ -507,6 +535,7 @@ const handleSubmit = () => {
               :input-value="form.subtypeInput"
               outlined
               use-input
+              hide-selected
               fill-input
               clearable
               new-value-mode="add-unique"
@@ -516,6 +545,7 @@ const handleSubmit = () => {
               :options="subtypeOptions"
               @blur="commitSubtypeInput"
               @clear="handleSubtypeInputValue(null)"
+              @filter="handleSubtypeFilter"
               @input-value="handleSubtypeInputValue"
               @new-value="handleSubtypeNewValue"
               @update:model-value="handleSubtypeModelValue"
