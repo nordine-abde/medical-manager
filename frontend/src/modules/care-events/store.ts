@@ -5,10 +5,16 @@ import {
   listCareEventsRequest,
   updateCareEventRequest,
 } from "./api";
-import type { CareEventRecord, CareEventUpsertPayload } from "./types";
+import type {
+  CareEventListFilters,
+  CareEventPagination,
+  CareEventRecord,
+  CareEventUpsertPayload,
+} from "./types";
 
 interface CareEventsState {
   careEvents: CareEventRecord[];
+  pagination: CareEventPagination;
   status: "idle" | "loading" | "ready";
 }
 
@@ -41,21 +47,46 @@ const upsertCareEvent = (
 };
 
 let lastPatientId = "";
+let lastListFilters: CareEventListFilters = {
+  page: 1,
+  pageSize: 20,
+};
 
 export const useCareEventsStore = defineStore("care-events", {
   state: (): CareEventsState => ({
     careEvents: [],
+    pagination: {
+      page: 1,
+      pageSize: 20,
+      total: 0,
+      totalPages: 0,
+    },
     status: "idle",
   }),
   actions: {
-    async loadCareEvents(patientId: string) {
+    async loadCareEvents(
+      patientId: string,
+      filters: CareEventListFilters = {},
+    ) {
       this.status = "loading";
       lastPatientId = patientId;
+      lastListFilters = {
+        page: filters.page ?? 1,
+        pageSize: filters.pageSize ?? this.pagination.pageSize,
+        ...(filters.bookingId ? { bookingId: filters.bookingId } : {}),
+        ...(filters.eventType ? { eventType: filters.eventType } : {}),
+        ...(filters.facilityId ? { facilityId: filters.facilityId } : {}),
+        ...(filters.from ? { from: filters.from } : {}),
+        ...(filters.search?.trim() ? { search: filters.search.trim() } : {}),
+        ...(filters.subtype?.trim() ? { subtype: filters.subtype.trim() } : {}),
+        ...(filters.taskId ? { taskId: filters.taskId } : {}),
+        ...(filters.to ? { to: filters.to } : {}),
+      };
 
       try {
-        this.careEvents = sortCareEvents(
-          await listCareEventsRequest(patientId),
-        );
+        const result = await listCareEventsRequest(patientId, lastListFilters);
+        this.careEvents = sortCareEvents(result.careEvents);
+        this.pagination = result.pagination;
         this.status = "ready";
       } catch (error) {
         this.status = "ready";
@@ -74,7 +105,8 @@ export const useCareEventsStore = defineStore("care-events", {
       payload: CareEventUpsertPayload,
     ): Promise<CareEventRecord> {
       const careEvent = await createCareEventRequest(patientId, payload);
-      this.careEvents = upsertCareEvent(this.careEvents, careEvent);
+      lastPatientId = patientId;
+      await this.refreshCareEvents();
       return careEvent;
     },
     async updateCareEvent(
@@ -82,7 +114,13 @@ export const useCareEventsStore = defineStore("care-events", {
       payload: Partial<CareEventUpsertPayload>,
     ): Promise<CareEventRecord> {
       const careEvent = await updateCareEventRequest(careEventId, payload);
-      this.careEvents = upsertCareEvent(this.careEvents, careEvent);
+
+      if (lastPatientId) {
+        await this.refreshCareEvents();
+      } else {
+        this.careEvents = upsertCareEvent(this.careEvents, careEvent);
+      }
+
       return careEvent;
     },
   },

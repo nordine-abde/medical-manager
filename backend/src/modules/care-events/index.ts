@@ -2,7 +2,7 @@ import { Elysia, t } from "elysia";
 
 import type { auth } from "../../auth";
 import { requireRequestSession } from "../../auth/session";
-import { careEventTypes } from "./repository";
+import { type CareEventListFilters, careEventTypes } from "./repository";
 import {
   CareEventAccessError,
   createCareEventsService,
@@ -87,6 +87,31 @@ const careEventUpdateBodySchema = t.Object({
   ),
 });
 
+const careEventListQuerySchema = t.Object({
+  bookingId: t.Optional(
+    t.String({
+      format: "uuid",
+    }),
+  ),
+  eventType: t.Optional(careEventTypeSchema),
+  facilityId: t.Optional(
+    t.String({
+      format: "uuid",
+    }),
+  ),
+  from: t.Optional(t.String()),
+  page: t.Optional(t.String()),
+  pageSize: t.Optional(t.String()),
+  search: t.Optional(t.String()),
+  subtype: t.Optional(t.String()),
+  taskId: t.Optional(
+    t.String({
+      format: "uuid",
+    }),
+  ),
+  to: t.Optional(t.String()),
+});
+
 const unauthorizedPayload = {
   error: "unauthorized",
   message: "Authentication required.",
@@ -113,6 +138,88 @@ const normalizeOptionalText = (
   }
 
   return value?.trim() || null;
+};
+
+const normalizeOptionalQueryText = (value?: string): string | undefined => {
+  const normalized = value?.trim();
+  return normalized ? normalized : undefined;
+};
+
+const parsePositiveInteger = (
+  value: string | undefined,
+  fallback: number,
+): number => {
+  const parsed = Number.parseInt(value ?? "", 10);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
+};
+
+const buildPagination = (query: {
+  page?: string;
+  pageSize?: string;
+}): {
+  page: number;
+  pageSize: number;
+} => {
+  const page = parsePositiveInteger(query.page, 1);
+  const pageSize = Math.min(parsePositiveInteger(query.pageSize, 20), 100);
+
+  return {
+    page,
+    pageSize,
+  };
+};
+
+const buildCareEventListFilters = (query: {
+  bookingId?: string;
+  eventType?: (typeof careEventTypes)[number];
+  facilityId?: string;
+  from?: string;
+  page?: string;
+  pageSize?: string;
+  search?: string;
+  subtype?: string;
+  taskId?: string;
+  to?: string;
+}): CareEventListFilters => {
+  const filters: CareEventListFilters = buildPagination(query);
+  const from = normalizeOptionalQueryText(query.from);
+  const search = normalizeOptionalQueryText(query.search);
+  const subtype = normalizeOptionalQueryText(query.subtype);
+  const to = normalizeOptionalQueryText(query.to);
+
+  if (query.bookingId) {
+    filters.bookingId = query.bookingId;
+  }
+
+  if (query.eventType) {
+    filters.eventType = query.eventType;
+  }
+
+  if (query.facilityId) {
+    filters.facilityId = query.facilityId;
+  }
+
+  if (from) {
+    filters.from = from;
+  }
+
+  if (search) {
+    filters.search = search;
+  }
+
+  if (subtype) {
+    filters.subtype = subtype;
+  }
+
+  if (query.taskId) {
+    filters.taskId = query.taskId;
+  }
+
+  if (to) {
+    filters.to = to;
+  }
+
+  return filters;
 };
 
 const mapCareEvent = (careEvent: {
@@ -150,16 +257,23 @@ export const createCareEventsModule = (
   new Elysia({ name: "care-events-module" })
     .get(
       "/patients/:patientId/care-events",
-      async ({ params, request, status }) => {
+      async ({ params, query, request, status }) => {
         try {
           const session = await requireRequestSession(authInstance, request);
-          const careEvents = await service.listCareEvents(
+          const result = await service.listCareEvents(
             session.user.id,
             params.patientId,
+            buildCareEventListFilters(query),
           );
 
           return {
-            careEvents: careEvents.map(mapCareEvent),
+            careEvents: result.items.map(mapCareEvent),
+            pagination: {
+              page: result.page,
+              pageSize: result.pageSize,
+              total: result.total,
+              totalPages: result.totalPages,
+            },
           };
         } catch (error) {
           if (error instanceof PatientCareEventAccessError) {
@@ -171,6 +285,7 @@ export const createCareEventsModule = (
       },
       {
         params: patientIdParamsSchema,
+        query: careEventListQuerySchema,
       },
     )
     .post(

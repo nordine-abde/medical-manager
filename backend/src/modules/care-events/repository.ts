@@ -42,6 +42,27 @@ export type CreateCareEventInput = {
 
 export type UpdateCareEventInput = Partial<CreateCareEventInput>;
 
+export type CareEventListFilters = {
+  bookingId?: string;
+  eventType?: CareEventType;
+  facilityId?: string;
+  from?: string;
+  page: number;
+  pageSize: number;
+  search?: string;
+  subtype?: string;
+  taskId?: string;
+  to?: string;
+};
+
+export type CareEventListResult = {
+  items: CareEventRecord[];
+  page: number;
+  pageSize: number;
+  total: number;
+  totalPages: number;
+};
+
 const patientsTable = (schemaName: string): string =>
   qualifyTableName(schemaName, "patients");
 
@@ -251,25 +272,80 @@ export const createCareEventsRepository = (
     async listByPatient(
       userId: string,
       patientId: string,
-    ): Promise<CareEventRecord[] | null> {
+      filters: CareEventListFilters,
+    ): Promise<CareEventListResult | null> {
       const hasAccess = await this.hasPatientAccess(userId, patientId);
 
       if (!hasAccess) {
         return null;
       }
 
-      return sql.unsafe<CareEventRecord[]>(
+      const search = filters.search?.trim().toLowerCase() ?? null;
+      const subtype = filters.subtype?.trim().toLowerCase() ?? null;
+      const offset = (filters.page - 1) * filters.pageSize;
+      const filterParams = [
+        patientId,
+        search,
+        filters.eventType ?? null,
+        subtype,
+        filters.from ?? null,
+        filters.to ?? null,
+        filters.facilityId ?? null,
+        filters.taskId ?? null,
+        filters.bookingId ?? null,
+      ];
+      const whereClause = `
+        ce.patient_id = $1
+        and (
+          $2::text is null
+          or lower(coalesce(ce.provider_name, '')) like '%' || $2 || '%'
+          or lower(coalesce(ce.subtype, '')) like '%' || $2 || '%'
+          or lower(coalesce(ce.outcome_notes, '')) like '%' || $2 || '%'
+          or ce.event_type::text like '%' || $2 || '%'
+        )
+        and ($3::text is null or ce.event_type::text = $3)
+        and ($4::text is null or lower(coalesce(ce.subtype, '')) = $4)
+        and ($5::timestamptz is null or ce.completed_at >= $5::timestamptz)
+        and ($6::timestamptz is null or ce.completed_at <= $6::timestamptz)
+        and ($7::uuid is null or ce.facility_id = $7::uuid)
+        and ($8::uuid is null or ce.task_id = $8::uuid)
+        and ($9::uuid is null or ce.booking_id = $9::uuid)
+      `;
+
+      const [countResult] = await sql.unsafe<Array<{ total: string }>>(
+        `
+          select count(*)::text as total
+          from ${qualifiedCareEventsTable} as ce
+          where ${whereClause}
+        `,
+        filterParams,
+      );
+
+      const items = await sql.unsafe<CareEventRecord[]>(
         `
           select
             ${careEventColumns}
           from ${qualifiedCareEventsTable} as ce
-          where ce.patient_id = $1
+          where ${whereClause}
           order by
             ce.completed_at desc,
-            ce.created_at desc
+            ce.created_at desc,
+            ce.id desc
+          limit $10
+          offset $11
         `,
-        [patientId],
+        [...filterParams, filters.pageSize, offset],
       );
+
+      const total = Number.parseInt(countResult?.total ?? "0", 10);
+
+      return {
+        items,
+        page: filters.page,
+        pageSize: filters.pageSize,
+        total,
+        totalPages: Math.ceil(total / filters.pageSize),
+      };
     },
 
     async updateAccessible(

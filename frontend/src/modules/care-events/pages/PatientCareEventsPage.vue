@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from "vue";
+import { computed, onMounted, reactive, ref, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { useI18n } from "vue-i18n";
 
@@ -13,7 +13,13 @@ import type { TaskUpsertPayload } from "../../tasks/types";
 import { usePatientsStore } from "../../patients/store";
 import CareEventFormDialog from "../components/CareEventFormDialog.vue";
 import { useCareEventsStore } from "../store";
-import type { CareEventRecord, CareEventUpsertPayload } from "../types";
+import type {
+  CareEventListFilters,
+  CareEventRecord,
+  CareEventType,
+  CareEventUpsertPayload,
+} from "../types";
+import { careEventTypes } from "../types";
 import type { FacilityUpsertPayload } from "../../bookings/types";
 
 const route = useRoute();
@@ -32,6 +38,16 @@ const isSaving = ref(false);
 const isFormOpen = ref(false);
 const editingCareEvent = ref<CareEventRecord | null>(null);
 const errorMessage = ref("");
+const filters = reactive({
+  eventType: null as CareEventType | null,
+  facilityId: null as string | null,
+  from: "",
+  page: 1,
+  pageSize: 20,
+  search: "",
+  subtype: "",
+  to: "",
+});
 
 const patientId = computed(() => route.params.patientId as string);
 const patient = computed(() => patientsStore.currentPatient);
@@ -40,6 +56,7 @@ const bookings = computed(() => bookingsStore.activeBookings);
 const facilities = computed(() => bookingsStore.facilities);
 const instructions = computed(() => instructionsStore.instructions);
 const careEvents = computed(() => careEventsStore.careEvents);
+const pagination = computed(() => careEventsStore.pagination);
 const documents = computed(() => documentsStore.documents);
 const careEventSubtypeOptionsByType = computed(() => {
   const subtypeMap = {
@@ -108,6 +125,92 @@ const facilityOptions = computed(() =>
   })),
 );
 
+const eventTypeFilterOptions = computed(() => [
+  {
+    label: t("careEvents.filters.allTypes"),
+    value: null,
+  },
+  ...careEventTypes.map((eventType) => ({
+    label: t(`careEvents.types.${eventType}`),
+    value: eventType,
+  })),
+]);
+
+const facilityFilterOptions = computed(() => [
+  {
+    label: t("careEvents.filters.allFacilities"),
+    value: null,
+  },
+  ...facilityOptions.value,
+]);
+
+const hasActiveFilters = computed(
+  () =>
+    Boolean(filters.search.trim()) ||
+    Boolean(filters.eventType) ||
+    Boolean(filters.subtype.trim()) ||
+    Boolean(filters.from) ||
+    Boolean(filters.to) ||
+    Boolean(filters.facilityId),
+);
+
+const toFilterStartDateTime = (value: string): string | undefined => {
+  if (!value) {
+    return undefined;
+  }
+
+  return new Date(`${value}T00:00:00`).toISOString();
+};
+
+const toFilterEndDateTime = (value: string): string | undefined => {
+  if (!value) {
+    return undefined;
+  }
+
+  return new Date(`${value}T23:59:59.999`).toISOString();
+};
+
+const buildCareEventFilters = (): CareEventListFilters => {
+  const careEventFilters: CareEventListFilters = {
+    page: filters.page,
+    pageSize: filters.pageSize,
+  };
+  const from = toFilterStartDateTime(filters.from);
+  const search = filters.search.trim();
+  const subtype = filters.subtype.trim();
+  const to = toFilterEndDateTime(filters.to);
+
+  if (filters.eventType) {
+    careEventFilters.eventType = filters.eventType;
+  }
+
+  if (filters.facilityId) {
+    careEventFilters.facilityId = filters.facilityId;
+  }
+
+  if (from) {
+    careEventFilters.from = from;
+  }
+
+  if (search) {
+    careEventFilters.search = search;
+  }
+
+  if (subtype) {
+    careEventFilters.subtype = subtype;
+  }
+
+  if (to) {
+    careEventFilters.to = to;
+  }
+
+  return careEventFilters;
+};
+
+const loadCareEvents = async () => {
+  await careEventsStore.loadCareEvents(patientId.value, buildCareEventFilters());
+};
+
 const loadPage = async () => {
   isLoading.value = true;
   errorMessage.value = "";
@@ -120,13 +223,46 @@ const loadPage = async () => {
       bookingsStore.loadFacilities(),
       documentsStore.loadDocuments(patientId.value),
       instructionsStore.loadInstructions(patientId.value),
-      careEventsStore.loadCareEvents(patientId.value),
+      loadCareEvents(),
     ]);
   } catch (error) {
     errorMessage.value =
       error instanceof Error ? error.message : t("careEvents.genericError");
   } finally {
     isLoading.value = false;
+  }
+};
+
+const applyFilters = async () => {
+  filters.page = 1;
+
+  try {
+    await loadCareEvents();
+  } catch (error) {
+    errorMessage.value =
+      error instanceof Error ? error.message : t("careEvents.genericError");
+  }
+};
+
+const resetFilters = async () => {
+  filters.eventType = null;
+  filters.facilityId = null;
+  filters.from = "";
+  filters.page = 1;
+  filters.search = "";
+  filters.subtype = "";
+  filters.to = "";
+  await applyFilters();
+};
+
+const handlePageChange = async (page: number) => {
+  filters.page = page;
+
+  try {
+    await loadCareEvents();
+  } catch (error) {
+    errorMessage.value =
+      error instanceof Error ? error.message : t("careEvents.genericError");
   }
 };
 
@@ -435,11 +571,85 @@ const openInstructionDetail = async (instructionId: string) => {
           >
             {{
               $t("careEvents.summaryCount", {
-                count: careEvents.length,
+                count: pagination.total,
               })
             }}
           </q-chip>
         </div>
+
+        <q-card flat class="patient-care-events-page__filters">
+          <div class="patient-care-events-page__filter-grid">
+            <q-input
+              v-model="filters.search"
+              outlined
+              dense
+              clearable
+              :label="$t('careEvents.filters.searchLabel')"
+              :placeholder="$t('careEvents.filters.searchPlaceholder')"
+              @keyup.enter="applyFilters"
+            />
+            <q-select
+              v-model="filters.eventType"
+              outlined
+              dense
+              emit-value
+              map-options
+              :label="$t('careEvents.filters.typeLabel')"
+              :options="eventTypeFilterOptions"
+            />
+            <q-input
+              v-model="filters.subtype"
+              outlined
+              dense
+              clearable
+              :label="$t('careEvents.filters.subtypeLabel')"
+              @keyup.enter="applyFilters"
+            />
+            <q-select
+              v-model="filters.facilityId"
+              outlined
+              dense
+              emit-value
+              map-options
+              :label="$t('careEvents.filters.facilityLabel')"
+              :options="facilityFilterOptions"
+            />
+            <q-input
+              v-model="filters.from"
+              outlined
+              dense
+              type="date"
+              :label="$t('careEvents.filters.startDateLabel')"
+            />
+            <q-input
+              v-model="filters.to"
+              outlined
+              dense
+              type="date"
+              :label="$t('careEvents.filters.endDateLabel')"
+            />
+          </div>
+
+          <div class="patient-care-events-page__filter-actions">
+            <q-btn
+              color="primary"
+              unelevated
+              no-caps
+              icon="search"
+              :label="$t('careEvents.filters.apply')"
+              @click="applyFilters"
+            />
+            <q-btn
+              flat
+              no-caps
+              color="primary"
+              icon="restart_alt"
+              :disable="!hasActiveFilters"
+              :label="$t('careEvents.filters.reset')"
+              @click="resetFilters"
+            />
+          </div>
+        </q-card>
 
         <div v-if="careEvents.length" class="patient-care-events-page__list">
           <q-card
@@ -557,6 +767,20 @@ const openInstructionDetail = async (instructionId: string) => {
               </div>
             </div>
           </q-card>
+
+          <div
+            v-if="pagination.totalPages > 1"
+            class="patient-care-events-page__pagination"
+          >
+            <q-pagination
+              :model-value="pagination.page"
+              :max="pagination.totalPages"
+              :max-pages="7"
+              boundary-numbers
+              direction-links
+              @update:model-value="handlePageChange"
+            />
+          </div>
         </div>
 
         <q-card v-else flat class="patient-care-events-page__empty">
@@ -564,10 +788,18 @@ const openInstructionDetail = async (instructionId: string) => {
             {{ $t("careEvents.emptyEyebrow") }}
           </p>
           <h2 class="patient-care-events-page__empty-title">
-            {{ $t("careEvents.emptyTitle") }}
+            {{
+              hasActiveFilters
+                ? $t("careEvents.emptyFilteredTitle")
+                : $t("careEvents.emptyTitle")
+            }}
           </h2>
           <p class="patient-care-events-page__subtitle">
-            {{ $t("careEvents.emptyDescription") }}
+            {{
+              hasActiveFilters
+                ? $t("careEvents.emptyFilteredDescription")
+                : $t("careEvents.emptyDescription")
+            }}
           </p>
         </q-card>
       </template>
@@ -670,6 +902,29 @@ const openInstructionDetail = async (instructionId: string) => {
   display: flex;
 }
 
+.patient-care-events-page__filters {
+  display: grid;
+  gap: 1rem;
+  padding: 1rem;
+  border: 1px solid rgba(20, 50, 63, 0.08);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.9);
+}
+
+.patient-care-events-page__filter-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.85rem;
+}
+
+.patient-care-events-page__filter-actions,
+.patient-care-events-page__pagination {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.75rem;
+}
+
 .patient-care-events-page__list {
   display: grid;
   gap: 1rem;
@@ -740,6 +995,10 @@ const openInstructionDetail = async (instructionId: string) => {
     flex-direction: column;
   }
 
+  .patient-care-events-page__filter-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
   .patient-care-events-page__actions {
     width: 100%;
     justify-content: flex-start;
@@ -748,6 +1007,16 @@ const openInstructionDetail = async (instructionId: string) => {
 }
 
 @media (max-width: 720px) {
+  .patient-care-events-page__filter-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .patient-care-events-page__filter-actions,
+  .patient-care-events-page__pagination {
+    justify-content: flex-start;
+    flex-wrap: wrap;
+  }
+
   .patient-care-events-page__event-meta-grid {
     grid-template-columns: 1fr;
   }

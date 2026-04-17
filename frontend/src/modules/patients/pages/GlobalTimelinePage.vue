@@ -3,7 +3,7 @@ import { computed, reactive, ref, watch } from "vue";
 import { useRouter } from "vue-router";
 import { useI18n } from "vue-i18n";
 
-import { listCareEventsRequest } from "../../care-events/api";
+import { getCareEventRequest } from "../../care-events/api";
 import type { CareEventRecord } from "../../care-events/types";
 import { listDocumentsRequest } from "../../documents/api";
 import type { DocumentRecord } from "../../documents/types";
@@ -33,7 +33,7 @@ const selectedCareEvent = ref<CareEventRecord | null>(null);
 const selectedCareEventPatientName = ref("");
 const selectedCareEventDocuments = ref<DocumentRecord[]>([]);
 
-const careEventsByPatientId = new Map<string, CareEventRecord[]>();
+const careEventsById = new Map<string, CareEventRecord>();
 const documentsByPatientId = new Map<string, DocumentRecord[]>();
 
 const isLoading = computed(() => patientsStore.status === "loading");
@@ -190,21 +190,22 @@ async function openCareEventDialog(entry: GlobalTimelineRecord) {
   selectedCareEventPatientName.value = entry.patient.fullName;
 
   try {
-    let careEvents = careEventsByPatientId.get(targetPatientId);
+    const cachedCareEvent = careEventsById.get(entry.relatedEntity.id);
     let documents = documentsByPatientId.get(targetPatientId);
 
-    if (!careEvents || !documents) {
-      [careEvents, documents] = await Promise.all([
-        listCareEventsRequest(targetPatientId),
-        listDocumentsRequest(targetPatientId),
-      ]);
+    if (!cachedCareEvent) {
+      const careEvent = await getCareEventRequest(entry.relatedEntity.id);
+      careEventsById.set(entry.relatedEntity.id, careEvent);
+      selectedCareEvent.value = careEvent;
+    } else {
+      selectedCareEvent.value = cachedCareEvent;
+    }
 
-      careEventsByPatientId.set(targetPatientId, careEvents);
+    if (!documents) {
+      documents = await listDocumentsRequest(targetPatientId);
       documentsByPatientId.set(targetPatientId, documents);
     }
 
-    selectedCareEvent.value =
-      careEvents.find((item) => item.id === entry.relatedEntity.id) ?? null;
     selectedCareEventDocuments.value = filterDocumentsByRelatedEntity(
       documents,
       "care_event",

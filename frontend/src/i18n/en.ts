@@ -312,6 +312,9 @@ export const en = {
     emptyTitle: "No care events yet",
     emptyDescription:
       "Add the first completed exam, visit, or treatment so the patient's history starts to reflect actual delivered care.",
+    emptyFilteredTitle: "No care events match these filters",
+    emptyFilteredDescription:
+      "Adjust the search, subtype, event type, facility, or date range to widen the clinical history.",
     emptyOutcomeNotes: "No outcome notes recorded.",
     emptyProviderName: "No provider recorded",
     emptySubtype: "No subtype recorded",
@@ -351,6 +354,19 @@ export const en = {
       providerName: "Provider",
       subtype: "Subtype",
       task: "Task",
+    },
+    filters: {
+      allFacilities: "All facilities",
+      allTypes: "All event types",
+      apply: "Apply filters",
+      endDateLabel: "End date",
+      facilityLabel: "Facility",
+      reset: "Reset",
+      searchLabel: "Search",
+      searchPlaceholder: "Search provider, subtype, notes, or type",
+      startDateLabel: "Start date",
+      subtypeLabel: "Subtype",
+      typeLabel: "Event type",
     },
     types: {
       exam: "Exam",

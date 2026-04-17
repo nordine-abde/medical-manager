@@ -31,3 +31,28 @@ export interface CareEventUpsertPayload {
   subtype: string | null;
   taskId: string | null;
 }
+
+export interface CareEventListFilters {
+  bookingId?: string;
+  eventType?: CareEventType;
+  facilityId?: string;
+  from?: string;
+  page?: number;
+  pageSize?: number;
+  search?: string;
+  subtype?: string;
+  taskId?: string;
+  to?: string;
+}
+
+export interface CareEventPagination {
+  page: number;
+  pageSize: number;
+  total: number;
+  totalPages: number;
+}
+
+export interface CareEventListResult {
+  careEvents: CareEventRecord[];
+  pagination: CareEventPagination;
+}

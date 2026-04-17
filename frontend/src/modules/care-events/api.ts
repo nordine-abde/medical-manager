@@ -1,4 +1,9 @@
-import type { CareEventRecord, CareEventUpsertPayload } from "./types";
+import type {
+  CareEventListFilters,
+  CareEventListResult,
+  CareEventRecord,
+  CareEventUpsertPayload,
+} from "./types";
 
 const API_BASE_PATH = "/api/v1";
 
@@ -13,6 +18,7 @@ interface CareEventPayload {
 
 interface CareEventsPayload {
   careEvents: CareEventRecord[];
+  pagination: CareEventListResult["pagination"];
 }
 
 const buildRequestHeaders = (body?: BodyInit | null): HeadersInit => {
@@ -63,16 +69,68 @@ const requestJson = async <T>(
 
 export const listCareEventsRequest = async (
   patientId: string,
-): Promise<CareEventRecord[]> => {
+  filters: CareEventListFilters = {},
+): Promise<CareEventListResult> => {
   const payload = await requestJson<CareEventsPayload>(
-    `/patients/${patientId}/care-events`,
+    `/patients/${patientId}/care-events${toQueryString(filters)}`,
     {
       method: "GET",
     },
     "Unable to load care events.",
   );
 
-  return payload.careEvents;
+  return {
+    careEvents: payload.careEvents,
+    pagination: payload.pagination,
+  };
+};
+
+const toQueryString = (filters: CareEventListFilters): string => {
+  const searchParams = new URLSearchParams();
+
+  if (filters.bookingId) {
+    searchParams.set("bookingId", filters.bookingId);
+  }
+
+  if (filters.eventType) {
+    searchParams.set("eventType", filters.eventType);
+  }
+
+  if (filters.facilityId) {
+    searchParams.set("facilityId", filters.facilityId);
+  }
+
+  if (filters.from) {
+    searchParams.set("from", filters.from);
+  }
+
+  if (filters.page) {
+    searchParams.set("page", String(filters.page));
+  }
+
+  if (filters.pageSize) {
+    searchParams.set("pageSize", String(filters.pageSize));
+  }
+
+  if (filters.search?.trim()) {
+    searchParams.set("search", filters.search.trim());
+  }
+
+  if (filters.subtype?.trim()) {
+    searchParams.set("subtype", filters.subtype.trim());
+  }
+
+  if (filters.taskId) {
+    searchParams.set("taskId", filters.taskId);
+  }
+
+  if (filters.to) {
+    searchParams.set("to", filters.to);
+  }
+
+  const queryString = searchParams.toString();
+
+  return queryString ? `?${queryString}` : "";
 };
 
 export const createCareEventRequest = async (
@@ -86,6 +144,20 @@ export const createCareEventRequest = async (
       method: "POST",
     },
     "Unable to create the care event.",
+  );
+
+  return response.careEvent;
+};
+
+export const getCareEventRequest = async (
+  careEventId: string,
+): Promise<CareEventRecord> => {
+  const response = await requestJson<CareEventPayload>(
+    `/care-events/${careEventId}`,
+    {
+      method: "GET",
+    },
+    "Unable to load the care event.",
   );
 
   return response.careEvent;

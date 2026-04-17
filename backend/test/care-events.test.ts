@@ -35,6 +35,7 @@ type CareEventPayload = {
     outcomeNotes: string | null;
     patientId: string;
     providerName: string | null;
+    subtype: string | null;
     taskId: string | null;
     updatedAt: string | null;
   };
@@ -42,6 +43,12 @@ type CareEventPayload = {
 
 type CareEventListPayload = {
   careEvents: Array<CareEventPayload["careEvent"]>;
+  pagination: {
+    page: number;
+    pageSize: number;
+    total: number;
+    totalPages: number;
+  };
 };
 
 let testContext: TestContext | null = null;
@@ -210,6 +217,48 @@ const insertBooking = async (
   );
 };
 
+const insertCareEvent = async (
+  sql: postgres.Sql,
+  schemaName: string,
+  patientId: string,
+  input: {
+    completedAt: string;
+    eventType: "exam" | "specialist_visit" | "treatment";
+    outcomeNotes?: string | null;
+    providerName?: string | null;
+    subtype?: string | null;
+  },
+): Promise<string> => {
+  const [careEvent] = await sql.unsafe<Array<{ id: string }>>(
+    `
+      insert into "${schemaName}"."care_events" (
+        patient_id,
+        provider_name,
+        event_type,
+        subtype,
+        completed_at,
+        outcome_notes
+      )
+      values ($1, $2, $3, $4, $5, $6)
+      returning id
+    `,
+    [
+      patientId,
+      input.providerName ?? null,
+      input.eventType,
+      input.subtype ?? null,
+      input.completedAt,
+      input.outcomeNotes ?? null,
+    ],
+  );
+
+  if (!careEvent) {
+    throw new Error("Failed to insert care event");
+  }
+
+  return careEvent.id;
+};
+
 beforeEach(async () => {
   const schemaName = `test_care_events_api_${randomUUID().replaceAll("-", "")}`;
   const sql = postgres(databaseUrl, {
@@ -228,6 +277,7 @@ beforeEach(async () => {
   await applyMigration(sql, schemaName, "0010_bookings.sql");
   await applyMigration(sql, schemaName, "0014_documents.sql");
   await applyMigration(sql, schemaName, "0015_care_events.sql");
+  await applyMigration(sql, schemaName, "0020_care_event_subtypes.sql");
 
   await insertTestUser(sql, schemaName, "user-1");
   await insertTestUser(sql, schemaName, "user-2");
@@ -338,6 +388,12 @@ describe("care events module", () => {
     expect(listResponse.status).toBe(200);
     expect(listPayload.careEvents).toHaveLength(1);
     expect(listPayload.careEvents[0]?.id).toBe(careEventId);
+    expect(listPayload.pagination).toEqual({
+      page: 1,
+      pageSize: 20,
+      total: 1,
+      totalPages: 1,
+    });
 
     const getResponse = await app.handle(
       new Request(`http://localhost/api/v1/care-events/${careEventId}`, {
@@ -375,6 +431,104 @@ describe("care events module", () => {
       outcomeNotes: "Specialist follow-up completed.",
       providerName: null,
       taskId,
+    });
+  });
+
+  it("searches, filters by subtype, and pages patient care events", async () => {
+    const { app, schemaName, sql } = getTestContext();
+    const patientId = "11111111-1111-4111-8111-111111111111";
+
+    await insertPatient(sql, schemaName, patientId, "user-1");
+
+    const bloodTestId = await insertCareEvent(sql, schemaName, patientId, {
+      completedAt: "2026-04-22T08:20:00.000Z",
+      eventType: "exam",
+      outcomeNotes: "Routine blood panel completed.",
+      providerName: "Dr. Bianchi",
+      subtype: "Blood test",
+    });
+    const cardiologyId = await insertCareEvent(sql, schemaName, patientId, {
+      completedAt: "2026-04-23T09:30:00.000Z",
+      eventType: "specialist_visit",
+      outcomeNotes: "Cardiology follow-up completed.",
+      providerName: "Dr. Verdi",
+      subtype: "Cardiology",
+    });
+    const therapyId = await insertCareEvent(sql, schemaName, patientId, {
+      completedAt: "2026-04-24T10:45:00.000Z",
+      eventType: "treatment",
+      outcomeNotes: "Physical therapy session completed.",
+      providerName: "Nurse Rossi",
+      subtype: "Physical therapy",
+    });
+
+    const subtypeResponse = await app.handle(
+      new Request(
+        `http://localhost/api/v1/patients/${patientId}/care-events?subtype=blood%20test`,
+        {
+          headers: {
+            "x-test-user-id": "user-1",
+          },
+        },
+      ),
+    );
+    const subtypePayload =
+      (await subtypeResponse.json()) as CareEventListPayload;
+
+    expect(subtypeResponse.status).toBe(200);
+    expect(subtypePayload.careEvents.map((careEvent) => careEvent.id)).toEqual([
+      bloodTestId,
+    ]);
+    expect(subtypePayload.pagination.total).toBe(1);
+
+    const filteredResponse = await app.handle(
+      new Request(
+        `http://localhost/api/v1/patients/${patientId}/care-events?search=dr.&eventType=specialist_visit&page=1&pageSize=1`,
+        {
+          headers: {
+            "x-test-user-id": "user-1",
+          },
+        },
+      ),
+    );
+    const filteredPayload =
+      (await filteredResponse.json()) as CareEventListPayload;
+
+    expect(filteredResponse.status).toBe(200);
+    expect(filteredPayload.careEvents.map((careEvent) => careEvent.id)).toEqual(
+      [cardiologyId],
+    );
+    expect(filteredPayload.pagination).toEqual({
+      page: 1,
+      pageSize: 1,
+      total: 1,
+      totalPages: 1,
+    });
+
+    const pagedResponse = await app.handle(
+      new Request(
+        `http://localhost/api/v1/patients/${patientId}/care-events?page=2&pageSize=2`,
+        {
+          headers: {
+            "x-test-user-id": "user-1",
+          },
+        },
+      ),
+    );
+    const pagedPayload = (await pagedResponse.json()) as CareEventListPayload;
+
+    expect(pagedResponse.status).toBe(200);
+    expect(pagedPayload.careEvents.map((careEvent) => careEvent.id)).toEqual([
+      bloodTestId,
+    ]);
+    expect(
+      pagedPayload.careEvents.map((careEvent) => careEvent.id),
+    ).not.toContain(therapyId);
+    expect(pagedPayload.pagination).toEqual({
+      page: 2,
+      pageSize: 2,
+      total: 3,
+      totalPages: 2,
     });
   });
 

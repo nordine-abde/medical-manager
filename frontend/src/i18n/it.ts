@@ -319,6 +319,9 @@ export const it = {
     emptyTitle: "Nessun evento clinico ancora",
     emptyDescription:
       "Aggiungi il primo esame, visita o trattamento completato cosi lo storico del paziente rifletta l'assistenza realmente erogata.",
+    emptyFilteredTitle: "Nessun evento clinico corrisponde ai filtri",
+    emptyFilteredDescription:
+      "Modifica ricerca, sottotipo, tipo evento, struttura o intervallo date per ampliare lo storico clinico.",
     emptyOutcomeNotes: "Nessuna nota di esito registrata.",
     emptyProviderName: "Nessun professionista registrato",
     emptySubtype: "Nessun sottotipo registrato",
@@ -360,6 +363,19 @@ export const it = {
       providerName: "Professionista",
       subtype: "Sottotipo",
       task: "Attivita",
+    },
+    filters: {
+      allFacilities: "Tutte le strutture",
+      allTypes: "Tutti i tipi evento",
+      apply: "Applica filtri",
+      endDateLabel: "Data fine",
+      facilityLabel: "Struttura",
+      reset: "Reimposta",
+      searchLabel: "Cerca",
+      searchPlaceholder: "Cerca professionista, sottotipo, note o tipo",
+      startDateLabel: "Data inizio",
+      subtypeLabel: "Sottotipo",
+      typeLabel: "Tipo evento",
     },
     types: {
       exam: "Esame",

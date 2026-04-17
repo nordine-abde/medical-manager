@@ -49,6 +49,12 @@ describe("useCareEventsStore", () => {
               updatedAt: "2026-03-19T11:40:00.000Z",
             },
           ],
+          pagination: {
+            page: 1,
+            pageSize: 20,
+            total: 2,
+            totalPages: 1,
+          },
         }),
         {
           headers: {
@@ -65,8 +71,9 @@ describe("useCareEventsStore", () => {
       "care-event-2",
       "care-event-1",
     ]);
+    expect(store.pagination.total).toBe(2);
     expect(mockFetch).toHaveBeenCalledWith(
-      "/api/v1/patients/patient-1/care-events",
+      "/api/v1/patients/patient-1/care-events?page=1&pageSize=20",
       expect.objectContaining({
         credentials: "include",
         method: "GET",
@@ -82,6 +89,12 @@ describe("useCareEventsStore", () => {
         new Response(
           JSON.stringify({
             careEvents: [],
+            pagination: {
+              page: 1,
+              pageSize: 20,
+              total: 0,
+              totalPages: 0,
+            },
           }),
           {
             headers: {
@@ -107,6 +120,40 @@ describe("useCareEventsStore", () => {
               subtype: "Physical therapy",
               taskId: "task-1",
               updatedAt: "2026-03-19T16:01:00.000Z",
+            },
+          }),
+          {
+            headers: {
+              "content-type": "application/json",
+            },
+            status: 200,
+          },
+        ),
+      )
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            careEvents: [
+              {
+                bookingId: "booking-1",
+                completedAt: "2026-03-19T16:00:00.000Z",
+                createdAt: "2026-03-19T16:01:00.000Z",
+                eventType: "treatment",
+                facilityId: "facility-1",
+                id: "care-event-3",
+                outcomeNotes: "Treatment completed successfully.",
+                patientId: "patient-1",
+                providerName: "Nurse Verdi",
+                subtype: "Physical therapy",
+                taskId: "task-1",
+                updatedAt: "2026-03-19T16:01:00.000Z",
+              },
+            ],
+            pagination: {
+              page: 1,
+              pageSize: 20,
+              total: 1,
+              totalPages: 1,
             },
           }),
           {
@@ -152,5 +199,59 @@ describe("useCareEventsStore", () => {
       subtype: "Physical therapy",
       taskId: "task-1",
     });
+    expect(mockFetch).toHaveBeenNthCalledWith(
+      3,
+      "/api/v1/patients/patient-1/care-events?page=1&pageSize=20",
+      expect.objectContaining({
+        credentials: "include",
+        method: "GET",
+      }),
+    );
+  });
+
+  it("loads patient care events with filters and pagination", async () => {
+    const store = useCareEventsStore();
+
+    mockFetch.mockResolvedValueOnce(
+      new Response(
+        JSON.stringify({
+          careEvents: [],
+          pagination: {
+            page: 2,
+            pageSize: 10,
+            total: 13,
+            totalPages: 2,
+          },
+        }),
+        {
+          headers: {
+            "content-type": "application/json",
+          },
+          status: 200,
+        },
+      ),
+    );
+
+    await store.loadCareEvents("patient-1", {
+      eventType: "exam",
+      page: 2,
+      pageSize: 10,
+      search: "Rossi",
+      subtype: "Blood test",
+    });
+
+    expect(store.pagination).toEqual({
+      page: 2,
+      pageSize: 10,
+      total: 13,
+      totalPages: 2,
+    });
+    expect(mockFetch).toHaveBeenCalledWith(
+      "/api/v1/patients/patient-1/care-events?eventType=exam&page=2&pageSize=10&search=Rossi&subtype=Blood+test",
+      expect.objectContaining({
+        credentials: "include",
+        method: "GET",
+      }),
+    );
   });
 });

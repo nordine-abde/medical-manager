@@ -1,6 +1,8 @@
 import { createSqlClient } from "../../db/client";
 import { databaseSchemaName } from "../../db/schema";
 import {
+  type CareEventListFilters,
+  type CareEventListResult,
   type CareEventRecord,
   type CareEventsRepository,
   type CreateCareEventInput,
@@ -58,8 +60,13 @@ export const createCareEventsService = (
   async listCareEvents(
     userId: string,
     patientId: string,
-  ): Promise<CareEventRecord[]> {
-    const careEvents = await repository.listByPatient(userId, patientId);
+    filters: CareEventListFilters,
+  ): Promise<CareEventListResult> {
+    const careEvents = await repository.listByPatient(
+      userId,
+      patientId,
+      filters,
+    );
 
     if (!careEvents) {
       throw new PatientCareEventAccessError();
