@@ -3,10 +3,8 @@ import { computed, reactive, watch } from "vue";
 import { useI18n } from "vue-i18n";
 
 import {
-  prescriptionStatuses,
   prescriptionTypes,
   type PrescriptionRecord,
-  type PrescriptionStatus,
   type PrescriptionType,
   type PrescriptionUpsertPayload,
 } from "../types";
@@ -24,12 +22,6 @@ interface PrescriptionFormSubmitPayload {
       }
     | null;
     prescription: PrescriptionUpsertPayload;
-  statusPayload: {
-    collectedAt?: string | null;
-    receivedAt?: string | null;
-    requestedAt?: string | null;
-    status: PrescriptionStatus;
-  };
 }
 
 const props = defineProps<{
@@ -49,16 +41,12 @@ const emit = defineEmits<{
 const { t } = useI18n();
 
 const form = reactive({
-  collectedAt: "",
-    documentFile: null as File | null,
+  documentFile: null as File | null,
   documentNotes: "",
   expirationDate: "",
-          issueDate: "",
+  issueDate: "",
   notes: "",
   prescriptionType: "exam" as PrescriptionUpsertPayload["prescriptionType"],
-  receivedAt: "",
-  requestedAt: "",
-  status: "needed" as PrescriptionStatus,
   subtype: "",
   subtypeInput: "",
 });
@@ -69,13 +57,6 @@ const typeOptions = computed(() =>
   prescriptionTypes.map((type) => ({
     label: t(`prescriptions.types.${type}`),
     value: type,
-  })),
-);
-
-const statusOptions = computed(() =>
-  prescriptionStatuses.map((status) => ({
-    label: t(`prescriptions.statuses.${status}`),
-    value: status,
   })),
 );
 
@@ -106,16 +87,12 @@ const toIsoDateTime = (value: string): string | null => {
 };
 
 const syncForm = () => {
-  form.collectedAt = toInputDateTime(props.prescription?.collectedAt ?? null);
   form.documentFile = null;
   form.documentNotes = "";
   form.expirationDate = props.prescription?.expirationDate ?? "";
   form.issueDate = props.prescription?.issueDate ?? "";
   form.notes = props.prescription?.notes ?? "";
   form.prescriptionType = props.prescription?.prescriptionType ?? "exam";
-  form.receivedAt = toInputDateTime(props.prescription?.receivedAt ?? null);
-  form.requestedAt = toInputDateTime(props.prescription?.requestedAt ?? null);
-  form.status = props.prescription?.status ?? "needed";
   form.subtype = normalizeSubtypeValue(props.prescription?.subtype);
   form.subtypeInput = form.subtype;
 };
@@ -182,20 +159,12 @@ const handleSubmit = () => {
             notes: form.documentNotes.trim() || null,
           }
         : null,
-    
     prescription: {
       expirationDate: form.expirationDate || null,
       issueDate: form.issueDate || null,
       notes: form.notes.trim() || null,
       prescriptionType: form.prescriptionType,
-      status: form.status,
       subtype: normalizeSubtypeValue(form.subtype),
-    },
-    statusPayload: {
-      collectedAt: toIsoDateTime(form.collectedAt),
-      receivedAt: toIsoDateTime(form.receivedAt),
-      requestedAt: toIsoDateTime(form.requestedAt),
-      status: form.status,
     },
   });
 };
@@ -244,15 +213,6 @@ const handleSubmit = () => {
               :options="typeOptions"
             />
             <q-select
-              v-model="form.status"
-              outlined
-              emit-value
-              map-options
-              :disable="loading"
-              :label="$t('prescriptions.fields.status')"
-              :options="statusOptions"
-            />
-            <q-select
               v-model="form.subtype"
               :input-value="form.subtypeInput"
               outlined
@@ -286,29 +246,6 @@ const handleSubmit = () => {
               type="date"
               :disable="loading"
               :label="$t('prescriptions.fields.expirationDate')"
-            />
-            <q-input
-              v-model="form.requestedAt"
-              outlined
-              type="datetime-local"
-              :disable="loading"
-              :label="$t('prescriptions.fields.requestedAt')"
-            />
-            <q-input
-              v-model="form.receivedAt"
-              outlined
-              type="datetime-local"
-              :disable="loading"
-              :label="$t('prescriptions.fields.receivedAt')"
-            />
-            <q-input
-              v-model="form.collectedAt"
-              outlined
-              type="datetime-local"
-              :disable="loading"
-              :label="$t('prescriptions.fields.collectedAt')"
-            />
-
             />
           </div>
 

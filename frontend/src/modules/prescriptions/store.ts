@@ -4,19 +4,12 @@ import {
   createPrescriptionRequest,
   listPrescriptionsRequest,
   updatePrescriptionRequest,
-  updatePrescriptionStatusRequest,
 } from "./api";
 import type {
   PrescriptionListFilters,
   PrescriptionRecord,
-  PrescriptionStatus,
-  PrescriptionStatusPayload,
   PrescriptionUpsertPayload,
 } from "./types";
-
-interface UpdatePrescriptionOptions {
-  statusPayload?: PrescriptionStatusPayload;
-}
 
 interface PrescriptionsState {
   prescriptions: PrescriptionRecord[];
@@ -27,18 +20,8 @@ const sortPrescriptions = (
   prescriptions: PrescriptionRecord[],
 ): PrescriptionRecord[] =>
   [...prescriptions].sort((left, right) => {
-    const leftDate =
-      left.issueDate ??
-      left.requestedAt ??
-      left.receivedAt ??
-      left.updatedAt ??
-      left.createdAt;
-    const rightDate =
-      right.issueDate ??
-      right.requestedAt ??
-      right.receivedAt ??
-      right.updatedAt ??
-      right.createdAt;
+    const leftDate = left.issueDate ?? left.updatedAt ?? left.createdAt;
+    const rightDate = right.issueDate ?? right.updatedAt ?? right.createdAt;
     const dateOrder = rightDate.localeCompare(leftDate);
 
     if (dateOrder !== 0) {
@@ -82,10 +65,6 @@ const matchesFilters = (
     return false;
   }
 
-  if (filters.status && prescription.status !== filters.status) {
-    return false;
-  }
-
   return true;
 };
 
@@ -109,7 +88,6 @@ export const usePrescriptionsStore = defineStore("prescriptions", {
         ...(filters.prescriptionType
           ? { prescriptionType: filters.prescriptionType }
           : {}),
-        ...(filters.status ? { status: filters.status } : {}),
       };
 
       try {
@@ -147,55 +125,10 @@ export const usePrescriptionsStore = defineStore("prescriptions", {
     async updatePrescription(
       prescriptionId: string,
       payload: Partial<PrescriptionUpsertPayload>,
-      options: UpdatePrescriptionOptions = {},
     ): Promise<PrescriptionRecord> {
-      let prescription: PrescriptionRecord | null = null;
-
-      if (Object.keys(payload).length > 0) {
-        prescription = await updatePrescriptionRequest(prescriptionId, payload);
-      }
-
-      const currentStatus =
-        prescription?.status ??
-        this.prescriptions.find((item) => item.id === prescriptionId)?.status;
-
-      if (
-        options.statusPayload &&
-        (currentStatus !== options.statusPayload.status ||
-          options.statusPayload.collectedAt !== undefined ||
-          options.statusPayload.receivedAt !== undefined ||
-          options.statusPayload.requestedAt !== undefined)
-      ) {
-        prescription = await updatePrescriptionStatusRequest(
-          prescriptionId,
-          options.statusPayload,
-        );
-      }
-
-      if (!prescription) {
-        throw new Error("No prescription changes were submitted.");
-      }
-
-      if (matchesFilters(prescription, lastListFilters)) {
-        this.prescriptions = upsertPrescription(
-          this.prescriptions,
-          prescription,
-        );
-      } else {
-        this.prescriptions = this.prescriptions.filter(
-          (item) => item.id !== prescriptionId,
-        );
-      }
-
-      return prescription;
-    },
-    async changePrescriptionStatus(
-      prescriptionId: string,
-      status: PrescriptionStatus,
-    ): Promise<PrescriptionRecord> {
-      const prescription = await updatePrescriptionStatusRequest(
+      const prescription = await updatePrescriptionRequest(
         prescriptionId,
-        { status },
+        payload,
       );
 
       if (matchesFilters(prescription, lastListFilters)) {

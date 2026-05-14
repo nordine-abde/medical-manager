@@ -141,7 +141,6 @@ const mapPatientOverview = (overview: {
     notes: string | null;
     prescription_id: string;
     prescription_type: string;
-    status: string;
   }>;
   upcoming_appointments: Array<{
     appointment_at: Date;
@@ -157,7 +156,6 @@ const mapPatientOverview = (overview: {
     issueDate: formatDateOnly(prescription.issue_date),
     notes: prescription.notes,
     prescriptionType: prescription.prescription_type,
-    status: prescription.status,
   })),
   upcomingAppointments: overview.upcoming_appointments.map((appointment) => ({
     appointmentAt: appointment.appointment_at.toISOString(),

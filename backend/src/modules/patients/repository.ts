@@ -31,7 +31,6 @@ export type PatientOverviewPrescriptionRecord = {
   notes: string | null;
   prescription_id: string;
   prescription_type: string;
-  status: string;
 };
 
 export type PatientOverviewRecord = {
@@ -290,22 +289,13 @@ export const createPatientsRepository = (
             select
               p.id as prescription_id,
               p.prescription_type,
-              p.status,
               p.issue_date,
               p.expiration_date,
               p.notes
             from ${qualifiedPrescriptionsTable} as p
             where p.patient_id = $1
               and p.deleted_at is null
-              and p.status in ('needed', 'requested', 'available')
-            order by
-              case p.status
-                when 'needed' then 0
-                when 'requested' then 1
-                when 'available' then 2
-                else 3
-              end,
-              p.created_at asc
+            order by p.created_at asc
             limit 5
         `,
           [patientId],

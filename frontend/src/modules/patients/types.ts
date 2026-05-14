@@ -33,7 +33,6 @@ export interface PatientOverviewPrescriptionRecord {
   issueDate: string | null;
   notes: string | null;
   prescriptionType: string;
-  status: string;
 }
 
 export interface PatientOverviewAppointmentRecord {

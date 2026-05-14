@@ -4,14 +4,11 @@ import type { auth } from "../../auth";
 import { requireRequestSession } from "../../auth/session";
 import {
   legacyPrescriptionTypeAlias,
-  type PrescriptionStatus,
   type PrescriptionType,
-  prescriptionStatuses,
   prescriptionTypes,
 } from "./repository";
 import {
   createPrescriptionsService,
-  InvalidPrescriptionStatusTransitionError,
   PatientPrescriptionAccessError,
   PrescriptionAccessError,
 } from "./service";
@@ -27,16 +24,8 @@ const prescriptionTypeSchema = t.Union(
   ),
 );
 
-const prescriptionStatusSchema = t.Union(
-  prescriptionStatuses.map((status) => t.Literal(status)),
-);
-
 const dateOnlySchema = t.String({
   pattern: "^\\d{4}-\\d{2}-\\d{2}$",
-});
-
-const dateTimeSchema = t.String({
-  format: "date-time",
 });
 
 const patientIdParamsSchema = t.Object({
@@ -52,15 +41,11 @@ const prescriptionIdParamsSchema = t.Object({
 });
 
 const prescriptionBodySchema = t.Object({
-  collectedAt: t.Optional(t.Nullable(dateTimeSchema)),
   expirationDate: t.Optional(t.Nullable(dateOnlySchema)),
   issueDate: t.Optional(t.Nullable(dateOnlySchema)),
   notes: t.Optional(t.Nullable(t.String())),
   prescriptionType: prescriptionTypeSchema,
   subtype: t.Optional(t.Nullable(t.String())),
-  receivedAt: t.Optional(t.Nullable(dateTimeSchema)),
-  requestedAt: t.Optional(t.Nullable(dateTimeSchema)),
-  status: t.Optional(prescriptionStatusSchema),
   taskId: t.Optional(
     t.Nullable(
       t.String({
@@ -71,14 +56,11 @@ const prescriptionBodySchema = t.Object({
 });
 
 const prescriptionUpdateBodySchema = t.Object({
-  collectedAt: t.Optional(t.Nullable(dateTimeSchema)),
   expirationDate: t.Optional(t.Nullable(dateOnlySchema)),
   issueDate: t.Optional(t.Nullable(dateOnlySchema)),
   notes: t.Optional(t.Nullable(t.String())),
   prescriptionType: t.Optional(prescriptionTypeSchema),
   subtype: t.Optional(t.Nullable(t.String())),
-  receivedAt: t.Optional(t.Nullable(dateTimeSchema)),
-  requestedAt: t.Optional(t.Nullable(dateTimeSchema)),
   taskId: t.Optional(
     t.Nullable(
       t.String({
@@ -88,17 +70,9 @@ const prescriptionUpdateBodySchema = t.Object({
   ),
 });
 
-const prescriptionStatusBodySchema = t.Object({
-  collectedAt: t.Optional(t.Nullable(dateTimeSchema)),
-  receivedAt: t.Optional(t.Nullable(dateTimeSchema)),
-  requestedAt: t.Optional(t.Nullable(dateTimeSchema)),
-  status: prescriptionStatusSchema,
-});
-
 const prescriptionListQuerySchema = t.Object({
   includeArchived: t.Optional(t.Union([t.Literal("true"), t.Literal("false")])),
   prescriptionType: t.Optional(prescriptionTypeSchema),
-  status: t.Optional(prescriptionStatusSchema),
 });
 
 const unauthorizedPayload = {
@@ -114,11 +88,6 @@ const patientNotFoundPayload = {
 const prescriptionNotFoundPayload = {
   error: "prescription_not_found",
   message: "Prescription not found.",
-} as const;
-
-const invalidPrescriptionStatusTransitionPayload = {
-  error: "invalid_prescription_status_transition",
-  message: "Prescription status transition is not allowed.",
 } as const;
 
 const formatDateOnly = (value: Date | string | null): string | null => {
@@ -147,7 +116,6 @@ const normalizeOptionalText = (
 };
 
 const mapPrescription = (prescription: {
-  collected_at: Date | null;
   created_at: Date;
   deleted_at: Date | null;
   expiration_date: Date | string | null;
@@ -157,12 +125,8 @@ const mapPrescription = (prescription: {
   patient_id: string;
   prescription_type: string;
   subtype: string | null;
-  received_at: Date | null;
-  requested_at: Date | null;
-  status: PrescriptionStatus;
   updated_at: Date;
 }) => ({
-  collectedAt: formatDateTime(prescription.collected_at),
   createdAt: prescription.created_at.toISOString(),
   deletedAt: formatDateTime(prescription.deleted_at),
   expirationDate: formatDateOnly(prescription.expiration_date),
@@ -171,9 +135,6 @@ const mapPrescription = (prescription: {
   notes: prescription.notes,
   patientId: prescription.patient_id,
   prescriptionType: normalizePrescriptionType(prescription.prescription_type),
-  receivedAt: formatDateTime(prescription.received_at),
-  requestedAt: formatDateTime(prescription.requested_at),
-  status: prescription.status,
   subtype: prescription.subtype,
   updatedAt: prescription.updated_at.toISOString(),
 });
@@ -210,7 +171,6 @@ export const createPrescriptionsModule = (
                       query.prescriptionType,
                     ),
                   }),
-              ...(query.status === undefined ? {} : { status: query.status }),
             },
           );
 
@@ -239,16 +199,12 @@ export const createPrescriptionsModule = (
             session.user.id,
             params.patientId,
             {
-              collectedAt: body.collectedAt ?? null,
               expirationDate: body.expirationDate ?? null,
               issueDate: body.issueDate ?? null,
               notes: normalizeOptionalText(body.notes) ?? null,
               prescriptionType: normalizePrescriptionType(
                 body.prescriptionType,
               ),
-              receivedAt: body.receivedAt ?? null,
-              requestedAt: body.requestedAt ?? null,
-              status: body.status ?? "needed",
               subtype: normalizeOptionalText(body.subtype) ?? null,
             },
           );
@@ -303,9 +259,6 @@ export const createPrescriptionsModule = (
             session.user.id,
             params.prescriptionId,
             {
-              ...(body.collectedAt === undefined
-                ? {}
-                : { collectedAt: body.collectedAt }),
               ...(body.expirationDate === undefined
                 ? {}
                 : { expirationDate: body.expirationDate }),
@@ -325,12 +278,6 @@ export const createPrescriptionsModule = (
               ...(body.subtype === undefined
                 ? {}
                 : { subtype: normalizeOptionalText(body.subtype) ?? null }),
-              ...(body.receivedAt === undefined
-                ? {}
-                : { receivedAt: body.receivedAt }),
-              ...(body.requestedAt === undefined
-                ? {}
-                : { requestedAt: body.requestedAt }),
               ...(body.taskId === undefined ? {} : { taskId: body.taskId }),
             },
           );
@@ -348,48 +295,6 @@ export const createPrescriptionsModule = (
       },
       {
         body: prescriptionUpdateBodySchema,
-        params: prescriptionIdParamsSchema,
-      },
-    )
-    .patch(
-      "/prescriptions/:prescriptionId/status",
-      async ({ body, params, request, status }) => {
-        try {
-          const session = await requireRequestSession(authInstance, request);
-          const prescription = await service.changePrescriptionStatus(
-            session.user.id,
-            params.prescriptionId,
-            {
-              status: body.status,
-              ...(body.collectedAt === undefined
-                ? {}
-                : { collectedAt: body.collectedAt }),
-              ...(body.receivedAt === undefined
-                ? {}
-                : { receivedAt: body.receivedAt }),
-              ...(body.requestedAt === undefined
-                ? {}
-                : { requestedAt: body.requestedAt }),
-            },
-          );
-
-          return {
-            prescription: mapPrescription(prescription),
-          };
-        } catch (error) {
-          if (error instanceof InvalidPrescriptionStatusTransitionError) {
-            return status(409, invalidPrescriptionStatusTransitionPayload);
-          }
-
-          if (error instanceof PrescriptionAccessError) {
-            return status(404, prescriptionNotFoundPayload);
-          }
-
-          return status(401, unauthorizedPayload);
-        }
-      },
-      {
-        body: prescriptionStatusBodySchema,
         params: prescriptionIdParamsSchema,
       },
     );

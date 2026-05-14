@@ -16,21 +16,7 @@ export const prescriptionTypes = [
 export type PrescriptionType = (typeof prescriptionTypes)[number];
 export const legacyPrescriptionTypeAlias = "specialist_visit" as const;
 export type LegacyPrescriptionTypeAlias = typeof legacyPrescriptionTypeAlias;
-
-export const prescriptionStatuses = [
-  "needed",
-  "requested",
-  "available",
-  "collected",
-  "used",
-  "expired",
-  "cancelled",
-] as const;
-
-export type PrescriptionStatus = (typeof prescriptionStatuses)[number];
-
 export type PrescriptionRecord = {
-  collected_at: Date | null;
   created_at: Date;
   deleted_at: Date | null;
   expiration_date: Date | string | null;
@@ -40,39 +26,21 @@ export type PrescriptionRecord = {
   patient_id: string;
   prescription_type: PrescriptionType;
   subtype: string | null;
-  received_at: Date | null;
-  requested_at: Date | null;
-  status: PrescriptionStatus;
   updated_at: Date;
 };
 
 export type CreatePrescriptionInput = {
-  collectedAt: string | null;
   expirationDate: string | null;
   issueDate: string | null;
   notes: string | null;
   prescriptionType: PrescriptionType;
   subtype: string | null;
-  receivedAt: string | null;
-  requestedAt: string | null;
-  status: PrescriptionStatus;
 };
 
-export type UpdatePrescriptionInput = Partial<
-  Omit<CreatePrescriptionInput, "status">
->;
-
-export type UpdatePrescriptionStatusInput = {
-  collectedAt: string | null;
-  receivedAt: string | null;
-  requestedAt: string | null;
-  status: PrescriptionStatus;
-};
-
+export type UpdatePrescriptionInput = Partial<CreatePrescriptionInput>;
 export type PrescriptionListFilters = {
   includeArchived: boolean;
   prescriptionType?: PrescriptionType;
-  status?: PrescriptionStatus;
 };
 
 const patientsTable = (schemaName: string): string =>
@@ -94,10 +62,6 @@ export const createPrescriptionsRepository = (
   const qualifiedPatientsTable = patientsTable(schemaName);
   const qualifiedPatientUsersTable = patientUsersTable(schemaName);
   const qualifiedPrescriptionsTable = prescriptionsTable(schemaName);
-  const qualifiedPrescriptionStatusType = qualifyTypeName(
-    schemaName,
-    "prescription_status",
-  );
   const qualifiedPrescriptionTypeType = qualifyTypeName(
     schemaName,
     "prescription_type",
@@ -121,27 +85,19 @@ export const createPrescriptionsRepository = (
             patient_id,
             prescription_type,
             subtype,
-            requested_at,
-            received_at,
-            collected_at,
             issue_date,
             expiration_date,
-            status,
             notes
           )
-          values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+          values ($1, $2, $3, $4, $5, $6)
           returning id
         `,
         [
           patientId,
           input.prescriptionType,
           input.subtype,
-          input.requestedAt,
-          input.receivedAt,
-          input.collectedAt,
           input.issueDate,
           input.expirationDate,
-          input.status,
           input.notes,
         ],
       );
@@ -164,12 +120,8 @@ export const createPrescriptionsRepository = (
             p.patient_id,
             p.prescription_type,
             p.subtype,
-            p.requested_at,
-            p.received_at,
-            p.collected_at,
             p.issue_date,
             p.expiration_date,
-            p.status,
             p.notes,
             p.deleted_at,
             p.created_at,
@@ -225,12 +177,8 @@ export const createPrescriptionsRepository = (
             p.patient_id,
             p.prescription_type,
             p.subtype,
-            p.requested_at,
-            p.received_at,
-            p.collected_at,
             p.issue_date,
             p.expiration_date,
-            p.status,
             p.notes,
             p.deleted_at,
             p.created_at,
@@ -238,20 +186,13 @@ export const createPrescriptionsRepository = (
           from ${qualifiedPrescriptionsTable} as p
           where p.patient_id = $1
             and ($2 or p.deleted_at is null)
-            and ($3::${qualifiedPrescriptionStatusType} is null or p.status = $3::${qualifiedPrescriptionStatusType})
-            and ($4::${qualifiedPrescriptionTypeType} is null or p.prescription_type = $4::${qualifiedPrescriptionTypeType})
+            and ($3::${qualifiedPrescriptionTypeType} is null or p.prescription_type = $3::${qualifiedPrescriptionTypeType})
           order by
             p.deleted_at asc nulls first,
-            p.status asc,
             p.issue_date desc nulls last,
             p.created_at desc
         `,
-        [
-          patientId,
-          filters.includeArchived,
-          filters.status ?? null,
-          filters.prescriptionType ?? null,
-        ],
+        [patientId, filters.includeArchived, filters.prescriptionType ?? null],
       );
     },
 
@@ -275,14 +216,11 @@ export const createPrescriptionsRepository = (
           set
             prescription_type = $2,
             subtype = $3,
-            requested_at = $4,
-            received_at = $5,
-            collected_at = $6,
-            issue_date = $7,
-            expiration_date = $8,
-            notes = $9,
+            issue_date = $4,
+            expiration_date = $5,
+            notes = $6,
             updated_at = now()
-          where id = $10
+          where id = $7
           returning id
         `,
         [
@@ -290,15 +228,6 @@ export const createPrescriptionsRepository = (
           input.subtype === undefined
             ? existingPrescription.subtype
             : input.subtype,
-          input.requestedAt === undefined
-            ? existingPrescription.requested_at
-            : input.requestedAt,
-          input.receivedAt === undefined
-            ? existingPrescription.received_at
-            : input.receivedAt,
-          input.collectedAt === undefined
-            ? existingPrescription.collected_at
-            : input.collectedAt,
           input.issueDate === undefined
             ? existingPrescription.issue_date
             : input.issueDate,
@@ -306,48 +235,6 @@ export const createPrescriptionsRepository = (
             ? existingPrescription.expiration_date
             : input.expirationDate,
           input.notes === undefined ? existingPrescription.notes : input.notes,
-          prescriptionId,
-        ],
-      );
-
-      if (!updatedPrescription) {
-        return null;
-      }
-
-      return this.findAccessibleById(userId, updatedPrescription.id);
-    },
-
-    async updateStatusAccessible(
-      userId: string,
-      prescriptionId: string,
-      input: UpdatePrescriptionStatusInput,
-    ): Promise<PrescriptionRecord | null> {
-      const existingPrescription = await this.findAccessibleById(
-        userId,
-        prescriptionId,
-      );
-
-      if (!existingPrescription || existingPrescription.deleted_at) {
-        return null;
-      }
-
-      const [updatedPrescription] = await sql.unsafe<Array<{ id: string }>>(
-        `
-          update ${qualifiedPrescriptionsTable}
-          set
-            status = $1,
-            requested_at = $2,
-            received_at = $3,
-            collected_at = $4,
-            updated_at = now()
-          where id = $5
-          returning id
-        `,
-        [
-          input.status,
-          input.requestedAt,
-          input.receivedAt,
-          input.collectedAt,
           prescriptionId,
         ],
       );

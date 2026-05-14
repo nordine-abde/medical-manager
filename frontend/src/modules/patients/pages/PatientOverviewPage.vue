@@ -19,7 +19,6 @@ import PrescriptionFormDialog from "../../prescriptions/components/PrescriptionF
 import { usePrescriptionsStore } from "../../prescriptions/store";
 import type {
   PrescriptionRecord,
-  PrescriptionStatus,
   PrescriptionType,
   PrescriptionUpsertPayload,
 } from "../../prescriptions/types";
@@ -147,9 +146,7 @@ const bookingPrescriptionOptions = computed(() => [
     value: null,
   },
   ...prescriptions.value.map((prescription) => ({
-    label: `${t(`prescriptions.types.${prescription.prescriptionType}`)} · ${t(
-      `prescriptions.statuses.${prescription.status}`,
-    )}`,
+    label: `${t(`prescriptions.types.${prescription.prescriptionType}`)}`,
     value: prescription.id,
   })),
 ]);
@@ -320,14 +317,13 @@ const formatOverviewAppointmentMeta = (
 const formatOverviewPrescriptionMeta = (
   prescription: PatientOverviewPrescriptionRecord,
 ) => {
-  const statusLabel = t(`prescriptions.statuses.${prescription.status}`);
-  const dateLabel = prescription.expirationDate
-    ? `${t("prescriptions.fields.expirationDate")}: ${formatPrescriptionDate(
-        prescription.expirationDate,
-      )}`
-    : null;
+  if (!prescription.expirationDate) {
+    return "";
+  }
 
-  return [statusLabel, dateLabel].filter(Boolean).join(" · ");
+  return `${t("prescriptions.fields.expirationDate")}: ${formatPrescriptionDate(
+    prescription.expirationDate,
+  )}`;
 };
 
 const resolvePrescriptionTypeLabel = (prescription: {
@@ -367,9 +363,7 @@ const resolveBookingPrescriptionLabel = (prescriptionId: string | null) => {
     return t("bookings.missingPrescription");
   }
 
-  return `${resolvePrescriptionTypeLabel(prescription)} · ${t(
-    `prescriptions.statuses.${prescription.status}`,
-  )}`;
+  return resolvePrescriptionTypeLabel(prescription);
 };
 
 const nextBookingStatus = (
@@ -382,23 +376,6 @@ const nextBookingStatus = (
       return "booked";
     case "booked":
       return "completed";
-    default:
-      return null;
-  }
-};
-
-const nextPrescriptionStatus = (
-  status: PrescriptionStatus,
-): PrescriptionStatus | null => {
-  switch (status) {
-    case "needed":
-      return "requested";
-    case "requested":
-      return "available";
-    case "available":
-      return "collected";
-    case "collected":
-      return "used";
     default:
       return null;
   }
@@ -497,12 +474,6 @@ const handlePrescriptionSubmit = async (payload: {
       }
     | null;
     prescription: PrescriptionUpsertPayload;
-  statusPayload: {
-    collectedAt?: string | null;
-    receivedAt?: string | null;
-    requestedAt?: string | null;
-    status: PrescriptionStatus;
-  };
 }) => {
   isPrescriptionSaving.value = true;
   errorMessage.value = "";
@@ -517,10 +488,6 @@ const handlePrescriptionSubmit = async (payload: {
           notes: payload.prescription.notes,
           prescriptionType: payload.prescription.prescriptionType,
           subtype: payload.prescription.subtype,
-          
-        },
-        {
-          statusPayload: payload.statusPayload,
         },
       );
 
@@ -576,24 +543,6 @@ const handlePrescriptionDialogModelChange = (value: boolean) => {
 
   if (!value) {
     editingPrescription.value = null;
-  }
-};
-
-const handleAdvancePrescriptionStatus = async (
-  prescriptionId: string,
-  status: PrescriptionStatus,
-) => {
-  isPrescriptionSaving.value = true;
-  errorMessage.value = "";
-
-  try {
-    await prescriptionsStore.changePrescriptionStatus(prescriptionId, status);
-    await refreshOverview();
-  } catch (error) {
-    errorMessage.value =
-      error instanceof Error ? error.message : t("prescriptions.genericError");
-  } finally {
-    isPrescriptionSaving.value = false;
   }
 };
 
@@ -1092,12 +1041,6 @@ const handleAdvanceBookingStatus = async (
                       <h3 class="patient-overview-page__prescription-title">
                         {{ resolvePrescriptionTypeLabel(prescription) }}
                       </h3>
-                      <q-badge
-                        rounded
-                        color="secondary"
-                        text-color="white"
-                        :label="$t(`prescriptions.statuses.${prescription.status}`)"
-                      />
                     </div>
                     <p class="patient-overview-page__prescription-copy">
                       {{ prescription.notes || $t("prescriptions.emptyNotes") }}
@@ -1111,19 +1054,7 @@ const handleAdvanceBookingStatus = async (
                         <span>{{ $t("prescriptions.fields.expirationDate") }}</span>
                         {{ formatPrescriptionDate(prescription.expirationDate) }}
                       </p>
-                      <p class="patient-overview-page__prescription-meta">
-                        <span>{{ $t("prescriptions.fields.requestedAt") }}</span>
-                        {{ formatPrescriptionDateTime(prescription.requestedAt) }}
-                      </p>
-                      <p class="patient-overview-page__prescription-meta">
-                        <span>{{ $t("prescriptions.fields.receivedAt") }}</span>
-                        {{ formatPrescriptionDateTime(prescription.receivedAt) }}
-                      </p>
-                      <p class="patient-overview-page__prescription-meta">
-                        <span>{{ $t("prescriptions.fields.collectedAt") }}</span>
-                        {{ formatPrescriptionDateTime(prescription.collectedAt) }}
-                      </p>
-                                          </div>
+                    </div>
 
                     <RelatedDocumentsPanel
                       :documents="getPrescriptionDocuments(prescription.id)"
@@ -1135,28 +1066,6 @@ const handleAdvanceBookingStatus = async (
                   </div>
 
                   <div class="patient-overview-page__prescription-actions">
-                                        <q-btn
-                      :key="`advance-${prescription.id}-${prescription.status}`"
-                      v-if="nextPrescriptionStatus(prescription.status)"
-                      flat
-                      color="secondary"
-                      icon="progression"
-                      no-caps
-                      :loading="isPrescriptionSaving"
-                      :label="
-                        $t('prescriptions.advanceAction', {
-                          status: $t(
-                            `prescriptions.statuses.${nextPrescriptionStatus(prescription.status)}`,
-                          ),
-                        })
-                      "
-                      @click="
-                        handleAdvancePrescriptionStatus(
-                          prescription.id,
-                          nextPrescriptionStatus(prescription.status) as PrescriptionStatus,
-                        )
-                      "
-                    />
                     <q-btn
                       :key="`edit-${prescription.id}`"
                       flat

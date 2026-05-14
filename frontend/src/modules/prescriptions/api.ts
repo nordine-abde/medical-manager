@@ -1,7 +1,6 @@
 import type {
   PrescriptionListFilters,
   PrescriptionRecord,
-  PrescriptionStatusPayload,
   PrescriptionUpsertPayload,
 } from "./types";
 
@@ -77,10 +76,6 @@ const toQueryString = (filters: PrescriptionListFilters): string => {
     searchParams.set("prescriptionType", filters.prescriptionType);
   }
 
-  if (filters.status) {
-    searchParams.set("status", filters.status);
-  }
-
   const queryString = searchParams.toString();
 
   return queryString ? `?${queryString}` : "";
@@ -150,22 +145,6 @@ export const updatePrescriptionRequest = async (
       method: "PATCH",
     },
     "Unable to update the prescription.",
-  );
-
-  return response.prescription;
-};
-
-export const updatePrescriptionStatusRequest = async (
-  prescriptionId: string,
-  payload: PrescriptionStatusPayload,
-): Promise<PrescriptionRecord> => {
-  const response = await requestJson<PrescriptionPayload>(
-    `/prescriptions/${prescriptionId}/status`,
-    {
-      body: JSON.stringify(payload),
-      method: "PATCH",
-    },
-    "Unable to update the prescription status.",
   );
 
   return response.prescription;
