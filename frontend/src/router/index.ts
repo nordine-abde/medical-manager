@@ -70,11 +70,6 @@ const routes: RouteRecordRaw[] = [
           import("../modules/patients/pages/PatientTimelinePage.vue"),
       },
       {
-        path: "patients/:patientId/notifications",
-        component: () =>
-          import("../modules/notifications/pages/NotificationSettingsPage.vue"),
-      },
-      {
         path: "patients/:patientId/instructions/:instructionId",
         component: () =>
           import(

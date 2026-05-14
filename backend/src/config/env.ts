@@ -15,8 +15,6 @@ const DEFAULT_DOCUMENTS_STORAGE_ROOT = path.resolve(
   process.cwd(),
   "../../medical-manager-data/documents",
 );
-const DEFAULT_NOTIFICATION_LOG_RETENTION_DAYS = 90;
-const DEFAULT_TELEGRAM_API_BASE_URL = "https://api.telegram.org";
 
 type EnvSource = Record<string, string | undefined>;
 export type LogLevel = "debug" | "info" | "error";
@@ -122,21 +120,8 @@ export const buildDocumentsStorageConfig = (env: EnvSource) =>
     rootDirectory: env.DOCUMENTS_STORAGE_ROOT ?? DEFAULT_DOCUMENTS_STORAGE_ROOT,
   }) as const;
 
-export const buildNotificationsConfig = (env: EnvSource) =>
-  ({
-    logRetentionDays: parsePositiveInteger(
-      env.NOTIFICATION_LOG_RETENTION_DAYS,
-      DEFAULT_NOTIFICATION_LOG_RETENTION_DAYS,
-      "NOTIFICATION_LOG_RETENTION_DAYS",
-    ),
-    telegramApiBaseUrl: (
-      env.TELEGRAM_API_BASE_URL ?? DEFAULT_TELEGRAM_API_BASE_URL
-    ).replace(/\/+$/, ""),
-    telegramBotToken: env.TELEGRAM_BOT_TOKEN?.trim() || null,
-  }) as const;
 
 export const appConfig = buildAppConfig(runtimeEnv);
 export const databaseConfig = buildDatabaseConfig(runtimeEnv);
 export const betterAuthConfig = buildBetterAuthConfig(runtimeEnv);
 export const documentsStorageConfig = buildDocumentsStorageConfig(runtimeEnv);
-export const notificationsConfig = buildNotificationsConfig(runtimeEnv);

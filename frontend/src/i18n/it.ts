@@ -28,7 +28,6 @@ export const it = {
     overview: "Panoramica",
     careEvents: "Eventi clinici",
     documents: "Documenti",
-    notifications: "Notifiche",
     tasks: "Attivita",
     timeline: "Timeline",
     settings: "Impostazioni",
@@ -448,59 +447,6 @@ export const it = {
     actions: {
       openPatient: "Apri paziente",
       openSource: "Apri origine",
-    },
-  },
-  notifications: {
-    eyebrow: "Notifiche paziente",
-    title: "Impostazioni notifiche",
-    subtitle: "Configura i promemoria Telegram per {patientName}.",
-    description:
-      "Mantieni la consegna dei promemoria nel contesto del paziente cosi ogni spazio di cura condiviso puo decidere quali avvisi Telegram attivare e con quanto anticipo inviarli.",
-    patientFallback: "questo paziente",
-    save: "Salva impostazioni",
-    reset: "Ripristina",
-    saveSuccess: "Impostazioni notifiche aggiornate con successo.",
-    deliverySuccess:
-      "I promemoria Telegram in attesa per questo paziente sono stati elaborati.",
-    deliveryEmpty:
-      "Al momento non ci sono promemoria Telegram in attesa associati a questo paziente.",
-    genericError:
-      "Qualcosa e andato storto durante il caricamento delle impostazioni notifiche.",
-    actions: {
-      enabled: "Attiva",
-      sendTestReminder: "Invia promemoria in attesa",
-    },
-    fields: {
-      daysBeforeDue: "Giorni prima della scadenza",
-      telegramChatId: "ID chat Telegram",
-      telegramChatIdHint:
-        "Usa l'ID della chat del paziente o del gruppo familiare che deve ricevere i promemoria.",
-    },
-    helper: {
-      leadTimeDisabled: "Attiva questo promemoria per modificare l'anticipo.",
-    },
-    rules: {
-      taskOverdue: {
-        eyebrow: "Attivita in ritardo",
-        title: "Scadenze mancate",
-        description:
-          "Invia un promemoria Telegram quando una attivita del paziente supera la scadenza ed e ancora eseguibile.",
-      },
-      upcomingBooking: {
-        eyebrow: "Prenotazioni imminenti",
-        title: "Appuntamenti in arrivo",
-        description:
-          "Avvisa il caregiver prima di una visita o di un esame prenotato cosi la preparazione avviene in tempo.",
-      },
-      medicationRenewal: {
-        eyebrow: "Rinnovo farmaci",
-        title: "Promemoria contatto MMG",
-        description:
-          "Avvisa il caregiver prima delle date di rinnovo dei farmaci cosi il contatto con il medico di base non viene dimenticato.",
-      },
-    },
-    validation: {
-      telegramChatIdRequired: "Inserisci l'ID della chat Telegram.",
     },
   },
   documents: {

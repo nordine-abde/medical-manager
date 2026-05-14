@@ -27,7 +27,6 @@ export const en = {
     overview: "Overview",
     careEvents: "Care events",
     documents: "Documents",
-    notifications: "Notifications",
     tasks: "Tasks",
     timeline: "Timeline",
     settings: "Settings",
@@ -437,58 +436,6 @@ export const en = {
     actions: {
       openPatient: "Open patient",
       openSource: "Open source",
-    },
-  },
-  notifications: {
-    eyebrow: "Patient notifications",
-    title: "Notification settings",
-    subtitle: "Configure Telegram reminders for {patientName}.",
-    description:
-      "Keep reminder delivery in patient context so each shared care workspace can decide which Telegram alerts should fire and how early they should be sent.",
-    patientFallback: "this patient",
-    save: "Save settings",
-    reset: "Reset",
-    saveSuccess: "Notification settings updated successfully.",
-    deliverySuccess:
-      "Pending Telegram reminders were processed for this patient.",
-    deliveryEmpty:
-      "No pending Telegram reminders matched this patient right now.",
-    genericError: "Something went wrong while loading notification settings.",
-    actions: {
-      enabled: "Enabled",
-      sendTestReminder: "Send pending reminders",
-    },
-    fields: {
-      daysBeforeDue: "Days before due",
-      telegramChatId: "Telegram chat ID",
-      telegramChatIdHint:
-        "Use the target chat ID for the patient or family group that should receive reminders.",
-    },
-    helper: {
-      leadTimeDisabled: "Enable this reminder to edit the lead time.",
-    },
-    rules: {
-      taskOverdue: {
-        eyebrow: "Overdue tasks",
-        title: "Missed due dates",
-        description:
-          "Send a Telegram reminder when a patient task has passed its due date and is still actionable.",
-      },
-      upcomingBooking: {
-        eyebrow: "Upcoming bookings",
-        title: "Upcoming appointments",
-        description:
-          "Notify the caregiver before a booked visit or exam so preparation work happens in time.",
-      },
-      medicationRenewal: {
-        eyebrow: "Medication renewal",
-        title: "GP contact reminders",
-        description:
-          "Warn the caregiver ahead of medication renewal dates so GP contact does not get missed.",
-      },
-    },
-    validation: {
-      telegramChatIdRequired: "Enter the Telegram chat ID.",
     },
   },
   documents: {

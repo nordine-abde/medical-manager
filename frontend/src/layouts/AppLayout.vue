@@ -46,11 +46,6 @@ const patientNavItems = computed(() => {
       to: `/app/patients/${patientId.value}/documents`,
       icon: "folder_shared",
     },
-    {
-      label: t("nav.notifications"),
-      to: `/app/patients/${patientId.value}/notifications`,
-      icon: "notifications_active",
-    },
   ];
 });
 
