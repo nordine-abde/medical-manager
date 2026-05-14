@@ -18,7 +18,6 @@ const isPatientRoute = computed(() => Boolean(patientId.value));
 const mainNavItems = computed(() => [
   { label: t("nav.patients"), to: "/app/patients", icon: "group" },
   { label: t("nav.tasks"), to: "/app/tasks", icon: "task_alt" },
-  { label: t("nav.timeline"), to: "/app/timeline", icon: "schedule" },
   { label: t("nav.settings"), to: "/app/settings", icon: "settings" },
 ]);
 

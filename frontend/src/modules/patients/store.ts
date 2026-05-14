@@ -6,21 +6,16 @@ import {
   createPatientRequest,
   getPatientOverviewRequest,
   getPatientRequest,
-  listGlobalTimelineRequest,
   listPatientsRequest,
-  listPatientTimelineRequest,
   listPatientUsersRequest,
   removePatientUserRequest,
   restorePatientRequest,
   updatePatientRequest,
 } from "./api";
 import type {
-  GlobalTimelineRecord,
   PatientListFilters,
   PatientOverviewRecord,
   PatientRecord,
-  PatientTimelineFilters,
-  PatientTimelineRecord,
   PatientUpsertPayload,
   PatientUserRecord,
 } from "./types";
@@ -28,33 +23,10 @@ import type {
 interface PatientsState {
   currentPatient: PatientRecord | null;
   currentOverview: PatientOverviewRecord | null;
-  currentTimeline: PatientTimelineRecord[];
-  globalTimeline: GlobalTimelineRecord[];
   patientUsers: PatientUserRecord[];
   patients: PatientRecord[];
   status: "idle" | "loading" | "ready";
 }
-
-const sortGlobalTimeline = (
-  timeline: GlobalTimelineRecord[],
-): GlobalTimelineRecord[] =>
-  [...timeline].sort((left, right) => {
-    const dateOrder = right.eventDate.localeCompare(left.eventDate);
-
-    if (dateOrder !== 0) {
-      return dateOrder;
-    }
-
-    const patientOrder = left.patient.fullName.localeCompare(
-      right.patient.fullName,
-    );
-
-    if (patientOrder !== 0) {
-      return patientOrder;
-    }
-
-    return left.id.localeCompare(right.id);
-  });
 
 const sortPatients = (patients: PatientRecord[]): PatientRecord[] =>
   [...patients].sort((left, right) =>
@@ -105,8 +77,6 @@ export const usePatientsStore = defineStore("patients", {
   state: (): PatientsState => ({
     currentPatient: null,
     currentOverview: null,
-    currentTimeline: [],
-    globalTimeline: [],
     patientUsers: [],
     patients: [],
     status: "idle",
@@ -162,22 +132,6 @@ export const usePatientsStore = defineStore("patients", {
     async loadOverview(patientId: string) {
       this.currentOverview = await getPatientOverviewRequest(patientId);
       return this.currentOverview;
-    },
-    async loadTimeline(
-      patientId: string,
-      filters: PatientTimelineFilters = {},
-    ) {
-      this.currentTimeline = await listPatientTimelineRequest(
-        patientId,
-        filters,
-      );
-      return this.currentTimeline;
-    },
-    async loadGlobalTimeline() {
-      this.globalTimeline = sortGlobalTimeline(
-        await listGlobalTimelineRequest(),
-      );
-      return this.globalTimeline;
     },
     async addPatientUser(patientId: string, identifier: string) {
       const user = await addPatientUserRequest(patientId, identifier.trim());

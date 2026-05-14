@@ -2,7 +2,6 @@ import { Elysia, t } from "elysia";
 
 import type { auth } from "../../auth";
 import { requireRequestSession } from "../../auth/session";
-import { patientTimelineEventTypes } from "./repository";
 import {
   createPatientsService,
   PatientAccessError,
@@ -50,24 +49,6 @@ const patientIdParamsSchema = t.Object({
 const patientListQuerySchema = t.Object({
   includeArchived: t.Optional(t.Union([t.Literal("true"), t.Literal("false")])),
   search: t.Optional(t.String()),
-});
-
-const patientTimelineEventTypeSchema = t.Union(
-  patientTimelineEventTypes.map((eventType) => t.Literal(eventType)),
-);
-
-const patientTimelineQuerySchema = t.Object({
-  endDate: t.Optional(
-    t.String({
-      pattern: "^\\d{4}-\\d{2}-\\d{2}$",
-    }),
-  ),
-  eventType: t.Optional(patientTimelineEventTypeSchema),
-  startDate: t.Optional(
-    t.String({
-      pattern: "^\\d{4}-\\d{2}-\\d{2}$",
-    }),
-  ),
 });
 
 const patientUserBodySchema = t.Object({
@@ -230,25 +211,6 @@ const mapPatientOverview = (overview: {
     status: appointment.booking_status,
     taskId: appointment.task_id,
   })),
-});
-
-const mapTimelineItem = (item: {
-  event_date: Date;
-  event_id: string;
-  event_type: (typeof patientTimelineEventTypes)[number];
-  patient_id: string;
-  summary: string;
-  timeline_id: string;
-}) => ({
-  eventDate: item.event_date.toISOString(),
-  id: item.timeline_id,
-  patientId: item.patient_id,
-  relatedEntity: {
-    id: item.event_id,
-    type: item.event_type,
-  },
-  summary: item.summary,
-  type: item.event_type,
 });
 
 const parseIncludeArchived = (value?: "true" | "false"): boolean =>
@@ -443,43 +405,6 @@ export const createPatientsModule = (
       },
       {
         params: patientIdParamsSchema,
-      },
-    )
-    .get(
-      "/patients/:patientId/timeline",
-      async ({ params, query, request, status }) => {
-        try {
-          const session = await requireRequestSession(authInstance, request);
-          const timeline = await service.listPatientTimeline(
-            session.user.id,
-            params.patientId,
-            {
-              ...(query.endDate === undefined
-                ? {}
-                : { endDate: query.endDate }),
-              ...(query.eventType === undefined
-                ? {}
-                : { eventType: query.eventType }),
-              ...(query.startDate === undefined
-                ? {}
-                : { startDate: query.startDate }),
-            },
-          );
-
-          return {
-            timeline: timeline.map(mapTimelineItem),
-          };
-        } catch (error) {
-          if (error instanceof PatientAccessError) {
-            return status(404, patientNotFoundPayload);
-          }
-
-          return status(401, unauthorizedPayload);
-        }
-      },
-      {
-        params: patientIdParamsSchema,
-        query: patientTimelineQuerySchema,
       },
     )
     .patch(

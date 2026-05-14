@@ -65,11 +65,6 @@ const routes: RouteRecordRaw[] = [
           import("../modules/care-events/pages/PatientCareEventsPage.vue"),
       },
       {
-        path: "patients/:patientId/timeline",
-        component: () =>
-          import("../modules/patients/pages/PatientTimelinePage.vue"),
-      },
-      {
         path: "patients/:patientId/instructions/:instructionId",
         component: () =>
           import(
@@ -88,11 +83,6 @@ const routes: RouteRecordRaw[] = [
       {
         path: "tasks",
         component: () => import("../modules/tasks/pages/GlobalTasksPage.vue"),
-      },
-      {
-        path: "timeline",
-        component: () =>
-          import("../modules/patients/pages/GlobalTimelinePage.vue"),
       },
       {
         path: "settings",

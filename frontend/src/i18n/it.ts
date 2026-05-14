@@ -381,74 +381,7 @@ export const it = {
       specialist_visit: "Visita specialistica",
       treatment: "Trattamento",
     },
-  },
-  timeline: {
-    eyebrow: "Timeline paziente",
-    title: "Timeline",
-    subtitle:
-      "Rivedi l'intera storia assistenziale di {patientName} tra attivita, visite, follow-up farmaci e record di supporto.",
-    description:
-      "Usa i filtri per tipo evento e intervallo date per restringere la cronologia, poi apri direttamente il record originale del paziente da ogni voce.",
-    backToOverview: "Torna alla panoramica",
-    openSource: "Apri origine",
-    careEventDetailEyebrow: "Dettaglio evento clinico",
-    careEventDetailTitle: "Evento clinico",
-    closeDetail: "Chiudi dettaglio evento clinico",
-    loadingDetail: "Caricamento dettagli evento clinico...",
-    noCareEventDocuments: "Nessun documento allegato a questo evento clinico.",
-    careEventNotFound: "L'evento clinico selezionato non e stato trovato.",
-    emptyEyebrow: "Flusso storico",
-    emptyTitle: "Nessun evento timeline ancora",
-    emptyDescription:
-      "Quando il lavoro di cura viene registrato, qui compariranno in ordine cronologico eventi da attivita, indicazioni, prescrizioni, prenotazioni, eventi clinici, farmaci e documenti.",
-    genericError:
-      "Qualcosa e andato storto durante il caricamento della timeline del paziente.",
-    filters: {
-      allTypes: "Tutti i tipi di evento",
-      endDateLabel: "Data fine",
-      startDateLabel: "Data inizio",
-      typeLabel: "Tipo evento",
-    },
-    eventTypes: {
-      task: "Attivita",
-      medical_instruction: "Indicazione",
-      prescription: "Prescrizione",
-      booking: "Prenotazione",
-      care_event: "Evento clinico",
-      medication: "Farmaco",
-      document: "Documento",
-    },
-  },
-  globalTimeline: {
-    eyebrow: "Spazio attivita assistenziali",
-    title: "Timeline familiare",
-    description:
-      "Rivedi l'attivita recente di tutti i pazienti accessibili, restringi il flusso per tipo evento o intervallo date e torna al record originale del paziente da un unico spazio.",
-    emptyEyebrow: "Flusso multi-paziente",
-    emptyTitle: "Nessuna attivita timeline corrisponde ai filtri",
-    emptyDescription:
-      "Quando esistono record di cura tra i tuoi pazienti, la loro attivita timeline comparira qui in un unico spazio in ordine cronologico inverso.",
-    genericError:
-      "Qualcosa e andato storto durante il caricamento della timeline globale.",
-    groupEyebrow: "Paziente",
-    fields: {
-      patient: "Paziente",
-      sourceType: "Tipo origine",
-      when: "Quando",
-    },
-    filters: {
-      allTypes: "Tutti i tipi di evento",
-      endDateLabel: "Data fine",
-      patientLabel: "Filtro paziente",
-      patientPlaceholder: "Cerca per nome paziente",
-      startDateLabel: "Data inizio",
-      typeLabel: "Tipo evento",
-    },
-    actions: {
-      openPatient: "Apri paziente",
-      openSource: "Apri origine",
-    },
-  },
+  },
   documents: {
     eyebrow: "Documenti del paziente",
     title: "Documenti",

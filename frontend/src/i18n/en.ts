@@ -372,72 +372,7 @@ export const en = {
       specialist_visit: "Specialist visit",
       treatment: "Treatment",
     },
-  },
-  timeline: {
-    eyebrow: "Patient timeline",
-    title: "Timeline",
-    subtitle:
-      "Review the complete care history for {patientName} across tasks, visits, medication follow-up, and supporting records.",
-    description:
-      "Use event type and date filters to narrow the chronology, then jump straight into the original patient record from any timeline item.",
-    backToOverview: "Back to overview",
-    openSource: "Open source",
-    careEventDetailEyebrow: "Clinical event detail",
-    careEventDetailTitle: "Clinical event",
-    closeDetail: "Close clinical event detail",
-    loadingDetail: "Loading clinical event details...",
-    noCareEventDocuments: "No document attached to this clinical event.",
-    careEventNotFound: "The selected clinical event could not be found.",
-    emptyEyebrow: "History feed",
-    emptyTitle: "No timeline events yet",
-    emptyDescription:
-      "As care work is recorded, events from tasks, instructions, prescriptions, bookings, care events, medications, and documents will appear here in chronological order.",
-    genericError: "Something went wrong while loading the patient timeline.",
-    filters: {
-      allTypes: "All event types",
-      endDateLabel: "End date",
-      startDateLabel: "Start date",
-      typeLabel: "Event type",
-    },
-    eventTypes: {
-      task: "Task",
-      medical_instruction: "Instruction",
-      prescription: "Prescription",
-      booking: "Booking",
-      care_event: "Care event",
-      medication: "Medication",
-      document: "Document",
-    },
-  },
-  globalTimeline: {
-    eyebrow: "Care activity workspace",
-    title: "Family timeline",
-    description:
-      "Review recent activity across every accessible patient, narrow the feed by event type or date range, and jump back into the original patient record from one workspace.",
-    emptyEyebrow: "Cross-patient feed",
-    emptyTitle: "No timeline activity matches these filters",
-    emptyDescription:
-      "When care records exist across your patients, their timeline activity will appear here in one reverse-chronological workspace.",
-    genericError: "Something went wrong while loading the global timeline.",
-    groupEyebrow: "Patient",
-    fields: {
-      patient: "Patient",
-      sourceType: "Source type",
-      when: "When",
-    },
-    filters: {
-      allTypes: "All event types",
-      endDateLabel: "End date",
-      patientLabel: "Patient filter",
-      patientPlaceholder: "Search by patient name",
-      startDateLabel: "Start date",
-      typeLabel: "Event type",
-    },
-    actions: {
-      openPatient: "Open patient",
-      openSource: "Open source",
-    },
-  },
+  },
   documents: {
     eyebrow: "Patient documents",
     title: "Documents",

@@ -6,8 +6,6 @@ import {
   type PatientOverviewRecord,
   type PatientRecord,
   type PatientsRepository,
-  type PatientTimelineFilters,
-  type PatientTimelineRecord,
   type PatientUserRecord,
   type UpdatePatientInput,
 } from "./repository";
@@ -87,24 +85,6 @@ export const createPatientsService = (
     }
 
     return overview;
-  },
-
-  async listPatientTimeline(
-    userId: string,
-    patientId: string,
-    filters: PatientTimelineFilters,
-  ): Promise<PatientTimelineRecord[]> {
-    const timeline = await repository.listAccessibleTimeline(
-      userId,
-      patientId,
-      filters,
-    );
-
-    if (!timeline) {
-      throw new PatientAccessError();
-    }
-
-    return timeline;
   },
 
   async listPatientUsers(

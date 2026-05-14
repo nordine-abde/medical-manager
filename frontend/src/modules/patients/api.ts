@@ -1,10 +1,7 @@
 import type {
-  GlobalTimelineRecord,
   PatientListFilters,
   PatientOverviewRecord,
   PatientRecord,
-  PatientTimelineFilters,
-  PatientTimelineRecord,
   PatientUpsertPayload,
   PatientUserRecord,
 } from "./types";
@@ -26,14 +23,6 @@ interface PatientListPayload {
 
 interface PatientOverviewPayload {
   overview: PatientOverviewRecord;
-}
-
-interface PatientTimelinePayload {
-  timeline: PatientTimelineRecord[];
-}
-
-interface GlobalTimelinePayload {
-  timeline: GlobalTimelineRecord[];
 }
 
 interface PatientUserPayload {
@@ -106,26 +95,6 @@ const toQueryString = (filters: PatientListFilters): string => {
   return queryString ? `?${queryString}` : "";
 };
 
-const toTimelineQueryString = (filters: PatientTimelineFilters): string => {
-  const searchParams = new URLSearchParams();
-
-  if (filters.eventType) {
-    searchParams.set("eventType", filters.eventType);
-  }
-
-  if (filters.startDate) {
-    searchParams.set("startDate", filters.startDate);
-  }
-
-  if (filters.endDate) {
-    searchParams.set("endDate", filters.endDate);
-  }
-
-  const queryString = searchParams.toString();
-
-  return queryString ? `?${queryString}` : "";
-};
-
 export const listPatientsRequest = async (
   filters: PatientListFilters = {},
 ): Promise<PatientRecord[]> => {
@@ -181,35 +150,6 @@ export const getPatientOverviewRequest = async (
   );
 
   return response.overview;
-};
-
-export const listPatientTimelineRequest = async (
-  patientId: string,
-  filters: PatientTimelineFilters = {},
-): Promise<PatientTimelineRecord[]> => {
-  const response = await requestJson<PatientTimelinePayload>(
-    `/patients/${patientId}/timeline${toTimelineQueryString(filters)}`,
-    {
-      method: "GET",
-    },
-    "Unable to load the patient timeline.",
-  );
-
-  return response.timeline;
-};
-
-export const listGlobalTimelineRequest = async (): Promise<
-  GlobalTimelineRecord[]
-> => {
-  const response = await requestJson<GlobalTimelinePayload>(
-    "/timeline",
-    {
-      method: "GET",
-    },
-    "Unable to load the global timeline workspace.",
-  );
-
-  return response.timeline;
 };
 
 export const updatePatientRequest = async (
