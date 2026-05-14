@@ -11,10 +11,10 @@ const documents: DocumentRecord[] = [
     id: "document-1",
     mimeType: "application/pdf",
     notes: null,
-    originalFilename: "instruction.pdf",
+    originalFilename: "prescription.pdf",
     patientId: "patient-1",
-    relatedEntityId: "instruction-1",
-    relatedEntityType: "medical_instruction",
+    relatedEntityId: "prescription-2",
+    relatedEntityType: "prescription",
     uploadedAt: "2026-03-19T09:00:00.000Z",
     uploadedByUserId: "user-1",
   },
@@ -50,14 +50,6 @@ const documents: DocumentRecord[] = [
 
 describe("filterDocumentsByRelatedEntity", () => {
   it("returns only documents linked to the requested entity", () => {
-    expect(
-      filterDocumentsByRelatedEntity(
-        documents,
-        "medical_instruction",
-        "instruction-1",
-      ).map((document) => document.id),
-    ).toEqual(["document-1"]);
-
     expect(
       filterDocumentsByRelatedEntity(
         documents,

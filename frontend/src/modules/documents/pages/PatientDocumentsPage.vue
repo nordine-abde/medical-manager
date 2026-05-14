@@ -12,8 +12,6 @@ import {
   type DocumentType,
   type RelatedEntityType,
 } from "../types";
-import { useInstructionsStore } from "../../instructions/store";
-import type { InstructionRecord } from "../../instructions/types";
 import { useMedicationsStore } from "../../medications/store";
 import type { MedicationRecord } from "../../medications/types";
 import { usePatientsStore } from "../../patients/store";
@@ -34,7 +32,6 @@ const { d, t } = useI18n();
 
 const patientsStore = usePatientsStore();
 const documentsStore = useDocumentsStore();
-const instructionsStore = useInstructionsStore();
 const prescriptionsStore = usePrescriptionsStore();
 const bookingsStore = useBookingsStore();
 const medicationsStore = useMedicationsStore();
@@ -50,7 +47,6 @@ const uploadNotes = ref("");
 const patientId = computed(() => route.params.patientId as string);
 const patient = computed(() => patientsStore.currentPatient);
 const documents = computed(() => documentsStore.documents);
-const instructions = computed(() => instructionsStore.instructions);
 const prescriptions = computed(() => prescriptionsStore.prescriptions);
 const bookings = computed(() => bookingsStore.activeBookings);
 const facilities = computed(() => bookingsStore.facilities);
@@ -73,16 +69,6 @@ const relatedEntityOptions = computed<RelatedEntityOption[]>(() => {
       relatedEntityId: patient.value.id,
       relatedEntityType: "patient",
       value: `patient:${patient.value.id}`,
-    });
-  }
-
-  for (const instruction of instructions.value) {
-    options.push({
-      caption: formatInstructionCaption(instruction),
-      label: resolveInstructionLabel(instruction),
-      relatedEntityId: instruction.id,
-      relatedEntityType: "medical_instruction",
-      value: `medical_instruction:${instruction.id}`,
     });
   }
 
@@ -134,7 +120,6 @@ const loadPage = async () => {
     await Promise.all([
       patientsStore.loadPatient(patientId.value),
       documentsStore.loadDocuments(patientId.value),
-      instructionsStore.loadInstructions(patientId.value),
       prescriptionsStore.loadPrescriptions(patientId.value),
       bookingsStore.loadBookings(patientId.value),
       bookingsStore.loadFacilities(),
@@ -213,18 +198,6 @@ const handleUpload = async () => {
   }
 };
 
-function resolveInstructionLabel(instruction: InstructionRecord): string {
-  return (
-    instruction.doctorName ||
-    instruction.specialty ||
-    t("documents.fallbacks.medicalInstruction")
-  );
-}
-
-function formatInstructionCaption(instruction: InstructionRecord): string {
-  return d(new Date(`${instruction.instructionDate}T00:00:00`), "short");
-}
-
 function formatPrescriptionCaption(prescription: PrescriptionRecord): string {
   if (prescription.issueDate) {
     return d(new Date(`${prescription.issueDate}T00:00:00`), "short");
@@ -256,16 +229,6 @@ const resolveLinkedEntityLabel = (document: DocumentRecord): string => {
     return patient.value?.fullName ?? t("documents.fallbacks.patient");
   }
 
-  if (document.relatedEntityType === "medical_instruction") {
-    const instruction = instructions.value.find(
-      (item) => item.id === document.relatedEntityId,
-    );
-
-    return instruction
-      ? resolveInstructionLabel(instruction)
-      : t("documents.fallbacks.medicalInstruction");
-  }
-
   if (document.relatedEntityType === "prescription") {
     return t("documents.relatedEntityLabels.prescription");
   }
@@ -288,16 +251,6 @@ const resolveLinkedEntityLabel = (document: DocumentRecord): string => {
 const resolveLinkedEntityCaption = (document: DocumentRecord): string => {
   if (document.relatedEntityType === "patient") {
     return t("documents.relatedEntityDescriptions.patient");
-  }
-
-  if (document.relatedEntityType === "medical_instruction") {
-    const instruction = instructions.value.find(
-      (item) => item.id === document.relatedEntityId,
-    );
-
-    return instruction
-      ? formatInstructionCaption(instruction)
-      : t("documents.fallbacks.noDate");
   }
 
   if (document.relatedEntityType === "prescription") {

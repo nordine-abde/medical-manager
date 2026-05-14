@@ -65,9 +65,6 @@ const medicationsTable = (schemaName: string): string =>
 const prescriptionsTable = (schemaName: string): string =>
   qualifyTableName(schemaName, "prescriptions");
 
-const tasksTable = (schemaName: string): string =>
-  qualifyTableName(schemaName, "tasks");
-
 export const createMedicationsRepository = (
   sql: Sql,
   schemaName = databaseSchemaName,

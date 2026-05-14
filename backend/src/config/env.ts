@@ -120,7 +120,6 @@ export const buildDocumentsStorageConfig = (env: EnvSource) =>
     rootDirectory: env.DOCUMENTS_STORAGE_ROOT ?? DEFAULT_DOCUMENTS_STORAGE_ROOT,
   }) as const;
 
-
 export const appConfig = buildAppConfig(runtimeEnv);
 export const databaseConfig = buildDatabaseConfig(runtimeEnv);
 export const betterAuthConfig = buildBetterAuthConfig(runtimeEnv);

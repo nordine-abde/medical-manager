@@ -48,38 +48,11 @@ export type PatientOverviewMedicationRecord = {
   quantity: string;
 };
 
-export const patientTimelineEventTypes = [
-  "medical_instruction",
-  "prescription",
-  "booking",
-  "care_event",
-  "medication",
-  "document",
-] as const;
-
 export type PatientOverviewRecord = {
   active_conditions: PatientOverviewConditionRecord[];
   active_medications: PatientOverviewMedicationRecord[];
   pending_prescriptions: PatientOverviewPrescriptionRecord[];
   upcoming_appointments: PatientOverviewAppointmentRecord[];
-};
-
-export type PatientTimelineEventType =
-  (typeof patientTimelineEventTypes)[number];
-
-export type PatientTimelineRecord = {
-  event_date: Date;
-  event_id: string;
-  event_type: PatientTimelineEventType;
-  patient_id: string;
-  summary: string;
-  timeline_id: string;
-};
-
-export type PatientTimelineFilters = {
-  endDate?: string;
-  eventType?: PatientTimelineEventType;
-  startDate?: string;
 };
 
 export type PatientUserRecord = {
@@ -103,9 +76,6 @@ const patientsTable = (schemaName: string): string =>
 const patientUsersTable = (schemaName: string): string =>
   qualifyTableName(schemaName, "patient_users");
 
-const tasksTable = (schemaName: string): string =>
-  qualifyTableName(schemaName, "tasks");
-
 const conditionsTable = (schemaName: string): string =>
   qualifyTableName(schemaName, "conditions");
 
@@ -121,15 +91,6 @@ const medicationsTable = (schemaName: string): string =>
 const usersTable = (schemaName: string): string =>
   qualifyTableName(schemaName, "user");
 
-const medicalInstructionsTable = (schemaName: string): string =>
-  qualifyTableName(schemaName, "medical_instructions");
-
-const careEventsTable = (schemaName: string): string =>
-  qualifyTableName(schemaName, "care_events");
-
-const documentsTable = (schemaName: string): string =>
-  qualifyTableName(schemaName, "documents");
-
 export const createPatientsRepository = (
   sql: Sql,
   schemaName = databaseSchemaName,
@@ -141,11 +102,6 @@ export const createPatientsRepository = (
   const qualifiedBookingsTable = bookingsTable(schemaName);
   const qualifiedMedicationsTable = medicationsTable(schemaName);
   const qualifiedUsersTable = usersTable(schemaName);
-  const qualifiedMedicalInstructionsTable =
-    medicalInstructionsTable(schemaName);
-  const qualifiedCareEventsTable = careEventsTable(schemaName);
-  const qualifiedDocumentsTable = documentsTable(schemaName);
-
   return {
     async create(
       userId: string,
@@ -402,13 +358,16 @@ export const createPatientsRepository = (
                 m.id as medication_id,
                 m.name,
                 m.quantity,
-                m.
                 m.next_gp_contact_date,
-                c.name as condition_name,
-                lower(m.name) asc,
-                m.created_at asc
+                c.name as condition_name
+              from ${qualifiedMedicationsTable} as m
+              left join ${qualifiedConditionsTable} as c
+                on c.id = m.condition_id
+              where m.patient_id = $1
+                and m.deleted_at is null
+              order by lower(m.name) asc, m.created_at asc
               limit 5
-          `,
+            `,
           [patientId],
         ),
       ]);

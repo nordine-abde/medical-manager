@@ -77,45 +77,6 @@ describe("migration helpers", () => {
     );
   });
 
-  it("defines the medical instructions table in the migration set", async () => {
-    const migrationPath = path.join(
-      migrationDirectory,
-      "0006_medical_instructions.sql",
-    );
-    const migrationSql = await readFile(migrationPath, "utf8");
-
-    expect(migrationSql).toContain("create type instruction_status as enum");
-    expect(migrationSql).toContain("create table medical_instructions");
-    expect(migrationSql).toContain(
-      "patient_id uuid not null references patients (id) on delete cascade",
-    );
-    expect(migrationSql).toContain("instruction_date date not null");
-    expect(migrationSql).toContain("original_notes text not null");
-    expect(migrationSql).toContain(
-      "status instruction_status not null default 'active'",
-    );
-    expect(migrationSql).toContain(
-      'created_by_user_id text not null references "user" (id) on delete restrict',
-    );
-  });
-
-  it("defines care-event links for medical instructions in the migration set", async () => {
-    const migrationPath = path.join(
-      migrationDirectory,
-      "0017_instruction_care_event_links.sql",
-    );
-    const migrationSql = await readFile(migrationPath, "utf8");
-
-    expect(migrationSql).toContain("alter table medical_instructions");
-    expect(migrationSql).toContain("add column care_event_id uuid");
-    expect(migrationSql).toContain(
-      "references care_events (id) on delete set null",
-    );
-    expect(migrationSql).toContain(
-      "create index medical_instructions_care_event_id_idx",
-    );
-  });
-
   it("defines the tasks table in the migration set", async () => {
     const migrationPath = path.join(migrationDirectory, "0007_tasks.sql");
     const migrationSql = await readFile(migrationPath, "utf8");
@@ -124,9 +85,6 @@ describe("migration helpers", () => {
     expect(migrationSql).toContain("create table tasks");
     expect(migrationSql).toContain(
       "patient_id uuid not null references patients (id) on delete cascade",
-    );
-    expect(migrationSql).toContain(
-      "medical_instruction_id uuid references medical_instructions (id) on delete set null",
     );
     expect(migrationSql).toContain(
       "condition_id uuid references conditions (id) on delete set null",

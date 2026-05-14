@@ -6,8 +6,6 @@ import { useI18n } from "vue-i18n";
 import { useBookingsStore } from "../../bookings/store";
 import { useDocumentsStore } from "../../documents/store";
 import type { DocumentRecord, DocumentType } from "../../documents/types";
-import { useInstructionsStore } from "../../instructions/store";
-import type { InstructionRecord, InstructionUpsertPayload } from "../../instructions/types";
 import { usePatientsStore } from "../../patients/store";
 import CareEventFormDialog from "../components/CareEventFormDialog.vue";
 import { useCareEventsStore } from "../store";
@@ -27,7 +25,6 @@ const { d, t } = useI18n();
 const patientsStore = usePatientsStore();
 const bookingsStore = useBookingsStore();
 const documentsStore = useDocumentsStore();
-const instructionsStore = useInstructionsStore();
 const careEventsStore = useCareEventsStore();
 
 const isLoading = ref(false);
@@ -50,29 +47,12 @@ const patientId = computed(() => route.params.patientId as string);
 const patient = computed(() => patientsStore.currentPatient);
 const bookings = computed(() => bookingsStore.activeBookings);
 const facilities = computed(() => bookingsStore.facilities);
-const instructions = computed(() => instructionsStore.instructions);
 const careEvents = computed(() => careEventsStore.careEvents);
 const pagination = computed(() => careEventsStore.pagination);
 const documents = computed(() => documentsStore.documents);
 const careEventSubtypeOptionsByType = computed(
   () => careEventsStore.subtypesByType,
 );
-const instructionsByCareEventId = computed(() => {
-  const grouped = new Map<string, InstructionRecord[]>();
-
-  for (const instruction of instructions.value) {
-    if (!instruction.careEventId) {
-      continue;
-    }
-
-    const currentItems = grouped.get(instruction.careEventId) ?? [];
-    currentItems.push(instruction);
-    grouped.set(instruction.careEventId, currentItems);
-  }
-
-  return grouped;
-});
-
 const bookingOptions = computed(() =>
   bookings.value.map((booking) => ({
     label: [
@@ -186,7 +166,6 @@ const loadPage = async () => {
             bookingsStore.loadBookings(patientId.value),
       bookingsStore.loadFacilities(),
       documentsStore.loadDocuments(patientId.value),
-      instructionsStore.loadInstructions(patientId.value),
       careEventsStore.loadCareEventSubtypes(patientId.value),
       loadCareEvents(),
     ]);
@@ -278,9 +257,6 @@ const resolveBookingLabel = (bookingId: string | null) => {
   ].join(" · ");
 };
 
-const resolveInstructionList = (careEventId: string): InstructionRecord[] =>
-  instructionsByCareEventId.value.get(careEventId) ?? [];
-
 const resolveDocumentsList = (careEventId: string): DocumentRecord[] =>
   documents.value.filter(
     (document) =>
@@ -319,12 +295,9 @@ const handleDialogModelChange = (value: boolean) => {
   }
 };
 
-const createInstructionAndTask = async (careEventId: string, instructionPayload: any): Promise<string | null> => { return null; };
-
 const handleSubmit = async (payload: {
   careEvent: CareEventUpsertPayload;
   facilityPayload: FacilityUpsertPayload | null;
-  inlineInstruction: InstructionUpsertPayload | null;
   attachedDocument: {
     documentType: DocumentType;
     file: File;
@@ -345,16 +318,9 @@ const handleSubmit = async (payload: {
     }
 
     if (editingCareEvent.value) {
-      const createdTaskId = await createInstructionAndTask(
-        editingCareEvent.value.id,
-        payload.inlineInstruction,
-        
-      );
-
       await careEventsStore.updateCareEvent(editingCareEvent.value.id, {
         ...payload.careEvent,
         facilityId,
-        
       });
 
       if (payload.attachedDocument) {
@@ -373,11 +339,6 @@ const handleSubmit = async (payload: {
           ...payload.careEvent,
           facilityId,
         },
-      );
-      await createInstructionAndTask(
-        createdCareEvent.id,
-        payload.inlineInstruction,
-        
       );
 
       if (payload.attachedDocument) {
@@ -408,11 +369,6 @@ const openOverviewAnchor = async (anchor: string) => {
   });
 };
 
-const openInstructionDetail = async (instructionId: string) => {
-  await router.push(
-    `/app/patients/${patientId.value}/instructions/${instructionId}`,
-  );
-};
 </script>
 
 <template>
@@ -603,26 +559,12 @@ const openInstructionDetail = async (instructionId: string) => {
 
                 <div
                   v-if="
-                    
                     careEvent.bookingId ||
-                    resolveInstructionList(careEvent.id).length ||
                     resolveDocumentsList(careEvent.id).length
                   "
                   class="patient-care-events-page__related-links"
                 >
                   <q-btn
-                    v-for="instruction in resolveInstructionList(careEvent.id)"
-                    :key="instruction.id"
-                    flat
-                    color="secondary"
-                    icon="description"
-                    no-caps
-                    :label="
-                      instruction.specialty || $t('careEvents.openInstructionLink')
-                    "
-                    @click="openInstructionDetail(instruction.id)"
-                  />
-                                    <q-btn
                     v-if="careEvent.bookingId"
                     flat
                     color="accent"
@@ -909,14 +851,6 @@ const openInstructionDetail = async (instructionId: string) => {
   .patient-care-events-page__pagination {
     justify-content: flex-start;
     flex-wrap: wrap;
-  }
-
-  .patient-care-events-page__event-meta-grid {
-    grid-template-columns: 1fr;
-  }
-}
-</style>
-   flex-wrap: wrap;
   }
 
   .patient-care-events-page__event-meta-grid {

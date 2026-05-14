@@ -10,7 +10,6 @@ export type DocumentType = (typeof documentTypes)[number];
 
 export const relatedEntityTypes = [
   "patient",
-  "medical_instruction",
   "prescription",
   "booking",
   "care_event",

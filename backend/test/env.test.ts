@@ -62,5 +62,4 @@ describe("env configuration", () => {
       secret: "better-auth-secret-for-local-development-only-1234",
     });
   });
-
 });

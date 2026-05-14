@@ -28,8 +28,6 @@ export const it = {
     overview: "Panoramica",
     careEvents: "Eventi clinici",
     documents: "Documenti",
-    tasks: "Attivita",
-    timeline: "Timeline",
     settings: "Impostazioni",
     signOut: "Esci",
   },
@@ -121,7 +119,7 @@ export const it = {
     summaryEyebrow: "Quadro operativo",
     summaryTitle: "Stato attuale dell'assistenza",
     summaryDescription:
-      "Parti dal quadro corrente del paziente e passa subito alla prossima indicazione, attivita, prescrizione o prenotazione senza uscire dalla panoramica.",
+      "Parti dal quadro corrente del paziente e passa subito alla prossima prescrizione, prenotazione o azione di cura senza uscire dalla panoramica.",
     overviewCards: {
       overdueTasks: {
         eyebrow: "Attivita in ritardo",
@@ -306,7 +304,6 @@ export const it = {
     summaryCount: "{count} eventi registrati",
     openTaskLink: "Apri attivita collegata",
     openBookingLink: "Apri prenotazione collegata",
-    openInstructionLink: "Apri indicazione collegata",
     downloadDocumentLink: "Scarica {filename}",
     unlinkedTask: "Nessuna attivita collegata",
     unlinkedBooking: "Nessuna prenotazione collegata",
@@ -333,10 +330,6 @@ export const it = {
       completedAtRequired:
         "Inserisci quando l'evento clinico e stato completato.",
     },
-    inlineInstruction: {
-      toggle: "Aggiungi un'indicazione da questo evento clinico",
-      title: "Indicazione collegata",
-    },
     resultDocument: {
       title: "Documento esito",
       helper:
@@ -350,8 +343,8 @@ export const it = {
     inlineTask: {
       defaultTitle: "Follow-up {eventType}",
       helper:
-        "Questa attivita verra collegata prima all'indicazione creata sopra e poi associata a questo evento clinico.",
-      toggle: "Aggiungi un'attivita di follow-up per quell'indicazione",
+        "Questa attivita di follow-up verra associata a questo evento clinico.",
+      toggle: "Aggiungi un'attivita di follow-up",
     },
     fields: {
       booking: "Prenotazione",
@@ -381,7 +374,8 @@ export const it = {
       specialist_visit: "Visita specialistica",
       treatment: "Trattamento",
     },
-  },
+  },
+
   documents: {
     eyebrow: "Documenti del paziente",
     title: "Documenti",
@@ -423,7 +417,6 @@ export const it = {
     },
     relatedEntityLabels: {
       patient: "Paziente",
-      medical_instruction: "Indicazione",
       prescription: "Prescrizione",
       booking: "Prenotazione",
       care_event: "Evento di cura",
@@ -433,7 +426,6 @@ export const it = {
       patient: "File generale del paziente",
     },
     fallbacks: {
-      medicalInstruction: "Indicazione",
       medication: "Farmaco",
       noDate: "Nessuna data registrata",
       patient: "Scheda paziente",
@@ -444,68 +436,6 @@ export const it = {
       fileTypeHint: "Si possono caricare solo file PDF, JPG, PNG e WEBP.",
       relatedEntityRequired:
         "Seleziona a quale record del paziente appartiene questo file.",
-    },
-  },
-  instructions: {
-    eyebrow: "Indicazioni mediche",
-    title: "Indicazioni",
-    description:
-      "Registra le indicazioni degli specialisti esattamente come sono state scritte, filtrale per stato o data e mantieni il piano originale visibile nel contesto del paziente.",
-    detailEyebrow: "Dettaglio indicazione",
-    detailSubtitle: "{date} per {patientName}",
-    createAction: "Aggiungi indicazione",
-    createEyebrow: "Nuova indicazione",
-    createTitle: "Aggiungi una indicazione medica",
-    edit: "Modifica",
-    editEyebrow: "Dettagli indicazione",
-    editTitle: "Aggiorna indicazione",
-    save: "Salva indicazione",
-    cancel: "Annulla",
-    closeForm: "Chiudi il modulo indicazione",
-    openDetail: "Apri dettaglio",
-    backToOverview: "Torna alla panoramica",
-    emptyEyebrow: "Elenco indicazioni",
-    emptyTitle: "Nessuna indicazione ancora",
-    emptyDescription:
-      "Aggiungi la prima indicazione specialistica per rendere visibile il piano del paziente in un solo posto.",
-    emptyTargetTimingText: "Nessuna indicazione temporale registrata.",
-    emptySpecialty: "Nessuna specialita registrata.",
-    unknownClinician: "Indicazione clinica",
-    genericError:
-      "Qualcosa e andato storto durante il caricamento delle indicazioni.",
-    originalNotesEyebrow: "Nota sorgente originale",
-    originalNotesTitle: "Note originali",
-    linkedTasksEyebrow: "Attivita collegate",
-    linkedTasksTitle: "Collegamento attivita",
-    linkedTasksDescription:
-      "Le attivita generate da questa indicazione appariranno qui quando il flusso task sara implementato.",
-    linkedDocumentsEyebrow: "Documenti collegati",
-    linkedDocumentsTitle: "Contesto documentale",
-    linkedDocumentsDescription:
-      "Mantieni referti e allegati direttamente su questa indicazione e carica nuova documentazione senza lasciare il dettaglio.",
-    linkedDocumentsEmptyTitle: "Nessun documento collegato",
-    linkedDocumentsEmptyDescription:
-      "Carica qui il primo file specifico dell'indicazione cosi le note originali e la documentazione di supporto restano insieme.",
-    fields: {
-      doctorName: "Nome medico",
-      specialty: "Specialita",
-      instructionDate: "Data indicazione",
-      originalNotes: "Note originali",
-      targetTimingText: "Tempistica target",
-      status: "Stato",
-      statusFilter: "Filtra per stato",
-      from: "Dalla data",
-      to: "Alla data",
-    },
-    validation: {
-      instructionDateRequired: "Inserisci la data dell'indicazione.",
-      originalNotesRequired: "Inserisci le note originali dell'indicazione.",
-    },
-    statuses: {
-      active: "Attiva",
-      fulfilled: "Completata",
-      superseded: "Sostituita",
-      cancelled: "Annullata",
     },
   },
   prescriptions: {
@@ -709,7 +639,7 @@ export const it = {
     emptyTitle: "Nessuna attivita ancora",
     emptyDescription: "Nessuna descrizione aggiunta per questa attivita.",
     emptyDescriptionLong:
-      "Aggiungi la prima attivita per seguire scadenze, visite pianificate e follow-up collegati alle indicazioni mediche di questo paziente.",
+      "Aggiungi la prima attivita per seguire scadenze, visite pianificate e follow-up collegati di questo paziente.",
     emptyDate: "Non pianificata",
     genericError:
       "Qualcosa e andato storto durante il caricamento delle attivita.",
@@ -717,8 +647,6 @@ export const it = {
       "{count} attivita prerequisito incompleta | {count} attivita prerequisito incomplete",
     unlinkedCondition: "Nessuna condizione collegata",
     missingCondition: "Condizione collegata non disponibile",
-    unlinkedInstruction: "Nessuna indicazione collegata",
-    missingInstruction: "Indicazione collegata non disponibile",
     groups: {
       overdue: "In ritardo",
       blocked: "Bloccate",
@@ -736,7 +664,6 @@ export const it = {
       condition: "Collegamento condizione",
       description: "Descrizione",
       dueDate: "Scadenza",
-      medicalInstruction: "Collegamento indicazione",
       scheduledAt: "Data e ora pianificate",
       status: "Stato",
       taskType: "Tipo di attivita",

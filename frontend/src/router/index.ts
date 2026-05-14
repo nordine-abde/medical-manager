@@ -65,13 +65,6 @@ const routes: RouteRecordRaw[] = [
           import("../modules/care-events/pages/PatientCareEventsPage.vue"),
       },
       {
-        path: "patients/:patientId/instructions/:instructionId",
-        component: () =>
-          import(
-            "../modules/instructions/pages/PatientInstructionDetailPage.vue"
-          ),
-      },
-      {
         path: "overview",
         component: () => import("../pages/AppPlaceholderPage.vue"),
         props: {

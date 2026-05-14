@@ -65,4 +65,3 @@ export interface PatientOverviewRecord {
   pendingPrescriptions: PatientOverviewPrescriptionRecord[];
   upcomingAppointments: PatientOverviewAppointmentRecord[];
 }
-

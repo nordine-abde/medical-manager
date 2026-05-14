@@ -35,11 +35,6 @@ const patientNavItems = computed(() => {
       icon: "history_edu",
     },
     {
-      label: t("nav.timeline"),
-      to: `/app/patients/${patientId.value}/timeline`,
-      icon: "schedule",
-    },
-    {
       label: t("nav.documents"),
       to: `/app/patients/${patientId.value}/documents`,
       icon: "folder_shared",

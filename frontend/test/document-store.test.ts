@@ -106,8 +106,8 @@ describe("useDocumentsStore", () => {
               notes: "Blood test panel",
               originalFilename: "report.pdf",
               patientId: "patient-1",
-              relatedEntityId: "instruction-1",
-              relatedEntityType: "medical_instruction",
+              relatedEntityId: "prescription-1",
+              relatedEntityType: "prescription",
               uploadedAt: "2026-03-19T12:00:00.000Z",
               uploadedByUserId: "user-1",
             },
@@ -126,8 +126,8 @@ describe("useDocumentsStore", () => {
       documentType: "exam_result",
       file,
       notes: "Blood test panel",
-      relatedEntityId: "instruction-1",
-      relatedEntityType: "medical_instruction",
+      relatedEntityId: "prescription-1",
+      relatedEntityType: "prescription",
     });
 
     expect(createdDocument.id).toBe("document-3");
@@ -141,8 +141,8 @@ describe("useDocumentsStore", () => {
 
     const formData = uploadCall?.[1]?.body as FormData;
     expect(formData.get("documentType")).toBe("exam_result");
-    expect(formData.get("relatedEntityType")).toBe("medical_instruction");
-    expect(formData.get("relatedEntityId")).toBe("instruction-1");
+    expect(formData.get("relatedEntityType")).toBe("prescription");
+    expect(formData.get("relatedEntityId")).toBe("prescription-1");
     expect(formData.get("notes")).toBe("Blood test panel");
     expect(formData.get("file")).toBe(file);
   });

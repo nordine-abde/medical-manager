@@ -61,8 +61,6 @@ const patientsTable = (schemaName: string): string =>
 const patientUsersTable = (schemaName: string): string =>
   qualifyTableName(schemaName, "patient_users");
 
-
-
 const prescriptionsTable = (schemaName: string): string =>
   qualifyTableName(schemaName, "prescriptions");
 
@@ -202,7 +200,6 @@ export const createBookingsRepository = (
       prescriptionId: string | null,
       facilityId: string | null,
     ): Promise<boolean> {
-
       if (prescriptionId) {
         const [prescription] = await sql.unsafe<Array<{ id: string }>>(
           `

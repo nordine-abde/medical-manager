@@ -149,29 +149,6 @@ const insertPatient = async (
   );
 };
 
-const insertInstruction = async (
-  sql: postgres.Sql,
-  schemaName: string,
-  instructionId: string,
-  patientId: string,
-  userId: string,
-): Promise<void> => {
-  await sql.unsafe(
-    `
-      insert into "${schemaName}"."medical_instructions" (
-        id,
-        patient_id,
-        instruction_date,
-        original_notes,
-        status,
-        created_by_user_id
-      )
-      values ($1, $2, current_date, $3, 'active', $4)
-    `,
-    [instructionId, patientId, "Seeded instruction", userId],
-  );
-};
-
 const insertCareEvent = async (
   sql: postgres.Sql,
   schemaName: string,
@@ -207,7 +184,7 @@ beforeEach(async () => {
   await applyMigration(sql, schemaName, "0002_better_auth_core.sql");
   await applyMigration(sql, schemaName, "0004_patient_access.sql");
   await applyMigration(sql, schemaName, "0005_conditions.sql");
-  await applyMigration(sql, schemaName, "0006_medical_instructions.sql");
+
   await applyMigration(sql, schemaName, "0007_tasks.sql");
   await applyMigration(sql, schemaName, "0009_prescriptions.sql");
   await applyMigration(sql, schemaName, "0010_bookings.sql");
@@ -267,16 +244,10 @@ describe("documents module", () => {
   it("uploads, lists, retrieves metadata, and downloads an accessible patient document", async () => {
     const { app, schemaName, sql } = getTestContext();
     const patientId = "11111111-1111-4111-8111-111111111111";
-    const instructionId = "22222222-2222-4222-8222-222222222222";
+    const careEventId = "22222222-2222-4222-8222-222222222222";
 
     await insertPatient(sql, schemaName, patientId, "user-1");
-    await insertInstruction(
-      sql,
-      schemaName,
-      instructionId,
-      patientId,
-      "user-1",
-    );
+    await insertCareEvent(sql, schemaName, careEventId, patientId);
 
     const formData = new FormData();
     formData.set(
@@ -286,8 +257,8 @@ describe("documents module", () => {
       }),
     );
     formData.set("documentType", "visit_report");
-    formData.set("relatedEntityType", "medical_instruction");
-    formData.set("relatedEntityId", instructionId);
+    formData.set("relatedEntityType", "care_event");
+    formData.set("relatedEntityId", careEventId);
     formData.set("notes", "Initial specialist report");
 
     const createResponse = await app.handle(
@@ -304,10 +275,8 @@ describe("documents module", () => {
 
     expect(createResponse.status).toBe(200);
     expect(createPayload.document.documentType).toBe("visit_report");
-    expect(createPayload.document.relatedEntityType).toBe(
-      "medical_instruction",
-    );
-    expect(createPayload.document.relatedEntityId).toBe(instructionId);
+    expect(createPayload.document.relatedEntityType).toBe("care_event");
+    expect(createPayload.document.relatedEntityId).toBe(careEventId);
     expect(createPayload.document.originalFilename).toBe("report.pdf");
     expect(createPayload.document.downloadUrl).toBe(
       `/api/v1/documents/${documentId}/download`,
@@ -398,17 +367,11 @@ describe("documents module", () => {
     const { app, schemaName, sql } = getTestContext();
     const patientId = "33333333-3333-4333-8333-333333333333";
     const otherPatientId = "44444444-4444-4444-8444-444444444444";
-    const otherInstructionId = "55555555-5555-4555-8555-555555555555";
+    const otherCareEventId = "55555555-5555-4555-8555-555555555555";
 
     await insertPatient(sql, schemaName, patientId, "user-1");
     await insertPatient(sql, schemaName, otherPatientId, "user-2");
-    await insertInstruction(
-      sql,
-      schemaName,
-      otherInstructionId,
-      otherPatientId,
-      "user-2",
-    );
+    await insertCareEvent(sql, schemaName, otherCareEventId, otherPatientId);
 
     const invalidFormData = new FormData();
     invalidFormData.set(
@@ -418,8 +381,8 @@ describe("documents module", () => {
       }),
     );
     invalidFormData.set("documentType", "general_attachment");
-    invalidFormData.set("relatedEntityType", "medical_instruction");
-    invalidFormData.set("relatedEntityId", otherInstructionId);
+    invalidFormData.set("relatedEntityType", "care_event");
+    invalidFormData.set("relatedEntityId", otherCareEventId);
 
     const invalidCreateResponse = await app.handle(
       new Request(`http://localhost/api/v1/patients/${patientId}/documents`, {

@@ -84,9 +84,6 @@ const patientsTable = (schemaName: string): string =>
 const patientUsersTable = (schemaName: string): string =>
   qualifyTableName(schemaName, "patient_users");
 
-const tasksTable = (schemaName: string): string =>
-  qualifyTableName(schemaName, "tasks");
-
 const prescriptionsTable = (schemaName: string): string =>
   qualifyTableName(schemaName, "prescriptions");
 
@@ -280,8 +277,6 @@ export const createPrescriptionsRepository = (
       if (!existingPrescription) {
         return null;
       }
-
-      
 
       const [updatedPrescription] = await sql.unsafe<Array<{ id: string }>>(
         `

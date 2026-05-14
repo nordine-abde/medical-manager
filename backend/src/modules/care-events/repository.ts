@@ -72,9 +72,6 @@ const patientsTable = (schemaName: string): string =>
 const patientUsersTable = (schemaName: string): string =>
   qualifyTableName(schemaName, "patient_users");
 
-const tasksTable = (schemaName: string): string =>
-  qualifyTableName(schemaName, "tasks");
-
 const bookingsTable = (schemaName: string): string =>
   qualifyTableName(schemaName, "bookings");
 
@@ -93,7 +90,6 @@ export const createCareEventsRepository = (
 ) => {
   const qualifiedPatientsTable = patientsTable(schemaName);
   const qualifiedPatientUsersTable = patientUsersTable(schemaName);
-  const qualifiedTasksTable = tasksTable(schemaName);
   const qualifiedBookingsTable = bookingsTable(schemaName);
   const qualifiedFacilitiesTable = facilitiesTable(schemaName);
   const qualifiedCareEventsTable = careEventsTable(schemaName);
@@ -215,7 +211,6 @@ export const createCareEventsRepository = (
       bookingId: string | null,
       facilityId: string | null,
     ): Promise<boolean> {
-
       if (bookingId) {
         const [booking] = await sql.unsafe<Array<{ id: string }>>(
           `

@@ -27,8 +27,6 @@ export const en = {
     overview: "Overview",
     careEvents: "Care events",
     documents: "Documents",
-    tasks: "Tasks",
-    timeline: "Timeline",
     settings: "Settings",
     signOut: "Sign out",
   },
@@ -120,7 +118,7 @@ export const en = {
     summaryEyebrow: "Care snapshot",
     summaryTitle: "Current care state",
     summaryDescription:
-      "Start from the current patient picture, then jump straight into the next instruction, task, prescription, or booking without leaving the overview.",
+      "Start from the current patient picture, then jump straight into the next prescription, booking, or care action without leaving the overview.",
     overviewCards: {
       overdueTasks: {
         eyebrow: "Overdue tasks",
@@ -299,7 +297,6 @@ export const en = {
     summaryCount: "{count} recorded events",
     openTaskLink: "Open linked task",
     openBookingLink: "Open linked booking",
-    openInstructionLink: "Open linked instruction",
     downloadDocumentLink: "Download {filename}",
     unlinkedTask: "No linked task",
     unlinkedBooking: "No linked booking",
@@ -324,10 +321,6 @@ export const en = {
     validation: {
       completedAtRequired: "Enter when the care event was completed.",
     },
-    inlineInstruction: {
-      toggle: "Add an instruction from this care event",
-      title: "Linked instruction",
-    },
     resultDocument: {
       title: "Result document",
       helper:
@@ -340,9 +333,8 @@ export const en = {
     },
     inlineTask: {
       defaultTitle: "{eventType} follow-up",
-      helper:
-        "This task will be linked to the instruction created above and then attached back to this care event.",
-      toggle: "Add a follow-up task for that instruction",
+      helper: "This follow-up task will be attached back to this care event.",
+      toggle: "Add a follow-up task",
     },
     fields: {
       booking: "Booking",
@@ -372,7 +364,8 @@ export const en = {
       specialist_visit: "Specialist visit",
       treatment: "Treatment",
     },
-  },
+  },
+
   documents: {
     eyebrow: "Patient documents",
     title: "Documents",
@@ -413,7 +406,6 @@ export const en = {
     },
     relatedEntityLabels: {
       patient: "Patient",
-      medical_instruction: "Instruction",
       prescription: "Prescription",
       booking: "Booking",
       care_event: "Care event",
@@ -423,7 +415,6 @@ export const en = {
       patient: "General patient file",
     },
     fallbacks: {
-      medicalInstruction: "Instruction",
       medication: "Medication",
       noDate: "No date recorded",
       patient: "Patient record",
@@ -434,67 +425,6 @@ export const en = {
       fileTypeHint: "Only PDF, JPG, PNG, and WEBP files can be uploaded.",
       relatedEntityRequired:
         "Choose which patient record this file belongs to.",
-    },
-  },
-  instructions: {
-    eyebrow: "Medical instructions",
-    title: "Instructions",
-    description:
-      "Capture specialist guidance exactly as written, filter it by status or date, and keep the original plan visible inside patient context.",
-    detailEyebrow: "Instruction detail",
-    detailSubtitle: "{date} for {patientName}",
-    createAction: "Add instruction",
-    createEyebrow: "New instruction",
-    createTitle: "Add a medical instruction",
-    edit: "Edit",
-    editEyebrow: "Instruction details",
-    editTitle: "Update instruction",
-    save: "Save instruction",
-    cancel: "Cancel",
-    closeForm: "Close instruction form",
-    openDetail: "Open detail",
-    backToOverview: "Back to overview",
-    emptyEyebrow: "Instruction list",
-    emptyTitle: "No instructions yet",
-    emptyDescription:
-      "Add the first specialist instruction so the patient plan is visible in one place.",
-    emptyTargetTimingText: "No timing guidance recorded.",
-    emptySpecialty: "No specialty recorded.",
-    unknownClinician: "Clinical instruction",
-    genericError: "Something went wrong while loading instructions.",
-    originalNotesEyebrow: "Original source note",
-    originalNotesTitle: "Original notes",
-    linkedTasksEyebrow: "Linked tasks",
-    linkedTasksTitle: "Task linkage",
-    linkedTasksDescription:
-      "Tasks generated from this instruction will appear here once the task workflow is implemented.",
-    linkedDocumentsEyebrow: "Linked documents",
-    linkedDocumentsTitle: "Document context",
-    linkedDocumentsDescription:
-      "Keep reports and attachments attached directly to this instruction, and upload new paperwork without leaving the detail view.",
-    linkedDocumentsEmptyTitle: "No documents linked yet",
-    linkedDocumentsEmptyDescription:
-      "Upload the first instruction-specific file here so the original guidance and supporting paperwork stay together.",
-    fields: {
-      doctorName: "Doctor name",
-      specialty: "Specialty",
-      instructionDate: "Instruction date",
-      originalNotes: "Original notes",
-      targetTimingText: "Target timing",
-      status: "Status",
-      statusFilter: "Filter by status",
-      from: "From date",
-      to: "To date",
-    },
-    validation: {
-      instructionDateRequired: "Enter the instruction date.",
-      originalNotesRequired: "Enter the original instruction notes.",
-    },
-    statuses: {
-      active: "Active",
-      fulfilled: "Fulfilled",
-      superseded: "Superseded",
-      cancelled: "Cancelled",
     },
   },
   prescriptions: {
@@ -696,15 +626,13 @@ export const en = {
     emptyTitle: "No tasks yet",
     emptyDescription: "No description added for this task.",
     emptyDescriptionLong:
-      "Add the first task to track due work, planned visits, and instruction-linked follow-up for this patient.",
+      "Add the first task to track due work, planned visits, and linked follow-up for this patient.",
     emptyDate: "Not scheduled",
     genericError: "Something went wrong while loading tasks.",
     blockedReason:
       "{count} incomplete prerequisite task | {count} incomplete prerequisite tasks",
     unlinkedCondition: "No linked condition",
     missingCondition: "Linked condition unavailable",
-    unlinkedInstruction: "No linked instruction",
-    missingInstruction: "Linked instruction unavailable",
     groups: {
       overdue: "Overdue",
       blocked: "Blocked",
@@ -722,7 +650,6 @@ export const en = {
       condition: "Condition link",
       description: "Description",
       dueDate: "Due date",
-      medicalInstruction: "Instruction link",
       scheduledAt: "Scheduled time",
       status: "Status",
       taskType: "Task type",

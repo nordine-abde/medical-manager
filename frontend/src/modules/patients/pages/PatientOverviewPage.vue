@@ -28,14 +28,6 @@ import type {
   MedicationRecord,
   MedicationUpsertPayload,
 } from "../../medications/types";
-import InstructionFormDialog from "../../instructions/components/InstructionFormDialog.vue";
-import { useInstructionsStore } from "../../instructions/store";
-import {
-  instructionStatuses,
-  type InstructionRecord,
-  type InstructionStatus,
-  type InstructionUpsertPayload,
-} from "../../instructions/types";
 import PrescriptionFormDialog from "../../prescriptions/components/PrescriptionFormDialog.vue";
 import { usePrescriptionsStore } from "../../prescriptions/store";
 import type {
@@ -59,7 +51,6 @@ const authStore = useAuthStore();
 const patientsStore = usePatientsStore();
 const conditionsStore = useConditionsStore();
 const medicationsStore = useMedicationsStore();
-const instructionsStore = useInstructionsStore();
 const prescriptionsStore = usePrescriptionsStore();
 const bookingsStore = useBookingsStore();
 const documentsStore = useDocumentsStore();
@@ -70,24 +61,18 @@ const { d, t } = useI18n();
 const isLoading = ref(false);
 const isPatientSaving = ref(false);
 const isConditionSaving = ref(false);
-const isInstructionSaving = ref(false);
 const isMedicationSaving = ref(false);
 const isPrescriptionSaving = ref(false);
 const isBookingSaving = ref(false);
 const isPatientUsersSaving = ref(false);
 const isPatientFormOpen = ref(false);
 const isConditionFormOpen = ref(false);
-const isInstructionFormOpen = ref(false);
 const isMedicationFormOpen = ref(false);
 const isPrescriptionFormOpen = ref(false);
 const isBookingFormOpen = ref(false);
 const showInactiveConditions = ref(false);
 const patientUserIdentifier = ref("");
-const instructionStatusFilter = ref<InstructionStatus | "">("");
-const instructionFromFilter = ref("");
-const instructionToFilter = ref("");
 const editingCondition = ref<ConditionRecord | null>(null);
-const editingInstruction = ref<InstructionRecord | null>(null);
 const editingMedication = ref<MedicationRecord | null>(null);
 const editingPrescription = ref<PrescriptionRecord | null>(null);
 const editingBooking = ref<BookingRecord | null>(null);
@@ -101,7 +86,6 @@ const currentUserId = computed(() => authStore.user?.id ?? null);
 const conditions = computed(() => conditionsStore.conditions);
 const activeConditions = computed(() => conditionsStore.activeConditions);
 const medications = computed(() => medicationsStore.activeMedications);
-const instructions = computed(() => instructionsStore.instructions);
 const prescriptions = computed(() => prescriptionsStore.prescriptions);
 const bookings = computed(() => bookingsStore.activeBookings);
 const facilities = computed(() => bookingsStore.facilities);
@@ -159,11 +143,6 @@ const overviewMetricCards = computed(() => [
 
 const overviewQuickActions = computed(() => [
   {
-    icon: "note_add",
-    label: t("instructions.createAction"),
-    onClick: openCreateInstructionDialog,
-  },
-    {
     icon: "medication",
     label: t("prescriptions.createAction"),
     onClick: openCreatePrescriptionDialog,
@@ -173,17 +152,6 @@ const overviewQuickActions = computed(() => [
     label: t("bookings.createAction"),
     onClick: openCreateBookingDialog,
   },
-]);
-
-const statusFilterOptions = computed(() => [
-  {
-    label: t("instructions.fields.statusFilter"),
-    value: "",
-  },
-  ...instructionStatuses.map((status) => ({
-    label: t(`instructions.statuses.${status}`),
-    value: status,
-  })),
 ]);
 
 const medicationConditionOptions = computed(() => [
@@ -255,28 +223,6 @@ const canSubmitPatientUser = computed(
   () => patientUserIdentifier.value.trim().length > 0 && !isPatientUsersSaving.value,
 );
 
-const currentInstructionFilters = () => ({
-  ...(instructionStatusFilter.value
-    ? { status: instructionStatusFilter.value }
-    : {}),
-  ...(instructionFromFilter.value ? { from: instructionFromFilter.value } : {}),
-  ...(instructionToFilter.value ? { to: instructionToFilter.value } : {}),
-});
-
-const loadInstructions = async () => {
-  errorMessage.value = "";
-
-  try {
-    await instructionsStore.loadInstructions(
-      patientId.value,
-      currentInstructionFilters(),
-    );
-  } catch (error) {
-    errorMessage.value =
-      error instanceof Error ? error.message : t("instructions.genericError");
-  }
-};
-
 const loadPrescriptions = async () => {
   errorMessage.value = "";
 
@@ -338,10 +284,6 @@ const loadPage = async () => {
       }),
       documentsStore.loadDocuments(patientId.value),
       medicationsStore.loadMedications(patientId.value),
-      instructionsStore.loadInstructions(
-        patientId.value,
-        currentInstructionFilters(),
-      ),
       prescriptionsStore.loadPrescriptions(patientId.value),
             bookingsStore.loadBookings(patientId.value),
       bookingsStore.loadFacilities(),
@@ -402,13 +344,6 @@ watch(showInactiveConditions, async () => {
   await loadConditions();
 });
 
-watch(
-  [instructionStatusFilter, instructionFromFilter, instructionToFilter],
-  async () => {
-    await loadInstructions();
-  },
-);
-
 onMounted(async () => {
   await loadPage();
   await scrollToRouteHash();
@@ -423,9 +358,6 @@ const formatDateOfBirth = (value: string | null) => {
 };
 
 const formatLinkedAt = (value: string) => d(new Date(value), "short");
-
-const formatInstructionDate = (value: string) =>
-  d(new Date(`${value}T00:00:00`), "short");
 
 const formatPrescriptionDate = (value: string | null) => {
   if (!value) {
@@ -536,22 +468,6 @@ const scrollToMedicationsSection = () => {
   document
     .getElementById("patient-medications-section")
     ?.scrollIntoView({ behavior: "smooth", block: "start" });
-};
-
-const resolveInstructionClinician = (instruction: InstructionRecord) =>
-  instruction.doctorName ||
-  instruction.specialty ||
-  t("instructions.unknownClinician");
-
-const resolveInstructionSummary = (instruction: InstructionRecord) => {
-  if (instruction.targetTimingText) {
-    return instruction.targetTimingText;
-  }
-
-  const compactNotes = instruction.originalNotes.replace(/\s+/g, " ").trim();
-  return compactNotes.length > 140
-    ? `${compactNotes.slice(0, 137)}...`
-    : compactNotes;
 };
 
 const resolvePrescriptionTypeLabel = (prescription: {
@@ -755,48 +671,6 @@ const handleConditionDialogModelChange = (value: boolean) => {
 
   if (!value) {
     editingCondition.value = null;
-  }
-};
-
-const openCreateInstructionDialog = () => {
-  editingInstruction.value = null;
-  isInstructionFormOpen.value = true;
-};
-
-const openEditInstructionDialog = (instruction: InstructionRecord) => {
-  editingInstruction.value = instruction;
-  isInstructionFormOpen.value = true;
-};
-
-const handleInstructionSubmit = async (payload: InstructionUpsertPayload) => {
-  isInstructionSaving.value = true;
-  errorMessage.value = "";
-
-  try {
-    if (editingInstruction.value) {
-      await instructionsStore.updateInstruction(
-        editingInstruction.value.id,
-        payload,
-      );
-    } else {
-      await instructionsStore.createInstruction(patientId.value, payload);
-    }
-
-    isInstructionFormOpen.value = false;
-    editingInstruction.value = null;
-  } catch (error) {
-    errorMessage.value =
-      error instanceof Error ? error.message : t("instructions.genericError");
-  } finally {
-    isInstructionSaving.value = false;
-  }
-};
-
-const handleInstructionDialogModelChange = (value: boolean) => {
-  isInstructionFormOpen.value = value;
-
-  if (!value) {
-    editingInstruction.value = null;
   }
 };
 
@@ -1666,140 +1540,6 @@ const handleAdvanceBookingStatus = async (
 
         <q-card
           flat
-          class="patient-overview-page__instructions"
-        >
-          <q-card-section class="patient-overview-page__section-header">
-            <div>
-              <p class="patient-overview-page__summary-eyebrow">
-                {{ $t("instructions.eyebrow") }}
-              </p>
-              <h2 class="patient-overview-page__summary-title">
-                {{ $t("instructions.title") }}
-              </h2>
-              <p class="patient-overview-page__summary-copy">
-                {{ $t("instructions.description") }}
-              </p>
-            </div>
-
-            <div class="patient-overview-page__section-actions">
-              <q-btn
-                color="primary"
-                icon="add"
-                unelevated
-                no-caps
-                :label="$t('instructions.createAction')"
-                @click="openCreateInstructionDialog"
-              />
-            </div>
-          </q-card-section>
-
-          <q-card-section>
-            <div class="patient-overview-page__instruction-filters">
-              <q-select
-                v-model="instructionStatusFilter"
-                outlined
-                clearable
-                emit-value
-                map-options
-                :label="$t('instructions.fields.statusFilter')"
-                :options="statusFilterOptions"
-              />
-              <q-input
-                v-model="instructionFromFilter"
-                outlined
-                type="date"
-                :label="$t('instructions.fields.from')"
-              />
-              <q-input
-                v-model="instructionToFilter"
-                outlined
-                type="date"
-                :label="$t('instructions.fields.to')"
-              />
-            </div>
-          </q-card-section>
-
-          <q-card-section>
-            <div
-              v-if="instructions.length"
-              class="patient-overview-page__instruction-list"
-            >
-              <q-card
-                v-for="instruction in instructions"
-                :key="instruction.id"
-                flat
-                class="patient-overview-page__instruction-card"
-              >
-                <div class="patient-overview-page__instruction-head">
-                  <div>
-                    <div class="patient-overview-page__instruction-title-row">
-                      <h3 class="patient-overview-page__instruction-title">
-                        {{ resolveInstructionClinician(instruction) }}
-                      </h3>
-                      <q-badge
-                        rounded
-                        color="primary"
-                        text-color="white"
-                        :label="$t(`instructions.statuses.${instruction.status}`)"
-                      />
-                    </div>
-                    <p class="patient-overview-page__instruction-meta">
-                      {{ formatInstructionDate(instruction.instructionDate) }}
-                      <span v-if="instruction.specialty">
-                        · {{ instruction.specialty }}
-                      </span>
-                    </p>
-                    <p class="patient-overview-page__instruction-copy">
-                      {{ resolveInstructionSummary(instruction) }}
-                    </p>
-                  </div>
-
-                  <div class="patient-overview-page__instruction-actions">
-                    <q-btn
-                      flat
-                      color="primary"
-                      icon="open_in_new"
-                      no-caps
-                      :label="$t('instructions.openDetail')"
-                      @click="
-                        router.push(
-                          `/app/patients/${patientId}/instructions/${instruction.id}`,
-                        )
-                      "
-                    />
-                    <q-btn
-                      flat
-                      color="primary"
-                      icon="edit"
-                      no-caps
-                      :label="$t('instructions.edit')"
-                      @click="openEditInstructionDialog(instruction)"
-                    />
-                  </div>
-                </div>
-              </q-card>
-            </div>
-
-            <q-card
-              v-else
-              flat
-              class="patient-overview-page__instruction-empty"
-            >
-              <p class="patient-overview-page__summary-eyebrow">
-                {{ $t("instructions.emptyEyebrow") }}
-              </p>
-              <h3 class="patient-overview-page__instruction-empty-title">
-                {{ $t("instructions.emptyTitle") }}
-              </h3>
-              <p class="patient-overview-page__summary-copy">
-                {{ $t("instructions.emptyDescription") }}
-              </p>
-            </q-card>
-          </q-card-section>
-        </q-card>
-
-        <q-card
-          flat
           class="patient-overview-page__prescriptions"
         >
           <q-card-section class="patient-overview-page__section-header">
@@ -2230,18 +1970,6 @@ const handleAdvanceBookingStatus = async (
       @submit="handleUpdate"
     />
 
-    <InstructionFormDialog
-      :instruction="editingInstruction"
-      :loading="isInstructionSaving"
-      :model-value="isInstructionFormOpen"
-      :submit-label="$t('instructions.save')"
-      :title="
-        editingInstruction ? $t('instructions.editTitle') : $t('instructions.createTitle')
-      "
-      @submit="handleInstructionSubmit"
-      @update:model-value="handleInstructionDialogModelChange"
-    />
-
     <MedicationFormDialog
       :condition-options="medicationConditionOptions"
       :loading="isMedicationSaving"
@@ -2327,8 +2055,7 @@ const handleAdvanceBookingStatus = async (
 
 .patient-overview-page__eyebrow,
 .patient-overview-page__summary-eyebrow,
-.patient-overview-page__meta-label,
-.patient-overview-page__instruction-meta {
+.patient-overview-page__meta-label {
   margin: 0 0 0.4rem;
 }
 
@@ -2342,11 +2069,6 @@ const handleAdvanceBookingStatus = async (
   text-transform: uppercase;
 }
 
-.patient-overview-page__instruction-meta {
-  color: #4f6b77;
-  font-size: 0.94rem;
-}
-
 .patient-overview-page__title-row {
   display: flex;
   align-items: center;
@@ -2355,8 +2077,7 @@ const handleAdvanceBookingStatus = async (
 
 .patient-overview-page__title,
 .patient-overview-page__summary-title,
-.patient-overview-page__condition-empty-title,
-.patient-overview-page__instruction-empty-title {
+.patient-overview-page__condition-empty-title {
   margin: 0;
   color: #14323f;
   font-family: "Newsreader", serif;
@@ -2370,14 +2091,12 @@ const handleAdvanceBookingStatus = async (
   font-size: 1.75rem;
 }
 
-.patient-overview-page__condition-empty-title,
-.patient-overview-page__instruction-empty-title {
+.patient-overview-page__condition-empty-title {
   font-size: 1.5rem;
 }
 
 .patient-overview-page__actions,
 .patient-overview-page__condition-actions,
-.patient-overview-page__instruction-actions,
 .patient-overview-page__medication-actions,
 .patient-overview-page__section-actions {
   display: flex;
@@ -2399,7 +2118,6 @@ const handleAdvanceBookingStatus = async (
 .patient-overview-page__meta-card,
 .patient-overview-page__summary,
 .patient-overview-page__sharing,
-.patient-overview-page__instructions,
 .patient-overview-page__medications,
 .patient-overview-page__prescriptions,
 .patient-overview-page__tasks,
@@ -2407,8 +2125,6 @@ const handleAdvanceBookingStatus = async (
 .patient-overview-page__conditions,
 .patient-overview-page__condition-card,
 .patient-overview-page__condition-empty,
-.patient-overview-page__instruction-card,
-.patient-overview-page__instruction-empty,
 .patient-overview-page__prescription-card,
 .patient-overview-page__prescription-empty,
 .patient-overview-page__booking-card,
@@ -2425,8 +2141,7 @@ const handleAdvanceBookingStatus = async (
 
 .patient-overview-page__meta-value,
 .patient-overview-page__summary-copy,
-.patient-overview-page__condition-copy,
-.patient-overview-page__instruction-copy {
+.patient-overview-page__condition-copy {
   margin: 0;
   color: #32505d;
   line-height: 1.6;
@@ -2438,7 +2153,6 @@ const handleAdvanceBookingStatus = async (
 
 .patient-overview-page__summary,
 .patient-overview-page__sharing,
-.patient-overview-page__instructions,
 .patient-overview-page__medications,
 .patient-overview-page__prescriptions,
 .patient-overview-page__tasks,
@@ -2451,12 +2165,6 @@ const handleAdvanceBookingStatus = async (
   display: flex;
   align-items: start;
   justify-content: space-between;
-  gap: 1rem;
-}
-
-.patient-overview-page__instruction-filters {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 1rem;
 }
 
@@ -2621,7 +2329,6 @@ const handleAdvanceBookingStatus = async (
   margin-top: 1rem;
 }
 
-.patient-overview-page__instruction-list,
 .patient-overview-page__prescription-list,
 .patient-overview-page__medication-list,
 .patient-overview-page__booking-list,
@@ -2632,7 +2339,6 @@ const handleAdvanceBookingStatus = async (
   gap: 0.9rem;
 }
 
-.patient-overview-page__instruction-card,
 .patient-overview-page__prescription-card,
 .patient-overview-page__medication-card,
 .patient-overview-page__booking-card,
@@ -2667,7 +2373,6 @@ const handleAdvanceBookingStatus = async (
   border-color: rgba(20, 50, 63, 0.1);
 }
 
-.patient-overview-page__instruction-head,
 .patient-overview-page__prescription-head,
 .patient-overview-page__medication-head,
 .patient-overview-page__booking-head,
@@ -2679,7 +2384,6 @@ const handleAdvanceBookingStatus = async (
   gap: 1rem;
 }
 
-.patient-overview-page__instruction-title-row,
 .patient-overview-page__prescription-title-row,
 .patient-overview-page__medication-title-row,
 .patient-overview-page__booking-title-row,
@@ -2692,7 +2396,6 @@ const handleAdvanceBookingStatus = async (
   margin-bottom: 0.5rem;
 }
 
-.patient-overview-page__instruction-title,
 .patient-overview-page__prescription-title,
 .patient-overview-page__medication-title,
 .patient-overview-page__booking-title,
@@ -2704,7 +2407,6 @@ const handleAdvanceBookingStatus = async (
   font-weight: 700;
 }
 
-.patient-overview-page__instruction-title,
 .patient-overview-page__prescription-title,
 .patient-overview-page__medication-title,
 .patient-overview-page__booking-title,
@@ -2841,7 +2543,6 @@ const handleAdvanceBookingStatus = async (
   font-weight: 700;
 }
 
-.patient-overview-page__instruction-empty,
 .patient-overview-page__prescription-empty,
 .patient-overview-page__medication-empty,
 .patient-overview-page__booking-empty,
@@ -2858,10 +2559,6 @@ const handleAdvanceBookingStatus = async (
 }
 
 @media (max-width: 900px) {
-  .patient-overview-page__instruction-filters {
-    grid-template-columns: 1fr;
-  }
-
   .patient-overview-page__overview-grid,
   .patient-overview-page__overview-feed {
     grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -2869,15 +2566,14 @@ const handleAdvanceBookingStatus = async (
 }
 
 @media (max-width: 800px) {
-  .patient-overview-page__header,
-  .patient-overview-page__section-header,
-  .patient-overview-page__sharing-head,
-  .patient-overview-page__instruction-head,
-  .patient-overview-page__prescription-head,
-  .patient-overview-page__medication-head,
-  .patient-overview-page__booking-head,
-  .patient-overview-page__condition-head,
-  .patient-overview-page__task-head {
+.patient-overview-page__header,
+.patient-overview-page__section-header,
+.patient-overview-page__sharing-head,
+.patient-overview-page__prescription-head,
+.patient-overview-page__medication-head,
+.patient-overview-page__booking-head,
+.patient-overview-page__condition-head,
+.patient-overview-page__task-head {
     flex-direction: column;
   }
 

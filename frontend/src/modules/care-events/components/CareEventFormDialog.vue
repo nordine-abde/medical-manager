@@ -7,7 +7,6 @@ import {
   documentTypes,
   type DocumentType,
 } from "../../documents/types";
-import type { InstructionUpsertPayload } from "../../instructions/types";
 import {
   careEventTypes,
   type CareEventRecord,
@@ -30,7 +29,6 @@ interface CareEventFormSubmitPayload {
     | null;
   careEvent: CareEventUpsertPayload;
   facilityPayload: FacilityUpsertPayload | null;
-  inlineInstruction: InstructionUpsertPayload | null;
 }
 
 const props = defineProps<{
@@ -56,20 +54,11 @@ const subtypeFilterText = ref("");
 const form = reactive({
   bookingId: null as string | null,
   completedAt: "",
-  createInlineInstruction: false,
   documentFile: null as File | null,
   documentNotes: "",
   documentType: "general_attachment" as DocumentType,
   eventType: "exam" as CareEventType,
   facilityId: null as string | null,
-  inlineInstructionDate: "",
-  inlineInstructionDoctorName: "",
-  inlineInstructionNotes: "",
-  inlineInstructionSpecialty: "",
-  inlineInstructionStatus: "active" as NonNullable<
-    InstructionUpsertPayload["status"]
-  >,
-  inlineInstructionTargetTimingText: "",
   outcomeNotes: "",
   providerName: "",
   subtype: "",
@@ -137,25 +126,6 @@ const normalizedFacilityOptions = computed(() => [
   },
 ]);
 
-const instructionStatusOptions = computed(() => [
-  {
-    label: t("instructions.statuses.active"),
-    value: "active",
-  },
-  {
-    label: t("instructions.statuses.fulfilled"),
-    value: "fulfilled",
-  },
-  {
-    label: t("instructions.statuses.superseded"),
-    value: "superseded",
-  },
-  {
-    label: t("instructions.statuses.cancelled"),
-    value: "cancelled",
-  },
-]);
-
 const documentTypeOptions = computed(() =>
   documentTypes.map((documentType) => ({
     label: t(`documents.types.${documentType}`),
@@ -183,8 +153,6 @@ const normalizeText = (value: string | null | undefined): string =>
 const normalizeSubtypeValue = (value: string | null | undefined): string =>
   value?.trim() ?? "";
 
-const buildDefaultInstructionDate = (): string => form.completedAt.slice(0, 10);
-
 const buildDefaultDocumentType = (eventType: CareEventType): DocumentType => {
   if (eventType === "exam") {
     return "exam_result";
@@ -208,18 +176,11 @@ const resetFacilityForm = () => {
 const syncForm = () => {
   form.bookingId = props.careEvent?.bookingId ?? null;
   form.completedAt = toInputDateTime(props.careEvent?.completedAt ?? null);
-  form.createInlineInstruction = false;
   form.documentFile = null;
   form.documentNotes = "";
   form.documentType = buildDefaultDocumentType(props.careEvent?.eventType ?? "exam");
   form.eventType = props.careEvent?.eventType ?? "exam";
   form.facilityId = props.careEvent?.facilityId ?? null;
-  form.inlineInstructionDate = buildDefaultInstructionDate();
-  form.inlineInstructionDoctorName = props.careEvent?.providerName ?? "";
-  form.inlineInstructionNotes = "";
-  form.inlineInstructionSpecialty = "";
-  form.inlineInstructionStatus = "active";
-  form.inlineInstructionTargetTimingText = "";
   form.outcomeNotes = props.careEvent?.outcomeNotes ?? "";
   form.providerName = props.careEvent?.providerName ?? "";
   form.subtype = normalizeSubtypeValue(props.careEvent?.subtype);
@@ -249,33 +210,6 @@ watch(
   () => {
     if (props.modelValue) {
       syncForm();
-    }
-  },
-);
-
-watch(
-  () => form.createInlineInstruction,
-  (createInlineInstruction) => {
-    if (!createInlineInstruction) {
-      return;
-    }
-
-    if (!form.inlineInstructionDate) {
-      form.inlineInstructionDate = buildDefaultInstructionDate();
-    }
-
-    if (!form.inlineInstructionDoctorName.trim()) {
-      form.inlineInstructionDoctorName = form.providerName.trim();
-    }
-  },
-);
-
-
-watch(
-  () => form.providerName,
-  (providerName) => {
-    if (form.createInlineInstruction && !form.inlineInstructionDoctorName.trim()) {
-      form.inlineInstructionDoctorName = providerName.trim();
     }
   },
 );
@@ -402,18 +336,6 @@ const handleSubmit = () => {
       subtype: normalizeSubtypeValue(form.subtype) || null,
     },
     facilityPayload,
-    inlineInstruction: form.createInlineInstruction
-      ? {
-          careEventId: null,
-          doctorName: form.inlineInstructionDoctorName.trim() || null,
-          instructionDate: form.inlineInstructionDate,
-          originalNotes: form.inlineInstructionNotes,
-          specialty: form.inlineInstructionSpecialty.trim() || null,
-          status: form.inlineInstructionStatus,
-          targetTimingText: form.inlineInstructionTargetTimingText.trim() || null,
-        }
-      : null,
-    
   });
 };
 </script>
@@ -606,81 +528,6 @@ const handleSubmit = () => {
             />
           </div>
 
-          <div class="care-event-form-dialog__toggle-stack">
-            <q-toggle
-              v-model="form.createInlineInstruction"
-              color="primary"
-              :disable="loading"
-              :label="$t('careEvents.inlineInstruction.toggle')"
-            />
-
-            <template v-if="form.createInlineInstruction">
-              <div class="care-event-form-dialog__section">
-                <p class="care-event-form-dialog__section-title">
-                  {{ $t("careEvents.inlineInstruction.title") }}
-                </p>
-                <div class="care-event-form-dialog__grid">
-                  <q-input
-                    v-model="form.inlineInstructionDoctorName"
-                    outlined
-                    :disable="loading"
-                    :label="$t('instructions.fields.doctorName')"
-                  />
-                  <q-input
-                    v-model="form.inlineInstructionSpecialty"
-                    outlined
-                    :disable="loading"
-                    :label="$t('instructions.fields.specialty')"
-                  />
-                  <q-input
-                    v-model="form.inlineInstructionDate"
-                    outlined
-                    type="date"
-                    :disable="loading"
-                    :label="$t('instructions.fields.instructionDate')"
-                    :rules="[
-                      (value) =>
-                        Boolean(String(value ?? '').trim()) ||
-                        $t('instructions.validation.instructionDateRequired'),
-                    ]"
-                  />
-                  <q-select
-                    v-model="form.inlineInstructionStatus"
-                    outlined
-                    emit-value
-                    map-options
-                    :disable="loading"
-                    :label="$t('instructions.fields.status')"
-                    :options="instructionStatusOptions"
-                  />
-                </div>
-                <q-input
-                  v-model="form.inlineInstructionTargetTimingText"
-                  outlined
-                  autogrow
-                  type="textarea"
-                  :disable="loading"
-                  :label="$t('instructions.fields.targetTimingText')"
-                />
-                <q-input
-                  v-model="form.inlineInstructionNotes"
-                  outlined
-                  autogrow
-                  type="textarea"
-                  :disable="loading"
-                  :label="$t('instructions.fields.originalNotes')"
-                  :rules="[
-                    (value) =>
-                      Boolean(String(value ?? '').trim()) ||
-                      $t('instructions.validation.originalNotesRequired'),
-                  ]"
-                />
-              </div>
-
-              
-            </template>
-          </div>
-
           <q-input
             v-model="form.outcomeNotes"
             outlined
@@ -763,7 +610,6 @@ const handleSubmit = () => {
   background: rgba(244, 246, 243, 0.9);
 }
 
-.care-event-form-dialog__toggle-stack,
 .care-event-form-dialog__section {
   display: grid;
   gap: 1rem;

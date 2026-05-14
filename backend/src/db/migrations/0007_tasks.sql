@@ -10,7 +10,6 @@ create type task_status as enum (
 create table tasks (
   id uuid primary key default gen_random_uuid(),
   patient_id uuid not null references patients (id) on delete cascade,
-  medical_instruction_id uuid references medical_instructions (id) on delete set null,
   condition_id uuid references conditions (id) on delete set null,
   title text not null,
   description text,
@@ -31,10 +30,6 @@ create index tasks_patient_id_deleted_at_idx
 
 create index tasks_patient_id_status_deleted_at_idx
   on tasks (patient_id, status, deleted_at);
-
-create index tasks_medical_instruction_id_idx
-  on tasks (medical_instruction_id)
-  where medical_instruction_id is not null;
 
 create index tasks_condition_id_idx
   on tasks (condition_id)

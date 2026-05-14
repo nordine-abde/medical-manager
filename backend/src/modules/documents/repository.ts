@@ -18,7 +18,6 @@ export type DocumentType = (typeof documentTypes)[number];
 
 export const relatedEntityTypes = [
   "patient",
-  "medical_instruction",
   "prescription",
   "booking",
   "care_event",
@@ -64,9 +63,6 @@ const patientUsersTable = (schemaName: string): string =>
 const documentsTable = (schemaName: string): string =>
   qualifyTableName(schemaName, "documents");
 
-const medicalInstructionsTable = (schemaName: string): string =>
-  qualifyTableName(schemaName, "medical_instructions");
-
 const prescriptionsTable = (schemaName: string): string =>
   qualifyTableName(schemaName, "prescriptions");
 
@@ -89,8 +85,6 @@ export const createDocumentsRepository = (
   const qualifiedPatientsTable = patientsTable(schemaName);
   const qualifiedPatientUsersTable = patientUsersTable(schemaName);
   const qualifiedDocumentsTable = documentsTable(schemaName);
-  const qualifiedMedicalInstructionsTable =
-    medicalInstructionsTable(schemaName);
   const qualifiedPrescriptionsTable = prescriptionsTable(schemaName);
   const qualifiedBookingsTable = bookingsTable(schemaName);
   const qualifiedCareEventsTable = careEventsTable(schemaName);
@@ -237,21 +231,6 @@ export const createDocumentsRepository = (
         );
 
         return patient !== undefined;
-      }
-
-      if (relatedEntityType === "medical_instruction") {
-        const [instruction] = await sql.unsafe<Array<{ id: string }>>(
-          `
-            select mi.id
-            from ${qualifiedMedicalInstructionsTable} as mi
-            where mi.id = $1
-              and mi.patient_id = $2
-            limit 1
-          `,
-          [relatedEntityId, patientId],
-        );
-
-        return instruction !== undefined;
       }
 
       if (relatedEntityType === "prescription") {

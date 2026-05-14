@@ -177,7 +177,6 @@ beforeEach(async () => {
   await applyMigration(sql, schemaName, "0002_better_auth_core.sql");
   await applyMigration(sql, schemaName, "0004_patient_access.sql");
   await applyMigration(sql, schemaName, "0005_conditions.sql");
-  await applyMigration(sql, schemaName, "0006_medical_instructions.sql");
   await applyMigration(sql, schemaName, "0007_tasks.sql");
   await applyMigration(sql, schemaName, "0009_prescriptions.sql");
   await applyMigration(sql, schemaName, "0010_bookings.sql");
@@ -759,5 +758,4 @@ describe("patients module", () => {
 
     expect(revokedAccessResponse.status).toBe(404);
   });
-
 });

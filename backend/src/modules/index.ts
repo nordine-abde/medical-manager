@@ -8,7 +8,6 @@ import { createConditionsModule } from "./conditions";
 import { createDocumentsModule } from "./documents";
 import { createFacilitiesModule } from "./facilities";
 import { healthModule } from "./health";
-import { createMedicalInstructionsModule } from "./instructions";
 import { createMedicationsModule } from "./medications";
 import { createPatientsModule } from "./patients";
 import { createPrescriptionsModule } from "./prescriptions";
@@ -23,7 +22,6 @@ export const createApiModules = (authInstance: typeof defaultAuth) =>
     .use(createConditionsModule(authInstance))
     .use(createDocumentsModule(authInstance))
     .use(createFacilitiesModule(authInstance))
-    .use(createMedicalInstructionsModule(authInstance))
     .use(createMedicationsModule(authInstance))
     .use(createPatientsModule(authInstance))
     .use(createPrescriptionsModule(authInstance))
