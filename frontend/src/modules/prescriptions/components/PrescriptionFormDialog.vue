@@ -2,7 +2,6 @@
 import { computed, reactive, watch } from "vue";
 import { useI18n } from "vue-i18n";
 
-import type { TaskUpsertPayload } from "../../tasks/types";
 import {
   prescriptionStatuses,
   prescriptionTypes,
@@ -24,8 +23,7 @@ interface PrescriptionFormSubmitPayload {
         notes: string | null;
       }
     | null;
-  inlineTask: TaskUpsertPayload | null;
-  prescription: PrescriptionUpsertPayload;
+    prescription: PrescriptionUpsertPayload;
   statusPayload: {
     collectedAt?: string | null;
     receivedAt?: string | null;
@@ -40,8 +38,7 @@ const props = defineProps<{
   prescription?: PrescriptionRecord | null;
   submitLabel: string;
   subtypeOptionsByType: Record<PrescriptionType, string[]>;
-  taskOptions: SelectOption[];
-  title: string;
+    title: string;
 }>();
 
 const emit = defineEmits<{
@@ -53,15 +50,10 @@ const { t } = useI18n();
 
 const form = reactive({
   collectedAt: "",
-  createInlineTask: false,
-  documentFile: null as File | null,
+    documentFile: null as File | null,
   documentNotes: "",
   expirationDate: "",
-  inlineTaskDescription: "",
-  inlineTaskDueDate: "",
-  inlineTaskTitle: "",
-  inlineTaskType: "",
-  issueDate: "",
+          issueDate: "",
   notes: "",
   prescriptionType: "medication" as PrescriptionUpsertPayload["prescriptionType"],
   receivedAt: "",
@@ -69,7 +61,6 @@ const form = reactive({
   status: "needed" as PrescriptionStatus,
   subtype: "",
   subtypeInput: "",
-  taskId: null as string | null,
 });
 
 const isEditing = computed(() => Boolean(props.prescription));
@@ -114,22 +105,11 @@ const toIsoDateTime = (value: string): string | null => {
   return new Date(value).toISOString();
 };
 
-const buildDefaultInlineTaskTitle = (): string =>
-  t("prescriptions.defaultInlineTaskTitle", {
-    subtype:
-      form.subtype.trim() || t(`prescriptions.types.${form.prescriptionType}`),
-  });
-
 const syncForm = () => {
   form.collectedAt = toInputDateTime(props.prescription?.collectedAt ?? null);
-  form.createInlineTask = false;
   form.documentFile = null;
   form.documentNotes = "";
   form.expirationDate = props.prescription?.expirationDate ?? "";
-  form.inlineTaskDescription = "";
-  form.inlineTaskDueDate = "";
-  form.inlineTaskTitle = "";
-  form.inlineTaskType = "";
   form.issueDate = props.prescription?.issueDate ?? "";
   form.notes = props.prescription?.notes ?? "";
   form.prescriptionType = props.prescription?.prescriptionType ?? "medication";
@@ -138,7 +118,6 @@ const syncForm = () => {
   form.status = props.prescription?.status ?? "needed";
   form.subtype = normalizeSubtypeValue(props.prescription?.subtype);
   form.subtypeInput = form.subtype;
-  form.taskId = props.prescription?.taskId ?? null;
 };
 
 watch(
@@ -166,24 +145,6 @@ watch(
   },
 );
 
-watch(
-  () => form.createInlineTask,
-  (createInlineTask) => {
-    if (!createInlineTask) {
-      return;
-    }
-
-    form.taskId = null;
-
-    if (!form.inlineTaskTitle.trim()) {
-      form.inlineTaskTitle = buildDefaultInlineTaskTitle();
-    }
-
-    if (!form.inlineTaskType.trim()) {
-      form.inlineTaskType = "prescription_follow_up";
-    }
-  },
-);
 
 const closeDialog = () => {
   emit("update:modelValue", false);
@@ -221,17 +182,7 @@ const handleSubmit = () => {
             notes: form.documentNotes.trim() || null,
           }
         : null,
-    inlineTask: form.createInlineTask
-      ? {
-          conditionId: null,
-          description: form.inlineTaskDescription.trim() || null,
-          dueDate: form.inlineTaskDueDate || null,
-          medicalInstructionId: null,
-          scheduledAt: null,
-          taskType: form.inlineTaskType.trim(),
-          title: form.inlineTaskTitle.trim(),
-        }
-      : null,
+    
     prescription: {
       expirationDate: form.expirationDate || null,
       issueDate: form.issueDate || null,
@@ -239,7 +190,6 @@ const handleSubmit = () => {
       prescriptionType: form.prescriptionType,
       status: form.status,
       subtype: normalizeSubtypeValue(form.subtype),
-      taskId: form.taskId,
     },
     statusPayload: {
       collectedAt: toIsoDateTime(form.collectedAt),
@@ -358,15 +308,7 @@ const handleSubmit = () => {
               :disable="loading"
               :label="$t('prescriptions.fields.collectedAt')"
             />
-            <q-select
-              v-model="form.taskId"
-              outlined
-              clearable
-              emit-value
-              map-options
-              :disable="loading || form.createInlineTask"
-              :label="$t('prescriptions.fields.task')"
-              :options="taskOptions"
+
             />
           </div>
 
@@ -378,59 +320,6 @@ const handleSubmit = () => {
             :disable="loading"
             :label="$t('prescriptions.fields.notes')"
           />
-
-          <q-card
-            flat
-            class="prescription-form-dialog__section-card"
-          >
-            <q-card-section class="prescription-form-dialog__section-grid">
-              <q-toggle
-                v-model="form.createInlineTask"
-                :disable="loading"
-                :label="$t('prescriptions.createTaskInline')"
-              />
-
-              <template v-if="form.createInlineTask">
-                <q-input
-                  v-model="form.inlineTaskTitle"
-                  outlined
-                  :disable="loading"
-                  :label="$t('prescriptions.inlineTask.fields.title')"
-                  :rules="[
-                    (value) =>
-                      Boolean(String(value ?? '').trim()) ||
-                      $t('prescriptions.inlineTask.validation.titleRequired'),
-                  ]"
-                />
-                <q-input
-                  v-model="form.inlineTaskType"
-                  outlined
-                  :disable="loading"
-                  :label="$t('prescriptions.inlineTask.fields.taskType')"
-                  :rules="[
-                    (value) =>
-                      Boolean(String(value ?? '').trim()) ||
-                      $t('prescriptions.inlineTask.validation.taskTypeRequired'),
-                  ]"
-                />
-                <q-input
-                  v-model="form.inlineTaskDueDate"
-                  outlined
-                  type="date"
-                  :disable="loading"
-                  :label="$t('prescriptions.inlineTask.fields.dueDate')"
-                />
-                <q-input
-                  v-model="form.inlineTaskDescription"
-                  outlined
-                  autogrow
-                  type="textarea"
-                  :disable="loading"
-                  :label="$t('prescriptions.inlineTask.fields.description')"
-                />
-              </template>
-            </q-card-section>
-          </q-card>
 
           <q-card
             flat

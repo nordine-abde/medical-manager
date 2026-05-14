@@ -49,9 +49,6 @@ const bookingBodySchema = t.Object({
     ),
   ),
   status: t.Optional(bookingStatusSchema),
-  taskId: t.String({
-    format: "uuid",
-  }),
 });
 
 const bookingUpdateBodySchema = t.Object({
@@ -71,11 +68,6 @@ const bookingUpdateBodySchema = t.Object({
         format: "uuid",
       }),
     ),
-  ),
-  taskId: t.Optional(
-    t.String({
-      format: "uuid",
-    }),
   ),
 });
 
@@ -141,7 +133,6 @@ const mapBooking = (booking: {
   notes: string | null;
   patient_id: string;
   prescription_id: string | null;
-  task_id: string;
   updated_at: Date;
 }) => ({
   appointmentAt: formatDateTime(booking.appointment_at),
@@ -154,7 +145,6 @@ const mapBooking = (booking: {
   patientId: booking.patient_id,
   prescriptionId: booking.prescription_id,
   status: booking.booking_status,
-  taskId: booking.task_id,
   updatedAt: booking.updated_at.toISOString(),
 });
 
@@ -216,7 +206,6 @@ export const createBookingsModule = (
               notes: normalizeOptionalText(body.notes) ?? null,
               prescriptionId: body.prescriptionId ?? null,
               status: body.status ?? "not_booked",
-              taskId: body.taskId,
             },
           );
 
@@ -272,7 +261,6 @@ export const createBookingsModule = (
             facilityId?: string | null;
             notes?: string | null;
             prescriptionId?: string | null;
-            taskId?: string;
           } = {};
 
           if (body.appointmentAt !== undefined) {
@@ -293,10 +281,6 @@ export const createBookingsModule = (
 
           if (body.prescriptionId !== undefined) {
             input.prescriptionId = body.prescriptionId;
-          }
-
-          if (body.taskId !== undefined) {
-            input.taskId = body.taskId;
           }
 
           const booking = await service.updateBooking(

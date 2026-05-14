@@ -97,7 +97,6 @@ describe("usePrescriptionsStore", () => {
               requestedAt: null,
               status: "needed",
               subtype: "Blood test",
-              taskId: "task-1",
               updatedAt: "2026-03-19T09:00:00.000Z",
             },
           }),
@@ -118,7 +117,6 @@ describe("usePrescriptionsStore", () => {
       prescriptionType: "exam",
       status: "needed",
       subtype: "Blood test",
-      taskId: "task-1",
     });
 
     expect(store.prescriptions).toHaveLength(1);
@@ -133,7 +131,6 @@ describe("usePrescriptionsStore", () => {
           prescriptionType: "exam",
           status: "needed",
           subtype: "Blood test",
-          taskId: "task-1",
         }),
         credentials: "include",
         headers: {

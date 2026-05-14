@@ -37,7 +37,6 @@ export type CreateCareEventInput = {
   outcomeNotes: string | null;
   providerName: string | null;
   subtype: string | null;
-  taskId: string | null;
 };
 
 export type UpdateCareEventInput = Partial<CreateCareEventInput>;
@@ -51,7 +50,6 @@ export type CareEventListFilters = {
   pageSize: number;
   search?: string;
   subtype?: string;
-  taskId?: string;
   to?: string;
 };
 
@@ -129,7 +127,6 @@ export const createCareEventsRepository = (
 
       const linksAreValid = await this.hasValidLinks(
         patientId,
-        input.taskId,
         input.bookingId,
         input.facilityId,
       );
@@ -142,7 +139,6 @@ export const createCareEventsRepository = (
         `
           insert into ${qualifiedCareEventsTable} (
             patient_id,
-            task_id,
             booking_id,
             facility_id,
             provider_name,
@@ -151,12 +147,11 @@ export const createCareEventsRepository = (
             completed_at,
             outcome_notes
           )
-          values ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+          values ($1, $2, $3, $4, $5, $6, $7, $8)
           returning id
         `,
         [
           patientId,
-          input.taskId,
           input.bookingId,
           input.facilityId,
           input.providerName,
@@ -217,26 +212,9 @@ export const createCareEventsRepository = (
 
     async hasValidLinks(
       patientId: string,
-      taskId: string | null,
       bookingId: string | null,
       facilityId: string | null,
     ): Promise<boolean> {
-      if (taskId) {
-        const [task] = await sql.unsafe<Array<{ id: string }>>(
-          `
-            select t.id
-            from ${qualifiedTasksTable} as t
-            where t.id = $1
-              and t.patient_id = $2
-            limit 1
-          `,
-          [taskId, patientId],
-        );
-
-        if (!task) {
-          return false;
-        }
-      }
 
       if (bookingId) {
         const [booking] = await sql.unsafe<Array<{ id: string }>>(
@@ -296,7 +274,6 @@ export const createCareEventsRepository = (
         filters.from ?? null,
         filters.to ?? null,
         filters.facilityId ?? null,
-        filters.taskId ?? null,
         filters.bookingId ?? null,
       ];
       const whereClause = `
@@ -392,9 +369,6 @@ export const createCareEventsRepository = (
       if (!existingCareEvent) {
         return null;
       }
-
-      const taskId =
-        input.taskId === undefined ? existingCareEvent.task_id : input.taskId;
       const bookingId =
         input.bookingId === undefined
           ? existingCareEvent.booking_id
@@ -424,7 +398,6 @@ export const createCareEventsRepository = (
 
       const linksAreValid = await this.hasValidLinks(
         existingCareEvent.patient_id,
-        taskId,
         bookingId,
         facilityId,
       );
@@ -437,21 +410,19 @@ export const createCareEventsRepository = (
         `
           update ${qualifiedCareEventsTable}
           set
-            task_id = $2,
-            booking_id = $3,
-            facility_id = $4,
-            provider_name = $5,
-            event_type = $6::${qualifiedCareEventType},
-            subtype = $7,
-            completed_at = $8,
-            outcome_notes = $9,
+            booking_id = $2,
+            facility_id = $3,
+            provider_name = $4,
+            event_type = $5::${qualifiedCareEventType},
+            subtype = $6,
+            completed_at = $7,
+            outcome_notes = $8,
             updated_at = now()
           where id = $1
           returning id
         `,
         [
           careEventId,
-          taskId,
           bookingId,
           facilityId,
           providerName,

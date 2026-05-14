@@ -33,13 +33,6 @@ export interface PatientOverviewConditionRecord {
   notes: string | null;
 }
 
-export interface PatientOverviewMedicationRenewalTaskRecord {
-  dueDate: string | null;
-  id: string;
-  status: string | null;
-  title: string | null;
-}
-
 export interface PatientOverviewMedicationRecord {
   conditionName: string | null;
   id: string;
@@ -47,7 +40,6 @@ export interface PatientOverviewMedicationRecord {
   nextGpContactDate: string | null;
   quantity: string;
   renewalCadence: string | null;
-  renewalTask: PatientOverviewMedicationRenewalTaskRecord | null;
 }
 
 export interface PatientOverviewPrescriptionRecord {
@@ -57,7 +49,6 @@ export interface PatientOverviewPrescriptionRecord {
   notes: string | null;
   prescriptionType: string;
   status: string;
-  taskId: string | null;
 }
 
 export interface PatientOverviewAppointmentRecord {
@@ -66,13 +57,11 @@ export interface PatientOverviewAppointmentRecord {
   id: string;
   prescriptionId: string | null;
   status: string;
-  taskId: string;
 }
 
 export interface PatientOverviewRecord {
   activeConditions: PatientOverviewConditionRecord[];
   activeMedications: PatientOverviewMedicationRecord[];
-  overdueTaskCount: number;
   pendingPrescriptions: PatientOverviewPrescriptionRecord[];
   upcomingAppointments: PatientOverviewAppointmentRecord[];
 }

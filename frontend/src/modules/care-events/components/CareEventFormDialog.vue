@@ -8,7 +8,6 @@ import {
   type DocumentType,
 } from "../../documents/types";
 import type { InstructionUpsertPayload } from "../../instructions/types";
-import type { TaskUpsertPayload } from "../../tasks/types";
 import {
   careEventTypes,
   type CareEventRecord,
@@ -32,7 +31,6 @@ interface CareEventFormSubmitPayload {
   careEvent: CareEventUpsertPayload;
   facilityPayload: FacilityUpsertPayload | null;
   inlineInstruction: InstructionUpsertPayload | null;
-  inlineTask: TaskUpsertPayload | null;
 }
 
 const props = defineProps<{
@@ -43,7 +41,6 @@ const props = defineProps<{
   modelValue: boolean;
   submitLabel: string;
   subtypeOptionsByType: Record<CareEventType, string[]>;
-  taskOptions: SelectOption[];
   title: string;
 }>();
 
@@ -60,7 +57,6 @@ const form = reactive({
   bookingId: null as string | null,
   completedAt: "",
   createInlineInstruction: false,
-  createInlineTask: false,
   documentFile: null as File | null,
   documentNotes: "",
   documentType: "general_attachment" as DocumentType,
@@ -74,15 +70,10 @@ const form = reactive({
     InstructionUpsertPayload["status"]
   >,
   inlineInstructionTargetTimingText: "",
-  inlineTaskDescription: "",
-  inlineTaskDueDate: "",
-  inlineTaskTitle: "",
-  inlineTaskType: "",
   outcomeNotes: "",
   providerName: "",
   subtype: "",
   subtypeInput: "",
-  taskId: null as string | null,
 });
 
 const facilityForm = reactive({
@@ -124,7 +115,6 @@ const normalizedTaskOptions = computed(() => [
     label: t("careEvents.unlinkedTask"),
     value: null,
   },
-  ...props.taskOptions,
 ]);
 
 const normalizedBookingOptions = computed(() => [
@@ -195,11 +185,6 @@ const normalizeSubtypeValue = (value: string | null | undefined): string =>
 
 const buildDefaultInstructionDate = (): string => form.completedAt.slice(0, 10);
 
-const buildDefaultInlineTaskTitle = (): string =>
-  t("careEvents.inlineTask.defaultTitle", {
-    eventType: t(`careEvents.types.${form.eventType}`),
-  });
-
 const buildDefaultDocumentType = (eventType: CareEventType): DocumentType => {
   if (eventType === "exam") {
     return "exam_result";
@@ -224,7 +209,6 @@ const syncForm = () => {
   form.bookingId = props.careEvent?.bookingId ?? null;
   form.completedAt = toInputDateTime(props.careEvent?.completedAt ?? null);
   form.createInlineInstruction = false;
-  form.createInlineTask = false;
   form.documentFile = null;
   form.documentNotes = "";
   form.documentType = buildDefaultDocumentType(props.careEvent?.eventType ?? "exam");
@@ -236,16 +220,11 @@ const syncForm = () => {
   form.inlineInstructionSpecialty = "";
   form.inlineInstructionStatus = "active";
   form.inlineInstructionTargetTimingText = "";
-  form.inlineTaskDescription = "";
-  form.inlineTaskDueDate = "";
-  form.inlineTaskTitle = "";
-  form.inlineTaskType = "";
   form.outcomeNotes = props.careEvent?.outcomeNotes ?? "";
   form.providerName = props.careEvent?.providerName ?? "";
   form.subtype = normalizeSubtypeValue(props.careEvent?.subtype);
   form.subtypeInput = form.subtype;
   subtypeFilterText.value = "";
-  form.taskId = props.careEvent?.taskId ?? null;
   resetFacilityForm();
 };
 
@@ -278,7 +257,6 @@ watch(
   () => form.createInlineInstruction,
   (createInlineInstruction) => {
     if (!createInlineInstruction) {
-      form.createInlineTask = false;
       return;
     }
 
@@ -292,24 +270,6 @@ watch(
   },
 );
 
-watch(
-  () => form.createInlineTask,
-  (createInlineTask) => {
-    if (!createInlineTask) {
-      return;
-    }
-
-    form.taskId = null;
-
-    if (!form.inlineTaskTitle.trim()) {
-      form.inlineTaskTitle = buildDefaultInlineTaskTitle();
-    }
-
-    if (!form.inlineTaskType.trim()) {
-      form.inlineTaskType = "care_event_follow_up";
-    }
-  },
-);
 
 watch(
   () => form.providerName,
@@ -440,7 +400,6 @@ const handleSubmit = () => {
       outcomeNotes: form.outcomeNotes.trim() || null,
       providerName: form.providerName.trim() || null,
       subtype: normalizeSubtypeValue(form.subtype) || null,
-      taskId: form.taskId,
     },
     facilityPayload,
     inlineInstruction: form.createInlineInstruction
@@ -454,18 +413,7 @@ const handleSubmit = () => {
           targetTimingText: form.inlineInstructionTargetTimingText.trim() || null,
         }
       : null,
-    inlineTask:
-      form.createInlineInstruction && form.createInlineTask
-        ? {
-            conditionId: null,
-            description: form.inlineTaskDescription.trim() || null,
-            dueDate: form.inlineTaskDueDate || null,
-            medicalInstructionId: null,
-            scheduledAt: null,
-            taskType: form.inlineTaskType.trim(),
-            title: form.inlineTaskTitle.trim(),
-          }
-        : null,
+    
   });
 };
 </script>
@@ -560,15 +508,7 @@ const handleSubmit = () => {
               :label="$t('careEvents.fields.facility')"
               :options="normalizedFacilityOptions"
             />
-            <q-select
-              v-model="form.taskId"
-              outlined
-              emit-value
-              map-options
-              :disable="loading || form.createInlineTask"
-              :label="$t('careEvents.fields.task')"
-              :options="normalizedTaskOptions"
-            />
+
             <q-select
               v-model="form.bookingId"
               outlined
@@ -737,59 +677,7 @@ const handleSubmit = () => {
                 />
               </div>
 
-              <div class="care-event-form-dialog__section">
-                <q-toggle
-                  v-model="form.createInlineTask"
-                  color="primary"
-                  :disable="loading"
-                  :label="$t('careEvents.inlineTask.toggle')"
-                />
-
-                <template v-if="form.createInlineTask">
-                  <p class="care-event-form-dialog__helper">
-                    {{ $t("careEvents.inlineTask.helper") }}
-                  </p>
-                  <div class="care-event-form-dialog__grid">
-                    <q-input
-                      v-model="form.inlineTaskTitle"
-                      outlined
-                      :disable="loading"
-                      :label="$t('prescriptions.inlineTask.fields.title')"
-                      :rules="[
-                        (value) =>
-                          Boolean(String(value ?? '').trim()) ||
-                          $t('prescriptions.inlineTask.validation.titleRequired'),
-                      ]"
-                    />
-                    <q-input
-                      v-model="form.inlineTaskType"
-                      outlined
-                      :disable="loading"
-                      :label="$t('prescriptions.inlineTask.fields.taskType')"
-                      :rules="[
-                        (value) =>
-                          Boolean(String(value ?? '').trim()) ||
-                          $t('prescriptions.inlineTask.validation.taskTypeRequired'),
-                      ]"
-                    />
-                    <q-input
-                      v-model="form.inlineTaskDueDate"
-                      outlined
-                      type="date"
-                      :disable="loading"
-                      :label="$t('prescriptions.inlineTask.fields.dueDate')"
-                    />
-                  </div>
-                  <q-input
-                    v-model="form.inlineTaskDescription"
-                    outlined
-                    autogrow
-                    type="textarea"
-                    :disable="loading"
-                    :label="$t('prescriptions.inlineTask.fields.description')"
-                  />
-                </template>
-              </div>
+              
             </template>
           </div>
 

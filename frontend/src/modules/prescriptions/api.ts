@@ -143,10 +143,6 @@ export const updatePrescriptionRequest = async (
     requestBody.subtype = payload.subtype;
   }
 
-  if (payload.taskId !== undefined) {
-    requestBody.taskId = payload.taskId;
-  }
-
   const response = await requestJson<PrescriptionPayload>(
     `/prescriptions/${prescriptionId}`,
     {

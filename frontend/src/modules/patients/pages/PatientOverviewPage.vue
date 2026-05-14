@@ -44,13 +44,6 @@ import type {
   PrescriptionType,
   PrescriptionUpsertPayload,
 } from "../../prescriptions/types";
-import TaskFormDialog from "../../tasks/components/TaskFormDialog.vue";
-import { useTasksStore } from "../../tasks/store";
-import type {
-  TaskRecord,
-  TaskUpsertPayload,
-  TaskWorkflowStatus,
-} from "../../tasks/types";
 import PatientFormDialog from "../components/PatientFormDialog.vue";
 import { usePatientsStore } from "../store";
 import type {
@@ -68,7 +61,6 @@ const conditionsStore = useConditionsStore();
 const medicationsStore = useMedicationsStore();
 const instructionsStore = useInstructionsStore();
 const prescriptionsStore = usePrescriptionsStore();
-const tasksStore = useTasksStore();
 const bookingsStore = useBookingsStore();
 const documentsStore = useDocumentsStore();
 const route = useRoute();
@@ -81,7 +73,6 @@ const isConditionSaving = ref(false);
 const isInstructionSaving = ref(false);
 const isMedicationSaving = ref(false);
 const isPrescriptionSaving = ref(false);
-const isTaskSaving = ref(false);
 const isBookingSaving = ref(false);
 const isPatientUsersSaving = ref(false);
 const isPatientFormOpen = ref(false);
@@ -89,7 +80,6 @@ const isConditionFormOpen = ref(false);
 const isInstructionFormOpen = ref(false);
 const isMedicationFormOpen = ref(false);
 const isPrescriptionFormOpen = ref(false);
-const isTaskFormOpen = ref(false);
 const isBookingFormOpen = ref(false);
 const showInactiveConditions = ref(false);
 const patientUserIdentifier = ref("");
@@ -100,7 +90,6 @@ const editingCondition = ref<ConditionRecord | null>(null);
 const editingInstruction = ref<InstructionRecord | null>(null);
 const editingMedication = ref<MedicationRecord | null>(null);
 const editingPrescription = ref<PrescriptionRecord | null>(null);
-const editingTask = ref<TaskRecord | null>(null);
 const editingBooking = ref<BookingRecord | null>(null);
 const errorMessage = ref("");
 
@@ -114,7 +103,6 @@ const activeConditions = computed(() => conditionsStore.activeConditions);
 const medications = computed(() => medicationsStore.activeMedications);
 const instructions = computed(() => instructionsStore.instructions);
 const prescriptions = computed(() => prescriptionsStore.prescriptions);
-const tasks = computed(() => tasksStore.activeTasks);
 const bookings = computed(() => bookingsStore.activeBookings);
 const facilities = computed(() => bookingsStore.facilities);
 const documents = computed(() => documentsStore.documents);
@@ -123,34 +111,6 @@ const hasInactiveConditions = computed(
 );
 const todayDate = computed(() => new Date().toISOString().slice(0, 10));
 const nowDateTime = computed(() => new Date().toISOString());
-
-const overdueTasks = computed(() =>
-  tasks.value.filter(
-    (task) =>
-      task.status !== "blocked" &&
-      task.status !== "completed" &&
-      task.status !== "cancelled" &&
-      Boolean(task.dueDate) &&
-      (task.dueDate as string) < todayDate.value,
-  ),
-);
-
-const blockedTasks = computed(() =>
-  tasks.value.filter((task) => task.status === "blocked"),
-);
-
-const completedTasks = computed(() =>
-  tasks.value.filter((task) => task.status === "completed"),
-);
-
-const upcomingTasks = computed(() =>
-  tasks.value.filter(
-    (task) =>
-      task.status !== "blocked" &&
-      task.status !== "completed" &&
-      !(task.dueDate && task.dueDate < todayDate.value),
-  ),
-);
 
 const upcomingBookings = computed(() =>
   bookings.value.filter((booking) => {
@@ -167,14 +127,7 @@ const upcomingBookings = computed(() =>
 );
 
 const overviewMetricCards = computed(() => [
-  {
-    count: overview.value?.overdueTaskCount ?? 0,
-    description: t("patients.overviewCards.overdueTasks.description"),
-    eyebrow: t("patients.overviewCards.overdueTasks.eyebrow"),
-    icon: "warning",
-    toneClass: "patient-overview-page__overview-card--urgent",
-  },
-  {
+    {
     count: overview.value?.upcomingAppointments.length ?? 0,
     description: t("patients.overviewCards.upcomingAppointments.description"),
     eyebrow: t("patients.overviewCards.upcomingAppointments.eyebrow"),
@@ -210,12 +163,7 @@ const overviewQuickActions = computed(() => [
     label: t("instructions.createAction"),
     onClick: openCreateInstructionDialog,
   },
-  {
-    icon: "checklist",
-    label: t("tasks.createAction"),
-    onClick: openCreateTaskDialog,
-  },
-  {
+    {
     icon: "medication",
     label: t("prescriptions.createAction"),
     onClick: openCreatePrescriptionDialog,
@@ -238,30 +186,6 @@ const statusFilterOptions = computed(() => [
   })),
 ]);
 
-const conditionOptions = computed(() => [
-  {
-    label: t("tasks.unlinkedCondition"),
-    value: null,
-  },
-  ...activeConditions.value.map((condition) => ({
-    label: condition.name,
-    value: condition.id,
-  })),
-]);
-
-const instructionOptions = computed(() => [
-  {
-    label: t("tasks.unlinkedInstruction"),
-    value: null,
-  },
-  ...instructions.value.map((instruction) => ({
-    label: `${resolveInstructionClinician(instruction)} · ${formatInstructionDate(
-      instruction.instructionDate,
-    )}`,
-    value: instruction.id,
-  })),
-]);
-
 const medicationConditionOptions = computed(() => [
   {
     label: t("medications.unlinkedCondition"),
@@ -270,17 +194,6 @@ const medicationConditionOptions = computed(() => [
   ...activeConditions.value.map((condition) => ({
     label: condition.name,
     value: condition.id,
-  })),
-]);
-
-const taskOptions = computed(() => [
-  {
-    label: t("prescriptions.unlinkedTask"),
-    value: null,
-  },
-  ...tasks.value.map((task) => ({
-    label: `${task.title} · ${task.taskType}`,
-    value: task.id,
   })),
 ]);
 
@@ -317,13 +230,6 @@ const prescriptionSubtypeOptionsByType = computed<
     ),
   };
 });
-
-const bookingTaskOptions = computed(() =>
-  tasks.value.map((task) => ({
-    label: `${task.title} · ${task.taskType}`,
-    value: task.id,
-  })),
-);
 
 const bookingPrescriptionOptions = computed(() => [
   {
@@ -437,8 +343,7 @@ const loadPage = async () => {
         currentInstructionFilters(),
       ),
       prescriptionsStore.loadPrescriptions(patientId.value),
-      tasksStore.loadTasks(patientId.value),
-      bookingsStore.loadBookings(patientId.value),
+            bookingsStore.loadBookings(patientId.value),
       bookingsStore.loadFacilities(),
     ]);
   } catch (error) {
@@ -522,22 +427,6 @@ const formatLinkedAt = (value: string) => d(new Date(value), "short");
 const formatInstructionDate = (value: string) =>
   d(new Date(`${value}T00:00:00`), "short");
 
-const formatTaskDate = (value: string | null) => {
-  if (!value) {
-    return t("tasks.emptyDate");
-  }
-
-  return d(new Date(`${value}T00:00:00`), "short");
-};
-
-const formatTaskDateTime = (value: string | null) => {
-  if (!value) {
-    return t("tasks.emptyDate");
-  }
-
-  return d(new Date(value), "short");
-};
-
 const formatPrescriptionDate = (value: string | null) => {
   if (!value) {
     return t("prescriptions.emptyDate");
@@ -599,14 +488,8 @@ const formatOverviewPrescriptionMeta = (
 const formatOverviewMedicationMeta = (
   medication: PatientOverviewMedicationRecord,
 ) => {
-  const renewalStatus = medication.renewalTask?.status
-    ? t(`tasks.statuses.${medication.renewalTask.status}`)
-    : null;
-  const renewalDueDate = medication.renewalTask?.dueDate
-    ? `${t("tasks.fields.dueDate")}: ${formatTaskDate(
-        medication.renewalTask.dueDate,
-      )}`
-    : null;
+  const renewalStatus = null;
+  const renewalDueDate = null;
   const nextGpDate = medication.nextGpContactDate
     ? `${t("medications.fields.nextGpContactDate")}: ${formatMedicationDate(
         medication.nextGpContactDate,
@@ -623,37 +506,6 @@ const formatOverviewMedicationMeta = (
     .join(" · ");
 };
 
-const resolveTaskStatusColor = (status: TaskRecord["status"]) => {
-  if (status === "blocked") {
-    return "warning";
-  }
-
-  if (status === "completed") {
-    return "positive";
-  }
-
-  if (status === "cancelled") {
-    return "grey-7";
-  }
-
-  if (status === "deferred") {
-    return "deep-orange";
-  }
-
-  return "primary";
-};
-
-const resolveConditionLabel = (conditionId: string | null) => {
-  if (!conditionId) {
-    return t("tasks.unlinkedCondition");
-  }
-
-  return (
-    conditions.value.find((condition) => condition.id === conditionId)?.name ??
-    t("tasks.missingCondition")
-  );
-};
-
 const resolveMedicationConditionLabel = (conditionId: string | null) => {
   if (!conditionId) {
     return t("medications.unlinkedCondition");
@@ -663,24 +515,6 @@ const resolveMedicationConditionLabel = (conditionId: string | null) => {
     conditions.value.find((condition) => condition.id === conditionId)?.name ??
     t("medications.missingCondition")
   );
-};
-
-const resolveInstructionLabel = (instructionId: string | null) => {
-  if (!instructionId) {
-    return t("tasks.unlinkedInstruction");
-  }
-
-  const instruction = instructions.value.find(
-    (item) => item.id === instructionId,
-  );
-
-  if (!instruction) {
-    return t("tasks.missingInstruction");
-  }
-
-  return `${resolveInstructionClinician(instruction)} · ${formatInstructionDate(
-    instruction.instructionDate,
-  )}`;
 };
 
 const resolveMedicationLinkedPrescriptionLabel = (
@@ -730,20 +564,6 @@ const resolvePrescriptionTypeLabel = (prescription: {
   return subtype ? `${typeLabel} · ${subtype}` : typeLabel;
 };
 
-const resolvePrescriptionTaskLabel = (taskId: string | null) => {
-  if (!taskId) {
-    return t("prescriptions.unlinkedTask");
-  }
-
-  const task = tasks.value.find((item) => item.id === taskId);
-
-  if (!task) {
-    return t("prescriptions.missingTask");
-  }
-
-  return `${task.title} · ${task.taskType}`;
-};
-
 const resolveBookingFacilityLabel = (facilityId: string | null) => {
   if (!facilityId) {
     return t("bookings.unlinkedFacility");
@@ -776,16 +596,6 @@ const resolveBookingPrescriptionLabel = (prescriptionId: string | null) => {
   )}`;
 };
 
-const resolveBookingTaskLabel = (taskId: string) => {
-  const task = tasks.value.find((item) => item.id === taskId);
-
-  if (!task) {
-    return t("bookings.missingTask");
-  }
-
-  return `${task.title} · ${task.taskType}`;
-};
-
 const nextBookingStatus = (
   status: BookingStatus,
 ): BookingStatus | null => {
@@ -799,20 +609,6 @@ const nextBookingStatus = (
     default:
       return null;
   }
-};
-
-const openLinkedPrescriptionTask = (taskId: string | null) => {
-  if (!taskId) {
-    return;
-  }
-
-  const task = tasks.value.find((item) => item.id === taskId);
-
-  if (!task) {
-    return;
-  }
-
-  openEditTaskDialog(task);
 };
 
 const nextPrescriptionStatus = (
@@ -1059,55 +855,6 @@ const handleMedicationDialogModelChange = (value: boolean) => {
   }
 };
 
-const openCreateTaskDialog = () => {
-  editingTask.value = null;
-  isTaskFormOpen.value = true;
-};
-
-const openEditTaskDialog = (task: TaskRecord) => {
-  editingTask.value = task;
-  isTaskFormOpen.value = true;
-};
-
-const handleTaskSubmit = async (
-  payload: TaskUpsertPayload,
-  status: TaskWorkflowStatus | null,
-) => {
-  isTaskSaving.value = true;
-  errorMessage.value = "";
-
-  try {
-    if (editingTask.value) {
-      await tasksStore.updateTask(editingTask.value.id, payload, {
-        ...(status ? { status } : {}),
-      });
-    } else {
-      const createdTask = await tasksStore.createTask(patientId.value, payload);
-
-      if (status && status !== createdTask.status) {
-        await tasksStore.changeTaskStatus(createdTask.id, status);
-      }
-    }
-
-    await refreshOverview();
-    isTaskFormOpen.value = false;
-    editingTask.value = null;
-  } catch (error) {
-    errorMessage.value =
-      error instanceof Error ? error.message : t("tasks.genericError");
-  } finally {
-    isTaskSaving.value = false;
-  }
-};
-
-const handleTaskDialogModelChange = (value: boolean) => {
-  isTaskFormOpen.value = value;
-
-  if (!value) {
-    editingTask.value = null;
-  }
-};
-
 const openCreatePrescriptionDialog = () => {
   editingPrescription.value = null;
   isPrescriptionFormOpen.value = true;
@@ -1125,8 +872,7 @@ const handlePrescriptionSubmit = async (payload: {
         notes: string | null;
       }
     | null;
-  inlineTask: TaskUpsertPayload | null;
-  prescription: PrescriptionUpsertPayload;
+    prescription: PrescriptionUpsertPayload;
   statusPayload: {
     collectedAt?: string | null;
     receivedAt?: string | null;
@@ -1147,7 +893,7 @@ const handlePrescriptionSubmit = async (payload: {
           notes: payload.prescription.notes,
           prescriptionType: payload.prescription.prescriptionType,
           subtype: payload.prescription.subtype,
-          taskId: payload.prescription.taskId,
+          
         },
         {
           statusPayload: payload.statusPayload,
@@ -1164,26 +910,16 @@ const handlePrescriptionSubmit = async (payload: {
         });
       }
     } else {
-      let createdTaskId: string | null = null;
       let createdPrescriptionId: string | null = null;
 
       try {
-        if (payload.inlineTask) {
-          const createdTask = await tasksStore.createTask(
-            patientId.value,
-            payload.inlineTask,
-          );
-          createdTaskId = createdTask.id;
-        }
 
         const createdPrescription = await prescriptionsStore.createPrescription(
           patientId.value,
           {
             ...payload.prescription,
-            taskId: createdTaskId ?? payload.prescription.taskId,
           },
-        );
-        createdPrescriptionId = createdPrescription.id;
+        );        createdPrescriptionId = createdPrescription.id;
 
         if (payload.document) {
           await documentsStore.uploadDocument(patientId.value, {
@@ -1195,10 +931,7 @@ const handlePrescriptionSubmit = async (payload: {
           });
         }
       } catch (error) {
-        if (createdTaskId && !createdPrescriptionId) {
-          await tasksStore.archiveTask(createdTaskId).catch(() => undefined);
-        }
-
+        
         throw error;
       }
     }
@@ -1284,7 +1017,7 @@ const handleBookingSubmit = async (
           facilityId: bookingPayload.facilityId,
           notes: bookingPayload.notes,
           prescriptionId: bookingPayload.prescriptionId,
-          taskId: bookingPayload.taskId,
+          
         },
         {
           statusPayload,
@@ -1634,9 +1367,7 @@ const handleAdvanceBookingStatus = async (
                   :key="appointment.id"
                   class="patient-overview-page__overview-stream-item"
                 >
-                  <p class="patient-overview-page__overview-stream-title">
-                    {{ resolveBookingTaskLabel(appointment.taskId) }}
-                  </p>
+                  <p class="patient-overview-page__overview-stream-title">Booking</p>
                   <p class="patient-overview-page__overview-stream-copy">
                     {{ formatOverviewAppointmentMeta(appointment) }}
                   </p>
@@ -2144,11 +1875,7 @@ const handleAdvanceBookingStatus = async (
                         <span>{{ $t("prescriptions.fields.collectedAt") }}</span>
                         {{ formatPrescriptionDateTime(prescription.collectedAt) }}
                       </p>
-                      <p class="patient-overview-page__prescription-meta">
-                        <span>{{ $t("prescriptions.fields.task") }}</span>
-                        {{ resolvePrescriptionTaskLabel(prescription.taskId) }}
-                      </p>
-                    </div>
+                                          </div>
 
                     <RelatedDocumentsPanel
                       :documents="getPrescriptionDocuments(prescription.id)"
@@ -2160,17 +1887,7 @@ const handleAdvanceBookingStatus = async (
                   </div>
 
                   <div class="patient-overview-page__prescription-actions">
-                    <q-btn
-                      :key="`open-task-${prescription.id}`"
-                      v-if="prescription.taskId"
-                      flat
-                      color="primary"
-                      icon="assignment"
-                      no-caps
-                      :label="$t('prescriptions.openTask')"
-                      @click="openLinkedPrescriptionTask(prescription.taskId)"
-                    />
-                    <q-btn
+                                        <q-btn
                       :key="`advance-${prescription.id}-${prescription.status}`"
                       v-if="nextPrescriptionStatus(prescription.status)"
                       flat
@@ -2219,370 +1936,6 @@ const handleAdvanceBookingStatus = async (
               </h3>
               <p class="patient-overview-page__summary-copy">
                 {{ $t("prescriptions.emptyDescription") }}
-              </p>
-            </q-card>
-          </q-card-section>
-        </q-card>
-
-        <q-card
-          flat
-          class="patient-overview-page__tasks"
-        >
-          <q-card-section class="patient-overview-page__section-header">
-            <div>
-              <p class="patient-overview-page__summary-eyebrow">
-                {{ $t("tasks.eyebrow") }}
-              </p>
-              <h2 class="patient-overview-page__summary-title">
-                {{ $t("tasks.title") }}
-              </h2>
-              <p class="patient-overview-page__summary-copy">
-                {{ $t("tasks.description") }}
-              </p>
-            </div>
-
-            <div class="patient-overview-page__section-actions">
-              <q-btn
-                color="primary"
-                icon="add"
-                unelevated
-                no-caps
-                :label="$t('tasks.createAction')"
-                @click="openCreateTaskDialog"
-              />
-            </div>
-          </q-card-section>
-
-          <q-card-section>
-            <div
-              v-if="tasks.length"
-              class="patient-overview-page__task-sections"
-            >
-              <section class="patient-overview-page__task-group">
-                <div class="patient-overview-page__task-group-header">
-                  <h3 class="patient-overview-page__task-group-title">
-                    {{ $t("tasks.groups.overdue") }}
-                  </h3>
-                  <q-badge
-                    rounded
-                    color="negative"
-                    text-color="white"
-                    :label="String(overdueTasks.length)"
-                  />
-                </div>
-                <div
-                  v-if="overdueTasks.length"
-                  class="patient-overview-page__task-list"
-                >
-                  <q-card
-                    v-for="task in overdueTasks"
-                    :key="task.id"
-                    :id="`task-${task.id}`"
-                    flat
-                    class="patient-overview-page__task-card patient-overview-page__task-card--overdue"
-                  >
-                    <div class="patient-overview-page__task-head">
-                      <div class="patient-overview-page__task-main">
-                        <div class="patient-overview-page__task-title-row">
-                          <h4 class="patient-overview-page__task-title">
-                            {{ task.title }}
-                          </h4>
-                          <q-badge
-                            rounded
-                            :color="resolveTaskStatusColor(task.status)"
-                            text-color="white"
-                            :label="$t(`tasks.statuses.${task.status}`)"
-                          />
-                        </div>
-                        <p class="patient-overview-page__task-type">
-                          {{ task.taskType }}
-                        </p>
-                        <p class="patient-overview-page__task-copy">
-                          {{ task.description || $t("tasks.emptyDescription") }}
-                        </p>
-                        <div class="patient-overview-page__task-meta-grid">
-                          <p class="patient-overview-page__task-meta">
-                            <span>{{ $t("tasks.fields.dueDate") }}</span>
-                            {{ formatTaskDate(task.dueDate) }}
-                          </p>
-                          <p class="patient-overview-page__task-meta">
-                            <span>{{ $t("tasks.fields.scheduledAt") }}</span>
-                            {{ formatTaskDateTime(task.scheduledAt) }}
-                          </p>
-                          <p class="patient-overview-page__task-meta">
-                            <span>{{ $t("tasks.fields.condition") }}</span>
-                            {{ resolveConditionLabel(task.conditionId) }}
-                          </p>
-                          <p class="patient-overview-page__task-meta">
-                            <span>{{ $t("tasks.fields.medicalInstruction") }}</span>
-                            {{ resolveInstructionLabel(task.medicalInstructionId) }}
-                          </p>
-                        </div>
-                      </div>
-
-                      <div class="patient-overview-page__task-actions">
-                        <q-btn
-                          flat
-                          color="primary"
-                          icon="edit"
-                          no-caps
-                          :label="$t('tasks.edit')"
-                          @click="openEditTaskDialog(task)"
-                        />
-                      </div>
-                    </div>
-                  </q-card>
-                </div>
-                <q-card
-                  v-else
-                  flat
-                  class="patient-overview-page__task-empty"
-                >
-                  <p class="patient-overview-page__summary-copy">
-                    {{ $t("tasks.emptyGroupDescription.overdue") }}
-                  </p>
-                </q-card>
-              </section>
-
-              <section class="patient-overview-page__task-group">
-                <div class="patient-overview-page__task-group-header">
-                  <h3 class="patient-overview-page__task-group-title">
-                    {{ $t("tasks.groups.blocked") }}
-                  </h3>
-                  <q-badge
-                    rounded
-                    color="warning"
-                    text-color="dark"
-                    :label="String(blockedTasks.length)"
-                  />
-                </div>
-                <div
-                  v-if="blockedTasks.length"
-                  class="patient-overview-page__task-list"
-                >
-                  <q-card
-                    v-for="task in blockedTasks"
-                    :key="task.id"
-                    :id="`task-${task.id}`"
-                    flat
-                    class="patient-overview-page__task-card patient-overview-page__task-card--blocked"
-                  >
-                    <div class="patient-overview-page__task-head">
-                      <div class="patient-overview-page__task-main">
-                        <div class="patient-overview-page__task-title-row">
-                          <h4 class="patient-overview-page__task-title">
-                            {{ task.title }}
-                          </h4>
-                          <q-badge
-                            rounded
-                            :color="resolveTaskStatusColor(task.status)"
-                            text-color="dark"
-                            :label="$t(`tasks.statuses.${task.status}`)"
-                          />
-                        </div>
-                        <p class="patient-overview-page__task-type">
-                          {{ task.taskType }}
-                        </p>
-                        <p class="patient-overview-page__task-copy">
-                          {{ task.description || $t("tasks.emptyDescription") }}
-                        </p>
-                        <p class="patient-overview-page__task-blocked-copy">
-                          {{
-                            $t("tasks.blockedReason", {
-                              count: task.blockedByTaskIds.length,
-                            })
-                          }}
-                        </p>
-                      </div>
-
-                      <div class="patient-overview-page__task-actions">
-                        <q-btn
-                          flat
-                          color="primary"
-                          icon="edit"
-                          no-caps
-                          :label="$t('tasks.edit')"
-                          @click="openEditTaskDialog(task)"
-                        />
-                      </div>
-                    </div>
-                  </q-card>
-                </div>
-                <q-card
-                  v-else
-                  flat
-                  class="patient-overview-page__task-empty"
-                >
-                  <p class="patient-overview-page__summary-copy">
-                    {{ $t("tasks.emptyGroupDescription.blocked") }}
-                  </p>
-                </q-card>
-              </section>
-
-              <section class="patient-overview-page__task-group">
-                <div class="patient-overview-page__task-group-header">
-                  <h3 class="patient-overview-page__task-group-title">
-                    {{ $t("tasks.groups.upcoming") }}
-                  </h3>
-                  <q-badge
-                    rounded
-                    color="primary"
-                    text-color="white"
-                    :label="String(upcomingTasks.length)"
-                  />
-                </div>
-                <div
-                  v-if="upcomingTasks.length"
-                  class="patient-overview-page__task-list"
-                >
-                  <q-card
-                    v-for="task in upcomingTasks"
-                    :key="task.id"
-                    :id="`task-${task.id}`"
-                    flat
-                    class="patient-overview-page__task-card"
-                  >
-                    <div class="patient-overview-page__task-head">
-                      <div class="patient-overview-page__task-main">
-                        <div class="patient-overview-page__task-title-row">
-                          <h4 class="patient-overview-page__task-title">
-                            {{ task.title }}
-                          </h4>
-                          <q-badge
-                            rounded
-                            :color="resolveTaskStatusColor(task.status)"
-                            text-color="white"
-                            :label="$t(`tasks.statuses.${task.status}`)"
-                          />
-                        </div>
-                        <p class="patient-overview-page__task-type">
-                          {{ task.taskType }}
-                        </p>
-                        <p class="patient-overview-page__task-copy">
-                          {{ task.description || $t("tasks.emptyDescription") }}
-                        </p>
-                        <div class="patient-overview-page__task-meta-grid">
-                          <p class="patient-overview-page__task-meta">
-                            <span>{{ $t("tasks.fields.dueDate") }}</span>
-                            {{ formatTaskDate(task.dueDate) }}
-                          </p>
-                          <p class="patient-overview-page__task-meta">
-                            <span>{{ $t("tasks.fields.scheduledAt") }}</span>
-                            {{ formatTaskDateTime(task.scheduledAt) }}
-                          </p>
-                        </div>
-                      </div>
-
-                      <div class="patient-overview-page__task-actions">
-                        <q-btn
-                          flat
-                          color="primary"
-                          icon="edit"
-                          no-caps
-                          :label="$t('tasks.edit')"
-                          @click="openEditTaskDialog(task)"
-                        />
-                      </div>
-                    </div>
-                  </q-card>
-                </div>
-                <q-card
-                  v-else
-                  flat
-                  class="patient-overview-page__task-empty"
-                >
-                  <p class="patient-overview-page__summary-copy">
-                    {{ $t("tasks.emptyGroupDescription.upcoming") }}
-                  </p>
-                </q-card>
-              </section>
-
-              <section class="patient-overview-page__task-group">
-                <div class="patient-overview-page__task-group-header">
-                  <h3 class="patient-overview-page__task-group-title">
-                    {{ $t("tasks.groups.completed") }}
-                  </h3>
-                  <q-badge
-                    rounded
-                    color="positive"
-                    text-color="white"
-                    :label="String(completedTasks.length)"
-                  />
-                </div>
-                <div
-                  v-if="completedTasks.length"
-                  class="patient-overview-page__task-list"
-                >
-                  <q-card
-                    v-for="task in completedTasks"
-                    :key="task.id"
-                    :id="`task-${task.id}`"
-                    flat
-                    class="patient-overview-page__task-card patient-overview-page__task-card--completed"
-                  >
-                    <div class="patient-overview-page__task-head">
-                      <div class="patient-overview-page__task-main">
-                        <div class="patient-overview-page__task-title-row">
-                          <h4 class="patient-overview-page__task-title">
-                            {{ task.title }}
-                          </h4>
-                          <q-badge
-                            rounded
-                            color="positive"
-                            text-color="white"
-                            :label="$t(`tasks.statuses.${task.status}`)"
-                          />
-                        </div>
-                        <p class="patient-overview-page__task-type">
-                          {{ task.taskType }}
-                        </p>
-                        <p class="patient-overview-page__task-copy">
-                          {{ task.description || $t("tasks.emptyDescription") }}
-                        </p>
-                        <p class="patient-overview-page__task-meta">
-                          <span>{{ $t("tasks.fields.completedAt") }}</span>
-                          {{ formatTaskDateTime(task.completedAt) }}
-                        </p>
-                      </div>
-
-                      <div class="patient-overview-page__task-actions">
-                        <q-btn
-                          flat
-                          color="primary"
-                          icon="edit"
-                          no-caps
-                          :label="$t('tasks.edit')"
-                          @click="openEditTaskDialog(task)"
-                        />
-                      </div>
-                    </div>
-                  </q-card>
-                </div>
-                <q-card
-                  v-else
-                  flat
-                  class="patient-overview-page__task-empty"
-                >
-                  <p class="patient-overview-page__summary-copy">
-                    {{ $t("tasks.emptyGroupDescription.completed") }}
-                  </p>
-                </q-card>
-              </section>
-            </div>
-
-            <q-card
-              v-else
-              flat
-              class="patient-overview-page__task-empty"
-            >
-              <p class="patient-overview-page__summary-eyebrow">
-                {{ $t("tasks.emptyEyebrow") }}
-              </p>
-              <h3 class="patient-overview-page__instruction-empty-title">
-                {{ $t("tasks.emptyTitle") }}
-              </h3>
-              <p class="patient-overview-page__summary-copy">
-                {{ $t("tasks.emptyDescriptionLong") }}
               </p>
             </q-card>
           </q-card-section>
@@ -2649,9 +2002,7 @@ const handleAdvanceBookingStatus = async (
                 <div class="patient-overview-page__booking-head">
                   <div class="patient-overview-page__booking-main">
                     <div class="patient-overview-page__booking-title-row">
-                      <h3 class="patient-overview-page__booking-title">
-                        {{ resolveBookingTaskLabel(booking.taskId) }}
-                      </h3>
+                      <h3 class="patient-overview-page__booking-title">Booking</h3>
                       <q-badge
                         rounded
                         color="accent"
@@ -2914,26 +2265,13 @@ const handleAdvanceBookingStatus = async (
       @update:model-value="handleConditionDialogModelChange"
     />
 
-    <TaskFormDialog
-      :condition-options="conditionOptions"
-      :instruction-options="instructionOptions"
-      :loading="isTaskSaving"
-      :model-value="isTaskFormOpen"
-      :submit-label="$t('tasks.save')"
-      :task="editingTask"
-      :title="editingTask ? $t('tasks.editTitle') : $t('tasks.createTitle')"
-      @submit="handleTaskSubmit"
-      @update:model-value="handleTaskDialogModelChange"
-    />
-
-    <PrescriptionFormDialog
+        <PrescriptionFormDialog
       :loading="isPrescriptionSaving"
       :model-value="isPrescriptionFormOpen"
       :prescription="editingPrescription"
       :submit-label="$t('prescriptions.save')"
       :subtype-options-by-type="prescriptionSubtypeOptionsByType"
-      :task-options="taskOptions"
-      :title="
+            :title="
         editingPrescription
           ? $t('prescriptions.editTitle')
           : $t('prescriptions.createTitle')
@@ -2949,8 +2287,7 @@ const handleAdvanceBookingStatus = async (
       :model-value="isBookingFormOpen"
       :prescription-options="bookingPrescriptionOptions"
       :submit-label="$t('bookings.save')"
-      :task-options="bookingTaskOptions"
-      :title="editingBooking ? $t('bookings.editTitle') : $t('bookings.createTitle')"
+            :title="editingBooking ? $t('bookings.editTitle') : $t('bookings.createTitle')"
       @submit="handleBookingSubmit"
       @update:model-value="handleBookingDialogModelChange"
     />

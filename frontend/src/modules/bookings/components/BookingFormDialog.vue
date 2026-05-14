@@ -22,7 +22,6 @@ const props = defineProps<{
   booking?: BookingRecord | null;
   prescriptionOptions: SelectOption[];
   submitLabel: string;
-  taskOptions: SelectOption[];
   title: string;
 }>();
 
@@ -48,7 +47,6 @@ const form = reactive({
   notes: "",
   prescriptionId: null as string | null,
   status: "not_booked" as BookingStatus,
-  taskId: null as string | null,
 });
 
 const facilityForm = reactive({
@@ -121,7 +119,6 @@ const syncForm = () => {
   form.notes = props.booking?.notes ?? "";
   form.prescriptionId = props.booking?.prescriptionId ?? null;
   form.status = props.booking?.status ?? "not_booked";
-  form.taskId = props.booking?.taskId ?? null;
   resetFacilityForm();
 };
 
@@ -148,9 +145,6 @@ const closeDialog = () => {
 };
 
 const handleSubmit = () => {
-  if (!form.taskId) {
-    return;
-  }
 
   emit(
     "submit",
@@ -161,7 +155,6 @@ const handleSubmit = () => {
       notes: form.notes.trim() || null,
       prescriptionId: form.prescriptionId,
       status: form.status,
-      taskId: form.taskId,
     },
     {
       appointmentAt: toIsoDateTime(form.appointmentAt),
@@ -210,18 +203,7 @@ const handleSubmit = () => {
           @submit.prevent="handleSubmit"
         >
           <div class="booking-form-dialog__grid">
-            <q-select
-              v-model="form.taskId"
-              outlined
-              emit-value
-              map-options
-              :disable="loading"
-              :label="$t('bookings.fields.task')"
-              :options="taskOptions"
-              :rules="[
-                (value) => Boolean(value) || t('bookings.validation.taskRequired'),
-              ]"
-            />
+
             <q-select
               v-model="form.prescriptionId"
               outlined

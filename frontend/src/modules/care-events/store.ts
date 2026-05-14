@@ -89,7 +89,6 @@ export const useCareEventsStore = defineStore("care-events", {
         ...(filters.from ? { from: filters.from } : {}),
         ...(filters.search?.trim() ? { search: filters.search.trim() } : {}),
         ...(filters.subtype?.trim() ? { subtype: filters.subtype.trim() } : {}),
-        ...(filters.taskId ? { taskId: filters.taskId } : {}),
         ...(filters.to ? { to: filters.to } : {}),
       };
 

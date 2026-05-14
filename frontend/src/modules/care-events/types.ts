@@ -17,7 +17,6 @@ export interface CareEventRecord {
   patientId: string;
   providerName: string | null;
   subtype: string | null;
-  taskId: string | null;
   updatedAt: string | null;
 }
 
@@ -29,7 +28,6 @@ export interface CareEventUpsertPayload {
   outcomeNotes: string | null;
   providerName: string | null;
   subtype: string | null;
-  taskId: string | null;
 }
 
 export interface CareEventListFilters {
@@ -41,7 +39,6 @@ export interface CareEventListFilters {
   pageSize?: number;
   search?: string;
   subtype?: string;
-  taskId?: string;
   to?: string;
 }
 

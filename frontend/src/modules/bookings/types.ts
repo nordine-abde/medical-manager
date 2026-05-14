@@ -38,7 +38,6 @@ export interface BookingRecord {
   patientId: string;
   prescriptionId: string | null;
   status: BookingStatus;
-  taskId: string;
   updatedAt: string;
 }
 
@@ -63,5 +62,4 @@ export interface BookingUpsertPayload {
   notes: string | null;
   prescriptionId: string | null;
   status: BookingStatus;
-  taskId: string;
 }

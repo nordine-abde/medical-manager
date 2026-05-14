@@ -33,17 +33,6 @@ export type MedicationPrescriptionContext = {
   status: string;
 };
 
-export type MedicationTaskContext = {
-  auto_recurrence_enabled: boolean;
-  due_date: Date | string | null;
-  id: string;
-  medication_id: string | null;
-  recurrence_rule: string | null;
-  scheduled_at: Date | null;
-  status: string;
-  title: string;
-};
-
 export type CreateMedicationInput = {
   conditionId: string | null;
   dosage: string;
@@ -88,7 +77,6 @@ export const createMedicationsRepository = (
   const qualifiedConditionsTable = conditionsTable(schemaName);
   const qualifiedMedicationsTable = medicationsTable(schemaName);
   const qualifiedPrescriptionsTable = prescriptionsTable(schemaName);
-  const qualifiedTasksTable = tasksTable(schemaName);
   const medicationColumns = `
     m.id,
     m.patient_id,
@@ -285,43 +273,6 @@ export const createMedicationsRepository = (
             p.deleted_at asc nulls first,
             p.issue_date desc nulls last,
             p.created_at desc
-        `,
-        [userId, medicationIds],
-      );
-    },
-
-    async listTaskContextsAccessible(
-      userId: string,
-      medicationIds: readonly string[],
-    ): Promise<MedicationTaskContext[]> {
-      if (medicationIds.length === 0) {
-        return [];
-      }
-
-      return sql.unsafe<MedicationTaskContext[]>(
-        `
-          select
-            t.id,
-            t.medication_id,
-            t.title,
-            t.status,
-            t.due_date,
-            t.scheduled_at,
-            t.auto_recurrence_enabled,
-            t.recurrence_rule
-          from ${qualifiedTasksTable} as t
-          inner join ${qualifiedPatientUsersTable} as pu
-            on pu.patient_id = t.patient_id
-          where pu.user_id = $1
-            and t.medication_id = any($2::uuid[])
-            and t.deleted_at is null
-            and t.task_type = 'medication_renewal'
-          order by
-            t.completed_at asc nulls first,
-            t.due_date asc nulls last,
-            t.scheduled_at asc nulls last,
-            lower(t.title) asc,
-            t.created_at asc
         `,
         [userId, medicationIds],
       );

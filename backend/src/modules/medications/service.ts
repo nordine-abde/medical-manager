@@ -7,14 +7,12 @@ import {
   type MedicationPrescriptionContext,
   type MedicationRecord,
   type MedicationsRepository,
-  type MedicationTaskContext,
   type UpdateMedicationInput,
 } from "./repository";
 
 export type MedicationWithContext = {
   linkedPrescriptions: MedicationPrescriptionContext[];
   medication: MedicationRecord;
-  renewalTasks: MedicationTaskContext[];
 };
 
 export class PatientMedicationAccessError extends Error {
@@ -44,15 +42,10 @@ const attachPrescriptionContext = async (
       userId,
       medications.map((medication) => medication.id),
     );
-  const renewalTasks = await repository.listTaskContextsAccessible(
-    userId,
-    medications.map((medication) => medication.id),
-  );
   const linkedPrescriptionsByMedicationId = new Map<
     string,
     MedicationPrescriptionContext[]
   >();
-  const renewalTasksByMedicationId = new Map<string, MedicationTaskContext[]>();
 
   for (const linkedPrescription of linkedPrescriptions) {
     const medicationId = linkedPrescription.medication_id;
@@ -67,23 +60,10 @@ const attachPrescriptionContext = async (
     linkedPrescriptionsByMedicationId.set(medicationId, existingContexts);
   }
 
-  for (const renewalTask of renewalTasks) {
-    const medicationId = renewalTask.medication_id;
-
-    if (!medicationId) {
-      continue;
-    }
-
-    const existingTasks = renewalTasksByMedicationId.get(medicationId) ?? [];
-    existingTasks.push(renewalTask);
-    renewalTasksByMedicationId.set(medicationId, existingTasks);
-  }
-
   return medications.map((medication) => ({
     linkedPrescriptions:
       linkedPrescriptionsByMedicationId.get(medication.id) ?? [],
     medication,
-    renewalTasks: renewalTasksByMedicationId.get(medication.id) ?? [],
   }));
 };
 

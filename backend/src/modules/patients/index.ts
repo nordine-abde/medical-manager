@@ -146,13 +146,7 @@ const mapPatientOverview = (overview: {
     name: string;
     next_gp_contact_date: Date | string | null;
     quantity: string;
-    renewal_cadence: string | null;
-    renewal_task_due_date: Date | string | null;
-    renewal_task_id: string | null;
-    renewal_task_status: string | null;
-    renewal_task_title: string | null;
   }>;
-  overdue_task_count: number;
   pending_prescriptions: Array<{
     expiration_date: Date | string | null;
     issue_date: Date | string | null;
@@ -160,7 +154,6 @@ const mapPatientOverview = (overview: {
     prescription_id: string;
     prescription_type: string;
     status: string;
-    task_id: string | null;
   }>;
   upcoming_appointments: Array<{
     appointment_at: Date;
@@ -168,7 +161,6 @@ const mapPatientOverview = (overview: {
     booking_status: string;
     facility_id: string | null;
     prescription_id: string | null;
-    task_id: string;
   }>;
 }) => ({
   activeConditions: overview.active_conditions.map((condition) => ({
@@ -182,18 +174,7 @@ const mapPatientOverview = (overview: {
     name: medication.name,
     nextGpContactDate: formatDateOnly(medication.next_gp_contact_date),
     quantity: medication.quantity,
-    renewalCadence: medication.renewal_cadence,
-    renewalTask:
-      medication.renewal_task_id === null
-        ? null
-        : {
-            dueDate: formatDateOnly(medication.renewal_task_due_date),
-            id: medication.renewal_task_id,
-            status: medication.renewal_task_status,
-            title: medication.renewal_task_title,
-          },
   })),
-  overdueTaskCount: overview.overdue_task_count,
   pendingPrescriptions: overview.pending_prescriptions.map((prescription) => ({
     expirationDate: formatDateOnly(prescription.expiration_date),
     id: prescription.prescription_id,
@@ -201,7 +182,6 @@ const mapPatientOverview = (overview: {
     notes: prescription.notes,
     prescriptionType: prescription.prescription_type,
     status: prescription.status,
-    taskId: prescription.task_id,
   })),
   upcomingAppointments: overview.upcoming_appointments.map((appointment) => ({
     appointmentAt: appointment.appointment_at.toISOString(),
@@ -209,7 +189,6 @@ const mapPatientOverview = (overview: {
     id: appointment.booking_id,
     prescriptionId: appointment.prescription_id,
     status: appointment.booking_status,
-    taskId: appointment.task_id,
   })),
 });
 

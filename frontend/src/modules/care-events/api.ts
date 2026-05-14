@@ -139,10 +139,6 @@ const toQueryString = (filters: CareEventListFilters): string => {
     searchParams.set("subtype", filters.subtype.trim());
   }
 
-  if (filters.taskId) {
-    searchParams.set("taskId", filters.taskId);
-  }
-
   if (filters.to) {
     searchParams.set("to", filters.to);
   }
@@ -214,10 +210,6 @@ export const updateCareEventRequest = async (
 
   if (payload.subtype !== undefined) {
     requestBody.subtype = payload.subtype;
-  }
-
-  if (payload.taskId !== undefined) {
-    requestBody.taskId = payload.taskId;
   }
 
   const response = await requestJson<CareEventPayload>(

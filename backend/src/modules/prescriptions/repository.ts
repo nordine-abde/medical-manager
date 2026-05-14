@@ -44,7 +44,6 @@ export type PrescriptionRecord = {
   received_at: Date | null;
   requested_at: Date | null;
   status: PrescriptionStatus;
-  task_id: string | null;
   updated_at: Date;
 };
 
@@ -59,7 +58,6 @@ export type CreatePrescriptionInput = {
   receivedAt: string | null;
   requestedAt: string | null;
   status: PrescriptionStatus;
-  taskId: string | null;
 };
 
 export type UpdatePrescriptionInput = Partial<
@@ -101,7 +99,6 @@ export const createPrescriptionsRepository = (
 ) => {
   const qualifiedPatientsTable = patientsTable(schemaName);
   const qualifiedPatientUsersTable = patientUsersTable(schemaName);
-  const qualifiedTasksTable = tasksTable(schemaName);
   const qualifiedPrescriptionsTable = prescriptionsTable(schemaName);
   const qualifiedPrescriptionStatusType = qualifyTypeName(
     schemaName,
@@ -124,20 +121,10 @@ export const createPrescriptionsRepository = (
         return null;
       }
 
-      const linksAreValid = await this.hasValidOptionalLinks(
-        patientId,
-        input.taskId,
-      );
-
-      if (!linksAreValid) {
-        return null;
-      }
-
       const [createdPrescription] = await sql.unsafe<Array<{ id: string }>>(
         `
           insert into ${qualifiedPrescriptionsTable} (
             patient_id,
-            task_id,
             medication_id,
             prescription_type,
             subtype,
@@ -154,7 +141,6 @@ export const createPrescriptionsRepository = (
         `,
         [
           patientId,
-          input.taskId,
           input.medicationId,
           input.prescriptionType,
           input.subtype,
@@ -184,7 +170,6 @@ export const createPrescriptionsRepository = (
           select
             p.id,
             p.patient_id,
-            p.task_id,
             p.medication_id,
             p.prescription_type,
             p.subtype,
@@ -231,28 +216,6 @@ export const createPrescriptionsRepository = (
       return result !== undefined;
     },
 
-    async hasValidOptionalLinks(
-      patientId: string,
-      taskId: string | null,
-    ): Promise<boolean> {
-      if (!taskId) {
-        return true;
-      }
-
-      const [task] = await sql.unsafe<Array<{ id: string }>>(
-        `
-          select t.id
-          from ${qualifiedTasksTable} as t
-          where t.id = $1
-            and t.patient_id = $2
-          limit 1
-        `,
-        [taskId, patientId],
-      );
-
-      return task !== undefined;
-    },
-
     async listByPatient(
       userId: string,
       patientId: string,
@@ -269,7 +232,6 @@ export const createPrescriptionsRepository = (
           select
             p.id,
             p.patient_id,
-            p.task_id,
             p.medication_id,
             p.prescription_type,
             p.subtype,
@@ -319,25 +281,12 @@ export const createPrescriptionsRepository = (
         return null;
       }
 
-      const taskId =
-        input.taskId === undefined
-          ? existingPrescription.task_id
-          : input.taskId;
-
-      const linksAreValid = await this.hasValidOptionalLinks(
-        existingPrescription.patient_id,
-        taskId,
-      );
-
-      if (!linksAreValid) {
-        return null;
-      }
+      
 
       const [updatedPrescription] = await sql.unsafe<Array<{ id: string }>>(
         `
           update ${qualifiedPrescriptionsTable}
           set
-            task_id = $1,
             medication_id = $2,
             prescription_type = $3,
             subtype = $4,
@@ -352,7 +301,6 @@ export const createPrescriptionsRepository = (
           returning id
         `,
         [
-          taskId,
           input.medicationId === undefined
             ? existingPrescription.medication_id
             : input.medicationId,

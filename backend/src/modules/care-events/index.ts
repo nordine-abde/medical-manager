@@ -49,13 +49,6 @@ const careEventBodySchema = t.Object({
   outcomeNotes: t.Optional(t.Nullable(t.String())),
   providerName: t.Optional(t.Nullable(t.String())),
   subtype: t.Optional(t.Nullable(t.String())),
-  taskId: t.Optional(
-    t.Nullable(
-      t.String({
-        format: "uuid",
-      }),
-    ),
-  ),
 });
 
 const careEventUpdateBodySchema = t.Object({
@@ -178,7 +171,6 @@ const buildCareEventListFilters = (query: {
   pageSize?: string;
   search?: string;
   subtype?: string;
-  taskId?: string;
   to?: string;
 }): CareEventListFilters => {
   const filters: CareEventListFilters = buildPagination(query);
@@ -211,10 +203,6 @@ const buildCareEventListFilters = (query: {
     filters.subtype = subtype;
   }
 
-  if (query.taskId) {
-    filters.taskId = query.taskId;
-  }
-
   if (to) {
     filters.to = to;
   }
@@ -233,7 +221,6 @@ const mapCareEvent = (careEvent: {
   patient_id: string;
   provider_name: string | null;
   subtype: string | null;
-  task_id: string | null;
   updated_at: Date;
 }) => ({
   bookingId: careEvent.booking_id,
@@ -246,7 +233,6 @@ const mapCareEvent = (careEvent: {
   patientId: careEvent.patient_id,
   providerName: careEvent.provider_name,
   subtype: careEvent.subtype,
-  taskId: careEvent.task_id,
   updatedAt: formatDateTime(careEvent.updated_at),
 });
 
@@ -348,7 +334,6 @@ export const createCareEventsModule = (
               outcomeNotes: normalizeOptionalText(body.outcomeNotes) ?? null,
               providerName: normalizeOptionalText(body.providerName) ?? null,
               subtype: normalizeOptionalText(body.subtype) ?? null,
-              taskId: body.taskId ?? null,
             },
           );
 
@@ -431,7 +416,6 @@ export const createCareEventsModule = (
                 : {
                     subtype: normalizeOptionalText(body.subtype) ?? null,
                   }),
-              ...(body.taskId === undefined ? {} : { taskId: body.taskId }),
             },
           );
 

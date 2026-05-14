@@ -31,7 +31,6 @@ describe("useCareEventsStore", () => {
               patientId: "patient-1",
               providerName: "Dr. Rossi",
               subtype: "Blood test",
-              taskId: "task-1",
               updatedAt: "2026-03-18T10:05:00.000Z",
             },
             {
@@ -118,7 +117,6 @@ describe("useCareEventsStore", () => {
               patientId: "patient-1",
               providerName: "Nurse Verdi",
               subtype: "Physical therapy",
-              taskId: "task-1",
               updatedAt: "2026-03-19T16:01:00.000Z",
             },
           }),
@@ -145,7 +143,6 @@ describe("useCareEventsStore", () => {
                 patientId: "patient-1",
                 providerName: "Nurse Verdi",
                 subtype: "Physical therapy",
-                taskId: "task-1",
                 updatedAt: "2026-03-19T16:01:00.000Z",
               },
             ],
@@ -191,7 +188,6 @@ describe("useCareEventsStore", () => {
       outcomeNotes: "Treatment completed successfully.",
       providerName: "Nurse Verdi",
       subtype: "Physical therapy",
-      taskId: "task-1",
     });
 
     expect(createdCareEvent.id).toBe("care-event-3");
@@ -214,7 +210,6 @@ describe("useCareEventsStore", () => {
       outcomeNotes: "Treatment completed successfully.",
       providerName: "Nurse Verdi",
       subtype: "Physical therapy",
-      taskId: "task-1",
     });
     expect(mockFetch).toHaveBeenNthCalledWith(
       3,

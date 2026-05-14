@@ -286,14 +286,10 @@ describe("usePatientsStore", () => {
     );
 
     await store.loadOverview("patient-99");
-
-    expect(store.currentOverview?.overdueTaskCount).toBe(2);
     expect(store.currentOverview?.activeConditions[0]?.name).toBe(
       "Hypertension",
     );
-    expect(
-      store.currentOverview?.activeMedications[0]?.renewalTask?.title,
-    ).toBe("Renew statin");
+
     expect(mockFetch).toHaveBeenCalledWith(
       "/api/v1/patients/patient-99/overview",
       {

@@ -180,7 +180,6 @@ const mapPrescription = (prescription: {
   received_at: Date | null;
   requested_at: Date | null;
   status: PrescriptionStatus;
-  task_id: string | null;
   updated_at: Date;
 }) => ({
   collectedAt: formatDateTime(prescription.collected_at),
@@ -197,7 +196,6 @@ const mapPrescription = (prescription: {
   requestedAt: formatDateTime(prescription.requested_at),
   status: prescription.status,
   subtype: prescription.subtype,
-  taskId: prescription.task_id,
   updatedAt: prescription.updated_at.toISOString(),
 });
 
@@ -277,7 +275,6 @@ export const createPrescriptionsModule = (
               requestedAt: body.requestedAt ?? null,
               status: body.status ?? "needed",
               subtype: normalizeOptionalText(body.subtype) ?? null,
-              taskId: body.taskId ?? null,
             },
           );
 

@@ -124,7 +124,6 @@ const normalizeOptionalText = (
 const mapMedication = ({
   linkedPrescriptions,
   medication,
-  renewalTasks,
 }: MedicationWithContext) => ({
   archived: medication.deleted_at !== null,
   conditionId: medication.condition_id,
@@ -152,15 +151,6 @@ const mapMedication = ({
   prescribingDoctor: medication.prescribing_doctor,
   quantity: medication.quantity,
   renewalCadence: medication.renewal_cadence,
-  renewalTasks: renewalTasks.map((task) => ({
-    autoRecurrenceEnabled: task.auto_recurrence_enabled,
-    dueDate: formatDateOnly(task.due_date),
-    id: task.id,
-    recurrenceRule: task.recurrence_rule,
-    scheduledAt: formatDateTime(task.scheduled_at),
-    status: task.status,
-    title: task.title,
-  })),
   updatedAt: medication.updated_at.toISOString(),
 });
 

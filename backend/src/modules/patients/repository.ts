@@ -23,7 +23,6 @@ export type PatientOverviewAppointmentRecord = {
   booking_status: string;
   facility_id: string | null;
   prescription_id: string | null;
-  task_id: string;
 };
 
 export type PatientOverviewPrescriptionRecord = {
@@ -33,7 +32,6 @@ export type PatientOverviewPrescriptionRecord = {
   prescription_id: string;
   prescription_type: string;
   status: string;
-  task_id: string | null;
 };
 
 export type PatientOverviewConditionRecord = {
@@ -48,23 +46,9 @@ export type PatientOverviewMedicationRecord = {
   name: string;
   next_gp_contact_date: Date | string | null;
   quantity: string;
-  renewal_cadence: string | null;
-  renewal_task_due_date: Date | string | null;
-  renewal_task_id: string | null;
-  renewal_task_status: string | null;
-  renewal_task_title: string | null;
-};
-
-export type PatientOverviewRecord = {
-  active_conditions: PatientOverviewConditionRecord[];
-  active_medications: PatientOverviewMedicationRecord[];
-  overdue_task_count: number;
-  pending_prescriptions: PatientOverviewPrescriptionRecord[];
-  upcoming_appointments: PatientOverviewAppointmentRecord[];
 };
 
 export const patientTimelineEventTypes = [
-  "task",
   "medical_instruction",
   "prescription",
   "booking",
@@ -72,6 +56,13 @@ export const patientTimelineEventTypes = [
   "medication",
   "document",
 ] as const;
+
+export type PatientOverviewRecord = {
+  active_conditions: PatientOverviewConditionRecord[];
+  active_medications: PatientOverviewMedicationRecord[];
+  pending_prescriptions: PatientOverviewPrescriptionRecord[];
+  upcoming_appointments: PatientOverviewAppointmentRecord[];
+};
 
 export type PatientTimelineEventType =
   (typeof patientTimelineEventTypes)[number];
@@ -145,7 +136,6 @@ export const createPatientsRepository = (
 ) => {
   const qualifiedPatientsTable = patientsTable(schemaName);
   const qualifiedPatientUsersTable = patientUsersTable(schemaName);
-  const qualifiedTasksTable = tasksTable(schemaName);
   const qualifiedConditionsTable = conditionsTable(schemaName);
   const qualifiedPrescriptionsTable = prescriptionsTable(schemaName);
   const qualifiedBookingsTable = bookingsTable(schemaName);
@@ -344,29 +334,15 @@ export const createPatientsRepository = (
       }
 
       const [
-        overdueTaskCountRow,
         upcomingAppointments,
         pendingPrescriptions,
         activeConditions,
         activeMedications,
       ] = await Promise.all([
-        sql.unsafe<Array<{ overdue_task_count: number | string }>>(
-          `
-              select count(*)::int as overdue_task_count
-              from ${qualifiedTasksTable} as t
-              where t.patient_id = $1
-                and t.deleted_at is null
-                and t.status not in ('blocked', 'completed', 'cancelled')
-                and t.due_date is not null
-                and t.due_date < current_date
-          `,
-          [patientId],
-        ),
         sql.unsafe<PatientOverviewAppointmentRecord[]>(
           `
               select
                 b.id as booking_id,
-                b.task_id,
                 b.prescription_id,
                 b.facility_id,
                 b.booking_status,
@@ -386,7 +362,6 @@ export const createPatientsRepository = (
           `
               select
                 p.id as prescription_id,
-                p.task_id,
                 p.prescription_type,
                 p.status,
                 p.issue_date,
@@ -427,43 +402,9 @@ export const createPatientsRepository = (
                 m.id as medication_id,
                 m.name,
                 m.quantity,
-                m.renewal_cadence,
+                m.
                 m.next_gp_contact_date,
                 c.name as condition_name,
-                renewal_task.id as renewal_task_id,
-                renewal_task.title as renewal_task_title,
-                renewal_task.status as renewal_task_status,
-                renewal_task.due_date as renewal_task_due_date
-              from ${qualifiedMedicationsTable} as m
-              left join ${qualifiedConditionsTable} as c
-                on c.id = m.condition_id
-               and c.patient_id = m.patient_id
-              left join lateral (
-                select
-                  t.id,
-                  t.title,
-                  t.status,
-                  t.due_date
-                from ${qualifiedTasksTable} as t
-                where t.patient_id = m.patient_id
-                  and t.medication_id = m.id
-                  and t.deleted_at is null
-                  and t.task_type = 'medication_renewal'
-                order by
-                  case
-                    when t.status in ('pending', 'scheduled', 'deferred', 'blocked') then 0
-                    else 1
-                  end,
-                  t.due_date asc nulls last,
-                  t.scheduled_at asc nulls last,
-                  lower(t.title) asc,
-                  t.created_at asc
-                limit 1
-              ) as renewal_task on true
-              where m.patient_id = $1
-                and m.deleted_at is null
-              order by
-                m.next_gp_contact_date asc nulls last,
                 lower(m.name) asc,
                 m.created_at asc
               limit 5
@@ -475,9 +416,6 @@ export const createPatientsRepository = (
       return {
         active_conditions: activeConditions,
         active_medications: activeMedications,
-        overdue_task_count: Number(
-          overdueTaskCountRow?.at(0)?.overdue_task_count ?? 0,
-        ),
         pending_prescriptions: pendingPrescriptions,
         upcoming_appointments: upcomingAppointments,
       };

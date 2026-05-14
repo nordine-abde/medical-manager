@@ -161,10 +161,6 @@ export const updateBookingRequest = async (
     requestBody.prescriptionId = payload.prescriptionId;
   }
 
-  if (payload.taskId !== undefined) {
-    requestBody.taskId = payload.taskId;
-  }
-
   const response = await requestJson<BookingPayload>(
     `/bookings/${bookingId}`,
     {

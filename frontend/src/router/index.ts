@@ -81,10 +81,6 @@ const routes: RouteRecordRaw[] = [
         },
       },
       {
-        path: "tasks",
-        component: () => import("../modules/tasks/pages/GlobalTasksPage.vue"),
-      },
-      {
         path: "settings",
         component: () =>
           import("../modules/auth/pages/SettingsProfilePage.vue"),

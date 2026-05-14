@@ -34,7 +34,6 @@ export interface PrescriptionRecord {
   requestedAt: string | null;
   status: PrescriptionStatus;
   subtype?: string | null;
-  taskId: string | null;
   updatedAt: string;
 }
 
@@ -58,5 +57,4 @@ export interface PrescriptionUpsertPayload {
   prescriptionType: PrescriptionType;
   status: PrescriptionStatus;
   subtype: string | null;
-  taskId: string | null;
 }

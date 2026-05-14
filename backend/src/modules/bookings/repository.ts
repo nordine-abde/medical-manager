@@ -27,7 +27,6 @@ export type BookingRecord = {
   notes: string | null;
   patient_id: string;
   prescription_id: string | null;
-  task_id: string;
   updated_at: Date;
 };
 
@@ -46,7 +45,6 @@ export type CreateBookingInput = {
   notes: string | null;
   prescriptionId: string | null;
   status: BookingStatus;
-  taskId: string;
 };
 
 export type UpdateBookingInput = Partial<Omit<CreateBookingInput, "status">>;
@@ -63,8 +61,7 @@ const patientsTable = (schemaName: string): string =>
 const patientUsersTable = (schemaName: string): string =>
   qualifyTableName(schemaName, "patient_users");
 
-const tasksTable = (schemaName: string): string =>
-  qualifyTableName(schemaName, "tasks");
+
 
 const prescriptionsTable = (schemaName: string): string =>
   qualifyTableName(schemaName, "prescriptions");
@@ -84,7 +81,6 @@ export const createBookingsRepository = (
 ) => {
   const qualifiedPatientsTable = patientsTable(schemaName);
   const qualifiedPatientUsersTable = patientUsersTable(schemaName);
-  const qualifiedTasksTable = tasksTable(schemaName);
   const qualifiedPrescriptionsTable = prescriptionsTable(schemaName);
   const qualifiedFacilitiesTable = facilitiesTable(schemaName);
   const qualifiedBookingsTable = bookingsTable(schemaName);
@@ -95,7 +91,6 @@ export const createBookingsRepository = (
   const bookingColumns = `
     b.id,
     b.patient_id,
-    b.task_id,
     b.prescription_id,
     b.facility_id,
     b.booking_status,
@@ -121,7 +116,6 @@ export const createBookingsRepository = (
 
       const linksAreValid = await this.hasValidLinks(
         patientId,
-        input.taskId,
         input.prescriptionId,
         input.facilityId,
       );
@@ -134,7 +128,6 @@ export const createBookingsRepository = (
         `
           insert into ${qualifiedBookingsTable} (
             patient_id,
-            task_id,
             prescription_id,
             facility_id,
             booking_status,
@@ -147,7 +140,6 @@ export const createBookingsRepository = (
         `,
         [
           patientId,
-          input.taskId,
           input.prescriptionId,
           input.facilityId,
           input.status,
@@ -207,24 +199,9 @@ export const createBookingsRepository = (
 
     async hasValidLinks(
       patientId: string,
-      taskId: string,
       prescriptionId: string | null,
       facilityId: string | null,
     ): Promise<boolean> {
-      const [task] = await sql.unsafe<Array<{ id: string }>>(
-        `
-          select t.id
-          from ${qualifiedTasksTable} as t
-          where t.id = $1
-            and t.patient_id = $2
-          limit 1
-        `,
-        [taskId, patientId],
-      );
-
-      if (!task) {
-        return false;
-      }
 
       if (prescriptionId) {
         const [prescription] = await sql.unsafe<Array<{ id: string }>>(
@@ -312,7 +289,6 @@ export const createBookingsRepository = (
         return null;
       }
 
-      const taskId = input.taskId ?? existingBooking.task_id;
       const prescriptionId =
         input.prescriptionId === undefined
           ? existingBooking.prescription_id
@@ -324,7 +300,6 @@ export const createBookingsRepository = (
 
       const linksAreValid = await this.hasValidLinks(
         existingBooking.patient_id,
-        taskId,
         prescriptionId,
         facilityId,
       );
@@ -337,7 +312,6 @@ export const createBookingsRepository = (
         `
           update ${qualifiedBookingsTable}
           set
-            task_id = $1,
             prescription_id = $2,
             facility_id = $3,
             booked_at = $4,
@@ -348,7 +322,6 @@ export const createBookingsRepository = (
           returning id
         `,
         [
-          taskId,
           prescriptionId,
           facilityId,
           input.bookedAt === undefined

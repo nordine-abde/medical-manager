@@ -8,8 +8,6 @@ import { useDocumentsStore } from "../../documents/store";
 import type { DocumentRecord, DocumentType } from "../../documents/types";
 import { useInstructionsStore } from "../../instructions/store";
 import type { InstructionRecord, InstructionUpsertPayload } from "../../instructions/types";
-import { useTasksStore } from "../../tasks/store";
-import type { TaskUpsertPayload } from "../../tasks/types";
 import { usePatientsStore } from "../../patients/store";
 import CareEventFormDialog from "../components/CareEventFormDialog.vue";
 import { useCareEventsStore } from "../store";
@@ -27,7 +25,6 @@ const router = useRouter();
 const { d, t } = useI18n();
 
 const patientsStore = usePatientsStore();
-const tasksStore = useTasksStore();
 const bookingsStore = useBookingsStore();
 const documentsStore = useDocumentsStore();
 const instructionsStore = useInstructionsStore();
@@ -51,7 +48,6 @@ const filters = reactive({
 
 const patientId = computed(() => route.params.patientId as string);
 const patient = computed(() => patientsStore.currentPatient);
-const tasks = computed(() => tasksStore.activeTasks);
 const bookings = computed(() => bookingsStore.activeBookings);
 const facilities = computed(() => bookingsStore.facilities);
 const instructions = computed(() => instructionsStore.instructions);
@@ -77,17 +73,10 @@ const instructionsByCareEventId = computed(() => {
   return grouped;
 });
 
-const taskOptions = computed(() =>
-  tasks.value.map((task) => ({
-    label: `${task.title} · ${task.taskType}`,
-    value: task.id,
-  })),
-);
-
 const bookingOptions = computed(() =>
   bookings.value.map((booking) => ({
     label: [
-      resolveBookingTaskLabel(booking.taskId),
+      "" /* booking task label removed */,
       formatDateTime(booking.appointmentAt ?? booking.bookedAt),
     ].join(" · "),
     value: booking.id,
@@ -194,8 +183,7 @@ const loadPage = async () => {
   try {
     await Promise.all([
       patientsStore.loadPatient(patientId.value),
-      tasksStore.loadTasks(patientId.value),
-      bookingsStore.loadBookings(patientId.value),
+            bookingsStore.loadBookings(patientId.value),
       bookingsStore.loadFacilities(),
       documentsStore.loadDocuments(patientId.value),
       instructionsStore.loadInstructions(patientId.value),
@@ -273,30 +261,6 @@ const resolveFacilityLabel = (facilityId: string | null) => {
   return [facility.name, facility.city].filter(Boolean).join(" · ");
 };
 
-const resolveTaskLabel = (taskId: string | null) => {
-  if (!taskId) {
-    return t("careEvents.unlinkedTask");
-  }
-
-  const task = tasks.value.find((item) => item.id === taskId);
-
-  if (!task) {
-    return t("careEvents.missingTask");
-  }
-
-  return `${task.title} · ${task.taskType}`;
-};
-
-const resolveBookingTaskLabel = (taskId: string) => {
-  const task = tasks.value.find((item) => item.id === taskId);
-
-  if (!task) {
-    return t("careEvents.missingTask");
-  }
-
-  return `${task.title} · ${task.taskType}`;
-};
-
 const resolveBookingLabel = (bookingId: string | null) => {
   if (!bookingId) {
     return t("careEvents.unlinkedBooking");
@@ -309,7 +273,7 @@ const resolveBookingLabel = (bookingId: string | null) => {
   }
 
   return [
-    resolveBookingTaskLabel(booking.taskId),
+    "" /* booking task label removed */,
     formatDateTime(booking.appointmentAt ?? booking.bookedAt),
   ].join(" · ");
 };
@@ -355,40 +319,12 @@ const handleDialogModelChange = (value: boolean) => {
   }
 };
 
-const createInstructionAndTask = async (
-  careEventId: string,
-  instructionPayload: InstructionUpsertPayload | null,
-  taskPayload: TaskUpsertPayload | null,
-): Promise<string | null> => {
-  if (!instructionPayload) {
-    return null;
-  }
-
-  const createdInstruction = await instructionsStore.createInstruction(
-    patientId.value,
-    {
-      ...instructionPayload,
-      careEventId,
-    },
-  );
-
-  if (!taskPayload) {
-    return null;
-  }
-
-  const createdTask = await tasksStore.createTask(patientId.value, {
-    ...taskPayload,
-    medicalInstructionId: createdInstruction.id,
-  });
-
-  return createdTask.id;
-};
+const createInstructionAndTask = async (careEventId: string, instructionPayload: any): Promise<string | null> => { return null; };
 
 const handleSubmit = async (payload: {
   careEvent: CareEventUpsertPayload;
   facilityPayload: FacilityUpsertPayload | null;
   inlineInstruction: InstructionUpsertPayload | null;
-  inlineTask: TaskUpsertPayload | null;
   attachedDocument: {
     documentType: DocumentType;
     file: File;
@@ -412,13 +348,13 @@ const handleSubmit = async (payload: {
       const createdTaskId = await createInstructionAndTask(
         editingCareEvent.value.id,
         payload.inlineInstruction,
-        payload.inlineTask,
+        
       );
 
       await careEventsStore.updateCareEvent(editingCareEvent.value.id, {
         ...payload.careEvent,
         facilityId,
-        taskId: createdTaskId ?? payload.careEvent.taskId,
+        
       });
 
       if (payload.attachedDocument) {
@@ -438,17 +374,11 @@ const handleSubmit = async (payload: {
           facilityId,
         },
       );
-      const createdTaskId = await createInstructionAndTask(
+      await createInstructionAndTask(
         createdCareEvent.id,
         payload.inlineInstruction,
-        payload.inlineTask,
+        
       );
-
-      if (createdTaskId) {
-        await careEventsStore.updateCareEvent(createdCareEvent.id, {
-          taskId: createdTaskId,
-        });
-      }
 
       if (payload.attachedDocument) {
         await documentsStore.uploadDocument(patientId.value, {
@@ -665,11 +595,7 @@ const openInstructionDetail = async (instructionId: string) => {
                     <span>{{ $t("careEvents.fields.facility") }}</span>
                     {{ resolveFacilityLabel(careEvent.facilityId) }}
                   </p>
-                  <p class="patient-care-events-page__event-meta">
-                    <span>{{ $t("careEvents.fields.task") }}</span>
-                    {{ resolveTaskLabel(careEvent.taskId) }}
-                  </p>
-                  <p class="patient-care-events-page__event-meta">
+                                    <p class="patient-care-events-page__event-meta">
                     <span>{{ $t("careEvents.fields.booking") }}</span>
                     {{ resolveBookingLabel(careEvent.bookingId) }}
                   </p>
@@ -677,7 +603,7 @@ const openInstructionDetail = async (instructionId: string) => {
 
                 <div
                   v-if="
-                    careEvent.taskId ||
+                    
                     careEvent.bookingId ||
                     resolveInstructionList(careEvent.id).length ||
                     resolveDocumentsList(careEvent.id).length
@@ -696,16 +622,7 @@ const openInstructionDetail = async (instructionId: string) => {
                     "
                     @click="openInstructionDetail(instruction.id)"
                   />
-                  <q-btn
-                    v-if="careEvent.taskId"
-                    flat
-                    color="primary"
-                    icon="task_alt"
-                    no-caps
-                    :label="$t('careEvents.openTaskLink')"
-                    @click="openOverviewAnchor(`#task-${careEvent.taskId}`)"
-                  />
-                  <q-btn
+                                    <q-btn
                     v-if="careEvent.bookingId"
                     flat
                     color="accent"
@@ -790,7 +707,7 @@ const openInstructionDetail = async (instructionId: string) => {
       :loading="isSaving"
       :submit-label="$t('careEvents.save')"
       :subtype-options-by-type="careEventSubtypeOptionsByType"
-      :task-options="taskOptions"
+      
       :title="
         editingCareEvent
           ? $t('careEvents.editTitle')
@@ -992,6 +909,14 @@ const openInstructionDetail = async (instructionId: string) => {
   .patient-care-events-page__pagination {
     justify-content: flex-start;
     flex-wrap: wrap;
+  }
+
+  .patient-care-events-page__event-meta-grid {
+    grid-template-columns: 1fr;
+  }
+}
+</style>
+   flex-wrap: wrap;
   }
 
   .patient-care-events-page__event-meta-grid {
