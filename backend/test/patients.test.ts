@@ -60,20 +60,6 @@ type PatientOverviewPayload = {
       name: string;
       notes: string | null;
     }>;
-    activeMedications: Array<{
-      conditionName: string | null;
-      id: string;
-      name: string;
-      nextGpContactDate: string | null;
-      quantity: string;
-      renewalCadence: string | null;
-      renewalTask: {
-        dueDate: string | null;
-        id: string;
-        status: string | null;
-        title: string | null;
-      } | null;
-    }>;
     overdueTaskCount: number;
     pendingPrescriptions: Array<{
       expirationDate: string | null;
@@ -176,13 +162,9 @@ beforeEach(async () => {
   await applyMigration(sql, schemaName, "0001_initial_setup.sql");
   await applyMigration(sql, schemaName, "0002_better_auth_core.sql");
   await applyMigration(sql, schemaName, "0004_patient_access.sql");
-  await applyMigration(sql, schemaName, "0005_conditions.sql");
   await applyMigration(sql, schemaName, "0007_tasks.sql");
   await applyMigration(sql, schemaName, "0009_prescriptions.sql");
   await applyMigration(sql, schemaName, "0010_bookings.sql");
-  await applyMigration(sql, schemaName, "0011_medications.sql");
-  await applyMigration(sql, schemaName, "0012_medication_archiving.sql");
-  await applyMigration(sql, schemaName, "0013_task_medication_links.sql");
   await applyMigration(sql, schemaName, "0014_documents.sql");
   await applyMigration(sql, schemaName, "0015_care_events.sql");
   await insertTestUser(sql, schemaName, "user-1");
@@ -393,10 +375,6 @@ describe("patients module", () => {
     const ignoredPastBookingId = randomUUID();
     const activePrescriptionId = randomUUID();
     const completedPrescriptionId = randomUUID();
-    const activeConditionId = randomUUID();
-    const inactiveConditionId = randomUUID();
-    const medicationId = randomUUID();
-    const renewalTaskId = randomUUID();
 
     await getTestContext().sql.unsafe(
       `
@@ -422,66 +400,10 @@ describe("patients module", () => {
 
     await getTestContext().sql.unsafe(
       `
-        insert into "${getTestContext().schemaName}"."medications" (
-          id,
-          patient_id,
-          condition_id,
-          name,
-          dosage,
-          quantity,
-          prescribing_doctor,
-          renewal_cadence,
-          next_gp_contact_date,
-          notes
-        )
-        values (
-          $1,
-          $2,
-          null,
-          'Atorvastatin',
-          '1 tablet nightly',
-          '30 tablets',
-          'Dr. Conti',
-          'Monthly',
-          current_date + interval '6 day',
-          'Review lipid profile before renewal'
-        )
-      `,
-      [medicationId, patientId],
-    );
-
-    await getTestContext().sql.unsafe(
-      `
-        insert into "${getTestContext().schemaName}"."conditions" (
-          id,
-          patient_id,
-          name,
-          notes,
-          active
-        )
-        values
-          ($1, $2, 'Hypertension', 'Monitor blood pressure weekly', true),
-          ($3, $2, 'Recovered fracture', 'Inactive follow-up', false)
-      `,
-      [activeConditionId, patientId, inactiveConditionId],
-    );
-
-    await getTestContext().sql.unsafe(
-      `
-        update "${getTestContext().schemaName}"."medications"
-        set condition_id = $1
-        where id = $2
-      `,
-      [activeConditionId, medicationId],
-    );
-
-    await getTestContext().sql.unsafe(
-      `
         insert into "${getTestContext().schemaName}"."prescriptions" (
           id,
           patient_id,
           task_id,
-          medication_id,
           prescription_type,
           requested_at,
           received_at,
@@ -492,44 +414,10 @@ describe("patients module", () => {
           notes
         )
         values
-          ($1, $2, $3, null, 'exam', now() - interval '1 day', null, null, current_date, current_date + interval '30 day', 'requested', 'Waiting on GP reply'),
-          ($4, $2, null, null, 'medication', now() - interval '5 day', now() - interval '4 day', now() - interval '3 day', current_date - interval '5 day', current_date + interval '20 day', 'collected', 'Already handled')
+          ($1, $2, $3, 'exam', now() - interval '1 day', null, null, current_date, current_date + interval '30 day', 'requested', 'Waiting on GP reply'),
+          ($4, $2, null, 'exam', now() - interval '5 day', now() - interval '4 day', now() - interval '3 day', current_date - interval '5 day', current_date + interval '20 day', 'collected', 'Already handled')
       `,
       [activePrescriptionId, patientId, taskId, completedPrescriptionId],
-    );
-
-    await getTestContext().sql.unsafe(
-      `
-        insert into "${getTestContext().schemaName}"."tasks" (
-          id,
-          patient_id,
-          medication_id,
-          title,
-          description,
-          task_type,
-          status,
-          due_date,
-          scheduled_at,
-          auto_recurrence_enabled,
-          recurrence_rule,
-          completed_at
-        )
-        values (
-          $1,
-          $2,
-          $3,
-          'Renew statin',
-          null,
-          'medication_renewal',
-          'pending',
-          current_date + interval '4 day',
-          null,
-          false,
-          null,
-          null
-        )
-      `,
-      [renewalTaskId, patientId, medicationId],
     );
 
     await getTestContext().sql.unsafe(
@@ -570,33 +458,6 @@ describe("patients module", () => {
 
     expect(overviewResponse.status).toBe(200);
     expect(overviewPayload.overview.overdueTaskCount).toBe(1);
-    expect(overviewPayload.overview.activeConditions).toEqual([
-      {
-        id: activeConditionId,
-        name: "Hypertension",
-        notes: "Monitor blood pressure weekly",
-      },
-    ]);
-    expect(overviewPayload.overview.activeMedications).toEqual([
-      {
-        conditionName: "Hypertension",
-        id: medicationId,
-        name: "Atorvastatin",
-        nextGpContactDate: new Date(Date.now() + 6 * 24 * 60 * 60 * 1000)
-          .toISOString()
-          .slice(0, 10),
-        quantity: "30 tablets",
-        renewalCadence: "Monthly",
-        renewalTask: {
-          dueDate: new Date(Date.now() + 4 * 24 * 60 * 60 * 1000)
-            .toISOString()
-            .slice(0, 10),
-          id: renewalTaskId,
-          status: "pending",
-          title: "Renew statin",
-        },
-      },
-    ]);
     expect(overviewPayload.overview.pendingPrescriptions).toEqual([
       {
         expirationDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)

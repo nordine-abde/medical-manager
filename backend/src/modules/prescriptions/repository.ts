@@ -36,7 +36,6 @@ export type PrescriptionRecord = {
   expiration_date: Date | string | null;
   id: string;
   issue_date: Date | string | null;
-  medication_id: string | null;
   notes: string | null;
   patient_id: string;
   prescription_type: PrescriptionType;
@@ -51,7 +50,6 @@ export type CreatePrescriptionInput = {
   collectedAt: string | null;
   expirationDate: string | null;
   issueDate: string | null;
-  medicationId: string | null;
   notes: string | null;
   prescriptionType: PrescriptionType;
   subtype: string | null;
@@ -73,7 +71,6 @@ export type UpdatePrescriptionStatusInput = {
 
 export type PrescriptionListFilters = {
   includeArchived: boolean;
-  medicationId?: string;
   prescriptionType?: PrescriptionType;
   status?: PrescriptionStatus;
 };
@@ -122,7 +119,6 @@ export const createPrescriptionsRepository = (
         `
           insert into ${qualifiedPrescriptionsTable} (
             patient_id,
-            medication_id,
             prescription_type,
             subtype,
             requested_at,
@@ -133,12 +129,11 @@ export const createPrescriptionsRepository = (
             status,
             notes
           )
-          values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+          values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
           returning id
         `,
         [
           patientId,
-          input.medicationId,
           input.prescriptionType,
           input.subtype,
           input.requestedAt,
@@ -167,7 +162,6 @@ export const createPrescriptionsRepository = (
           select
             p.id,
             p.patient_id,
-            p.medication_id,
             p.prescription_type,
             p.subtype,
             p.requested_at,
@@ -229,7 +223,6 @@ export const createPrescriptionsRepository = (
           select
             p.id,
             p.patient_id,
-            p.medication_id,
             p.prescription_type,
             p.subtype,
             p.requested_at,
@@ -247,7 +240,6 @@ export const createPrescriptionsRepository = (
             and ($2 or p.deleted_at is null)
             and ($3::${qualifiedPrescriptionStatusType} is null or p.status = $3::${qualifiedPrescriptionStatusType})
             and ($4::${qualifiedPrescriptionTypeType} is null or p.prescription_type = $4::${qualifiedPrescriptionTypeType})
-            and ($5::uuid is null or p.medication_id = $5::uuid)
           order by
             p.deleted_at asc nulls first,
             p.status asc,
@@ -259,7 +251,6 @@ export const createPrescriptionsRepository = (
           filters.includeArchived,
           filters.status ?? null,
           filters.prescriptionType ?? null,
-          filters.medicationId ?? null,
         ],
       );
     },
@@ -282,23 +273,19 @@ export const createPrescriptionsRepository = (
         `
           update ${qualifiedPrescriptionsTable}
           set
-            medication_id = $2,
-            prescription_type = $3,
-            subtype = $4,
-            requested_at = $5,
-            received_at = $6,
-            collected_at = $7,
-            issue_date = $8,
-            expiration_date = $9,
-            notes = $10,
+            prescription_type = $2,
+            subtype = $3,
+            requested_at = $4,
+            received_at = $5,
+            collected_at = $6,
+            issue_date = $7,
+            expiration_date = $8,
+            notes = $9,
             updated_at = now()
-          where id = $11
+          where id = $10
           returning id
         `,
         [
-          input.medicationId === undefined
-            ? existingPrescription.medication_id
-            : input.medicationId,
           input.prescriptionType ?? existingPrescription.prescription_type,
           input.subtype === undefined
             ? existingPrescription.subtype

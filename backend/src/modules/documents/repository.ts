@@ -21,7 +21,6 @@ export const relatedEntityTypes = [
   "prescription",
   "booking",
   "care_event",
-  "medication",
 ] as const;
 
 export type RelatedEntityType = (typeof relatedEntityTypes)[number];
@@ -72,9 +71,6 @@ const bookingsTable = (schemaName: string): string =>
 const careEventsTable = (schemaName: string): string =>
   qualifyTableName(schemaName, "care_events");
 
-const medicationsTable = (schemaName: string): string =>
-  qualifyTableName(schemaName, "medications");
-
 const qualifyTypeName = (schemaName: string, typeName: string): string =>
   `${quoteIdentifier(schemaName)}.${quoteIdentifier(typeName)}`;
 
@@ -88,7 +84,6 @@ export const createDocumentsRepository = (
   const qualifiedPrescriptionsTable = prescriptionsTable(schemaName);
   const qualifiedBookingsTable = bookingsTable(schemaName);
   const qualifiedCareEventsTable = careEventsTable(schemaName);
-  const qualifiedMedicationsTable = medicationsTable(schemaName);
   const qualifiedRelatedEntityType = qualifyTypeName(
     schemaName,
     "related_entity_type",
@@ -276,21 +271,6 @@ export const createDocumentsRepository = (
         );
 
         return careEvent !== undefined;
-      }
-
-      if (relatedEntityType === "medication") {
-        const [medication] = await sql.unsafe<Array<{ id: string }>>(
-          `
-            select m.id
-            from ${qualifiedMedicationsTable} as m
-            where m.id = $1
-              and m.patient_id = $2
-            limit 1
-          `,
-          [relatedEntityId, patientId],
-        );
-
-        return medication !== undefined;
       }
 
       return false;

@@ -62,21 +62,6 @@ describe("migration helpers", () => {
     );
   });
 
-  it("defines the conditions table in the migration set", async () => {
-    const migrationPath = path.join(migrationDirectory, "0005_conditions.sql");
-    const migrationSql = await readFile(migrationPath, "utf8");
-
-    expect(migrationSql).toContain("create table conditions");
-    expect(migrationSql).toContain(
-      "patient_id uuid not null references patients (id) on delete cascade",
-    );
-    expect(migrationSql).toContain("name text not null");
-    expect(migrationSql).toContain("active boolean not null default true");
-    expect(migrationSql).toContain(
-      "create index conditions_patient_id_active_idx on conditions (patient_id, active)",
-    );
-  });
-
   it("defines the tasks table in the migration set", async () => {
     const migrationPath = path.join(migrationDirectory, "0007_tasks.sql");
     const migrationSql = await readFile(migrationPath, "utf8");
@@ -85,9 +70,6 @@ describe("migration helpers", () => {
     expect(migrationSql).toContain("create table tasks");
     expect(migrationSql).toContain(
       "patient_id uuid not null references patients (id) on delete cascade",
-    );
-    expect(migrationSql).toContain(
-      "condition_id uuid references conditions (id) on delete set null",
     );
     expect(migrationSql).toContain("task_type text not null");
     expect(migrationSql).toContain(
@@ -133,7 +115,6 @@ describe("migration helpers", () => {
     expect(migrationSql).toContain(
       "task_id uuid references tasks (id) on delete set null",
     );
-    expect(migrationSql).toContain("medication_id uuid");
     expect(migrationSql).toContain(
       "status prescription_status not null default 'needed'",
     );
@@ -165,57 +146,6 @@ describe("migration helpers", () => {
       "booking_status booking_status not null default 'not_booked'",
     );
     expect(migrationSql).toContain("deleted_at timestamptz");
-  });
-
-  it("defines the medications table in the migration set", async () => {
-    const migrationPath = path.join(migrationDirectory, "0011_medications.sql");
-    const migrationSql = await readFile(migrationPath, "utf8");
-
-    expect(migrationSql).toContain("create table medications");
-    expect(migrationSql).toContain(
-      "patient_id uuid not null references patients (id) on delete cascade",
-    );
-    expect(migrationSql).toContain(
-      "condition_id uuid references conditions (id) on delete set null",
-    );
-    expect(migrationSql).toContain("name text not null");
-    expect(migrationSql).toContain("dosage text not null");
-    expect(migrationSql).toContain("quantity text not null");
-    expect(migrationSql).toContain("renewal_cadence text");
-    expect(migrationSql).toContain("next_gp_contact_date date");
-    expect(migrationSql).toContain(
-      "constraint medications_patient_id_id_key unique (patient_id, id)",
-    );
-    expect(migrationSql).toContain("foreign key (patient_id, medication_id)");
-    expect(migrationSql).toContain("references medications (patient_id, id)");
-  });
-
-  it("defines medication archiving support in the migration set", async () => {
-    const migrationPath = path.join(
-      migrationDirectory,
-      "0012_medication_archiving.sql",
-    );
-    const migrationSql = await readFile(migrationPath, "utf8");
-
-    expect(migrationSql).toContain("alter table medications");
-    expect(migrationSql).toContain("add column deleted_at timestamptz");
-    expect(migrationSql).toContain(
-      "create index medications_patient_id_deleted_at_idx",
-    );
-  });
-
-  it("defines task-to-medication renewal links in the migration set", async () => {
-    const migrationPath = path.join(
-      migrationDirectory,
-      "0013_task_medication_links.sql",
-    );
-    const migrationSql = await readFile(migrationPath, "utf8");
-
-    expect(migrationSql).toContain("alter table tasks");
-    expect(migrationSql).toContain("add column medication_id uuid");
-    expect(migrationSql).toContain("foreign key (patient_id, medication_id)");
-    expect(migrationSql).toContain("references medications (patient_id, id)");
-    expect(migrationSql).toContain("create index tasks_medication_id_idx");
   });
 
   it("defines the documents table in the migration set", async () => {

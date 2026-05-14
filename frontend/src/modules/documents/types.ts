@@ -13,7 +13,6 @@ export const relatedEntityTypes = [
   "prescription",
   "booking",
   "care_event",
-  "medication",
 ] as const;
 
 export type RelatedEntityType = (typeof relatedEntityTypes)[number];

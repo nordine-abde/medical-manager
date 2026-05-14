@@ -34,23 +34,7 @@ export type PatientOverviewPrescriptionRecord = {
   status: string;
 };
 
-export type PatientOverviewConditionRecord = {
-  condition_id: string;
-  name: string;
-  notes: string | null;
-};
-
-export type PatientOverviewMedicationRecord = {
-  condition_name: string | null;
-  medication_id: string;
-  name: string;
-  next_gp_contact_date: Date | string | null;
-  quantity: string;
-};
-
 export type PatientOverviewRecord = {
-  active_conditions: PatientOverviewConditionRecord[];
-  active_medications: PatientOverviewMedicationRecord[];
   pending_prescriptions: PatientOverviewPrescriptionRecord[];
   upcoming_appointments: PatientOverviewAppointmentRecord[];
 };
@@ -76,17 +60,11 @@ const patientsTable = (schemaName: string): string =>
 const patientUsersTable = (schemaName: string): string =>
   qualifyTableName(schemaName, "patient_users");
 
-const conditionsTable = (schemaName: string): string =>
-  qualifyTableName(schemaName, "conditions");
-
 const prescriptionsTable = (schemaName: string): string =>
   qualifyTableName(schemaName, "prescriptions");
 
 const bookingsTable = (schemaName: string): string =>
   qualifyTableName(schemaName, "bookings");
-
-const medicationsTable = (schemaName: string): string =>
-  qualifyTableName(schemaName, "medications");
 
 const usersTable = (schemaName: string): string =>
   qualifyTableName(schemaName, "user");
@@ -97,10 +75,8 @@ export const createPatientsRepository = (
 ) => {
   const qualifiedPatientsTable = patientsTable(schemaName);
   const qualifiedPatientUsersTable = patientUsersTable(schemaName);
-  const qualifiedConditionsTable = conditionsTable(schemaName);
   const qualifiedPrescriptionsTable = prescriptionsTable(schemaName);
   const qualifiedBookingsTable = bookingsTable(schemaName);
-  const qualifiedMedicationsTable = medicationsTable(schemaName);
   const qualifiedUsersTable = usersTable(schemaName);
   return {
     async create(
@@ -289,92 +265,54 @@ export const createPatientsRepository = (
         return null;
       }
 
-      const [
-        upcomingAppointments,
-        pendingPrescriptions,
-        activeConditions,
-        activeMedications,
-      ] = await Promise.all([
+      const [upcomingAppointments, pendingPrescriptions] = await Promise.all([
         sql.unsafe<PatientOverviewAppointmentRecord[]>(
           `
-              select
-                b.id as booking_id,
-                b.prescription_id,
-                b.facility_id,
-                b.booking_status,
-                b.appointment_at
-              from ${qualifiedBookingsTable} as b
-              where b.patient_id = $1
-                and b.deleted_at is null
-                and b.booking_status not in ('completed', 'cancelled')
-                and b.appointment_at is not null
-                and b.appointment_at >= now()
-              order by b.appointment_at asc
-              limit 5
-          `,
+            select
+              b.id as booking_id,
+              b.prescription_id,
+              b.facility_id,
+              b.booking_status,
+              b.appointment_at
+            from ${qualifiedBookingsTable} as b
+            where b.patient_id = $1
+              and b.deleted_at is null
+              and b.booking_status not in ('completed', 'cancelled')
+              and b.appointment_at is not null
+              and b.appointment_at >= now()
+            order by b.appointment_at asc
+            limit 5
+        `,
           [patientId],
         ),
         sql.unsafe<PatientOverviewPrescriptionRecord[]>(
           `
-              select
-                p.id as prescription_id,
-                p.prescription_type,
-                p.status,
-                p.issue_date,
-                p.expiration_date,
-                p.notes
-              from ${qualifiedPrescriptionsTable} as p
-              where p.patient_id = $1
-                and p.deleted_at is null
-                and p.status in ('needed', 'requested', 'available')
-              order by
-                case p.status
-                  when 'needed' then 0
-                  when 'requested' then 1
-                  when 'available' then 2
-                  else 3
-                end,
-                p.created_at asc
-              limit 5
-          `,
-          [patientId],
-        ),
-        sql.unsafe<PatientOverviewConditionRecord[]>(
-          `
-              select
-                c.id as condition_id,
-                c.name,
-                c.notes
-              from ${qualifiedConditionsTable} as c
-              where c.patient_id = $1
-                and c.active = true
-              order by lower(c.name) asc, c.created_at asc
-          `,
-          [patientId],
-        ),
-        sql.unsafe<PatientOverviewMedicationRecord[]>(
-          `
-              select
-                m.id as medication_id,
-                m.name,
-                m.quantity,
-                m.next_gp_contact_date,
-                c.name as condition_name
-              from ${qualifiedMedicationsTable} as m
-              left join ${qualifiedConditionsTable} as c
-                on c.id = m.condition_id
-              where m.patient_id = $1
-                and m.deleted_at is null
-              order by lower(m.name) asc, m.created_at asc
-              limit 5
-            `,
+            select
+              p.id as prescription_id,
+              p.prescription_type,
+              p.status,
+              p.issue_date,
+              p.expiration_date,
+              p.notes
+            from ${qualifiedPrescriptionsTable} as p
+            where p.patient_id = $1
+              and p.deleted_at is null
+              and p.status in ('needed', 'requested', 'available')
+            order by
+              case p.status
+                when 'needed' then 0
+                when 'requested' then 1
+                when 'available' then 2
+                else 3
+              end,
+              p.created_at asc
+            limit 5
+        `,
           [patientId],
         ),
       ]);
 
       return {
-        active_conditions: activeConditions,
-        active_medications: activeMedications,
         pending_prescriptions: pendingPrescriptions,
         upcoming_appointments: upcomingAppointments,
       };

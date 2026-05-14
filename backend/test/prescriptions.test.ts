@@ -31,7 +31,6 @@ type PrescriptionPayload = {
     expirationDate: string | null;
     id: string;
     issueDate: string | null;
-    medicationId: string | null;
     notes: string | null;
     patientId: string;
     prescriptionType: string;
@@ -181,7 +180,6 @@ beforeEach(async () => {
   await applyMigration(sql, schemaName, "0001_initial_setup.sql");
   await applyMigration(sql, schemaName, "0002_better_auth_core.sql");
   await applyMigration(sql, schemaName, "0004_patient_access.sql");
-  await applyMigration(sql, schemaName, "0005_conditions.sql");
   await applyMigration(sql, schemaName, "0007_tasks.sql");
   await applyMigration(sql, schemaName, "0009_prescriptions.sql");
   await applyMigration(sql, schemaName, "0018_prescription_subtypes.sql");
@@ -324,9 +322,8 @@ describe("prescriptions module", () => {
       new Request(`http://localhost/api/v1/prescriptions/${prescriptionId}`, {
         body: JSON.stringify({
           expirationDate: "2026-05-01",
-          medicationId: "55555555-5555-4555-8555-555555555555",
           notes: " Ready to request from GP ",
-          prescriptionType: "medication",
+          prescriptionType: "exam",
           requestedAt: "2026-03-22T09:00:00.000Z",
           subtype: "Tachipirina",
           taskId: null,
@@ -343,9 +340,8 @@ describe("prescriptions module", () => {
     expect(updateResponse.status).toBe(200);
     expect(updatePayload.prescription).toMatchObject({
       expirationDate: "2026-05-01",
-      medicationId: "55555555-5555-4555-8555-555555555555",
       notes: "Ready to request from GP",
-      prescriptionType: "medication",
+      prescriptionType: "exam",
       requestedAt: "2026-03-22T09:00:00.000Z",
       subtype: "Tachipirina",
       taskId: null,
@@ -427,7 +423,7 @@ describe("prescriptions module", () => {
 
     const filteredListResponse = await getTestContext().app.handle(
       new Request(
-        `http://localhost/api/v1/patients/${patientId}/prescriptions?status=collected&prescriptionType=medication&medicationId=55555555-5555-4555-8555-555555555555`,
+        `http://localhost/api/v1/patients/${patientId}/prescriptions?status=collected&prescriptionType=exam`,
         {
           headers: {
             "x-test-user-id": "user-1",
@@ -499,11 +495,6 @@ describe("prescriptions module", () => {
         expectedType: "therapy",
         submittedType: "therapy",
         subtype: "Physiotherapy",
-      },
-      {
-        expectedType: "medication",
-        submittedType: "medication",
-        subtype: "Oki",
       },
       {
         expectedType: "visit",

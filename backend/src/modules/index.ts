@@ -4,11 +4,9 @@ import type { auth as defaultAuth } from "../auth";
 import { createAuthModule } from "./auth";
 import { createBookingsModule } from "./bookings";
 import { createCareEventsModule } from "./care-events";
-import { createConditionsModule } from "./conditions";
 import { createDocumentsModule } from "./documents";
 import { createFacilitiesModule } from "./facilities";
 import { healthModule } from "./health";
-import { createMedicationsModule } from "./medications";
 import { createPatientsModule } from "./patients";
 import { createPrescriptionsModule } from "./prescriptions";
 import { createUsersModule } from "./users";
@@ -19,10 +17,8 @@ export const createApiModules = (authInstance: typeof defaultAuth) =>
     .use(createAuthModule(authInstance))
     .use(createBookingsModule(authInstance))
     .use(createCareEventsModule(authInstance))
-    .use(createConditionsModule(authInstance))
     .use(createDocumentsModule(authInstance))
     .use(createFacilitiesModule(authInstance))
-    .use(createMedicationsModule(authInstance))
     .use(createPatientsModule(authInstance))
     .use(createPrescriptionsModule(authInstance))
     .use(createUsersModule(authInstance));

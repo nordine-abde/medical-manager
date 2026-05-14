@@ -55,13 +55,6 @@ const prescriptionBodySchema = t.Object({
   collectedAt: t.Optional(t.Nullable(dateTimeSchema)),
   expirationDate: t.Optional(t.Nullable(dateOnlySchema)),
   issueDate: t.Optional(t.Nullable(dateOnlySchema)),
-  medicationId: t.Optional(
-    t.Nullable(
-      t.String({
-        format: "uuid",
-      }),
-    ),
-  ),
   notes: t.Optional(t.Nullable(t.String())),
   prescriptionType: prescriptionTypeSchema,
   subtype: t.Optional(t.Nullable(t.String())),
@@ -81,13 +74,6 @@ const prescriptionUpdateBodySchema = t.Object({
   collectedAt: t.Optional(t.Nullable(dateTimeSchema)),
   expirationDate: t.Optional(t.Nullable(dateOnlySchema)),
   issueDate: t.Optional(t.Nullable(dateOnlySchema)),
-  medicationId: t.Optional(
-    t.Nullable(
-      t.String({
-        format: "uuid",
-      }),
-    ),
-  ),
   notes: t.Optional(t.Nullable(t.String())),
   prescriptionType: t.Optional(prescriptionTypeSchema),
   subtype: t.Optional(t.Nullable(t.String())),
@@ -111,11 +97,6 @@ const prescriptionStatusBodySchema = t.Object({
 
 const prescriptionListQuerySchema = t.Object({
   includeArchived: t.Optional(t.Union([t.Literal("true"), t.Literal("false")])),
-  medicationId: t.Optional(
-    t.String({
-      format: "uuid",
-    }),
-  ),
   prescriptionType: t.Optional(prescriptionTypeSchema),
   status: t.Optional(prescriptionStatusSchema),
 });
@@ -172,7 +153,6 @@ const mapPrescription = (prescription: {
   expiration_date: Date | string | null;
   id: string;
   issue_date: Date | string | null;
-  medication_id: string | null;
   notes: string | null;
   patient_id: string;
   prescription_type: string;
@@ -188,7 +168,6 @@ const mapPrescription = (prescription: {
   expirationDate: formatDateOnly(prescription.expiration_date),
   id: prescription.id,
   issueDate: formatDateOnly(prescription.issue_date),
-  medicationId: prescription.medication_id,
   notes: prescription.notes,
   patientId: prescription.patient_id,
   prescriptionType: normalizePrescriptionType(prescription.prescription_type),
@@ -224,9 +203,6 @@ export const createPrescriptionsModule = (
             params.patientId,
             {
               includeArchived: parseIncludeArchived(query.includeArchived),
-              ...(query.medicationId === undefined
-                ? {}
-                : { medicationId: query.medicationId }),
               ...(query.prescriptionType === undefined
                 ? {}
                 : {
@@ -266,7 +242,6 @@ export const createPrescriptionsModule = (
               collectedAt: body.collectedAt ?? null,
               expirationDate: body.expirationDate ?? null,
               issueDate: body.issueDate ?? null,
-              medicationId: body.medicationId ?? null,
               notes: normalizeOptionalText(body.notes) ?? null,
               prescriptionType: normalizePrescriptionType(
                 body.prescriptionType,
@@ -337,9 +312,6 @@ export const createPrescriptionsModule = (
               ...(body.issueDate === undefined
                 ? {}
                 : { issueDate: body.issueDate }),
-              ...(body.medicationId === undefined
-                ? {}
-                : { medicationId: body.medicationId }),
               ...(body.notes === undefined
                 ? {}
                 : { notes: normalizeOptionalText(body.notes) ?? null }),

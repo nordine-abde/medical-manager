@@ -1,9 +1,4 @@
-export const prescriptionTypes = [
-  "medication",
-  "exam",
-  "visit",
-  "therapy",
-] as const;
+export const prescriptionTypes = ["exam", "visit", "therapy"] as const;
 
 export type PrescriptionType = (typeof prescriptionTypes)[number];
 
@@ -26,7 +21,6 @@ export interface PrescriptionRecord {
   expirationDate: string | null;
   id: string;
   issueDate: string | null;
-  medicationId: string | null;
   notes: string | null;
   patientId: string;
   prescriptionType: PrescriptionType;

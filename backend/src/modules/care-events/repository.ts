@@ -25,7 +25,6 @@ export type CareEventRecord = {
   patient_id: string;
   provider_name: string | null;
   subtype: string | null;
-  task_id: string | null;
   updated_at: Date;
 };
 
@@ -97,7 +96,6 @@ export const createCareEventsRepository = (
   const careEventColumns = `
     ce.id,
     ce.patient_id,
-    ce.task_id,
     ce.booking_id,
     ce.facility_id,
     ce.provider_name,
@@ -285,8 +283,7 @@ export const createCareEventsRepository = (
         and ($5::timestamptz is null or ce.completed_at >= $5::timestamptz)
         and ($6::timestamptz is null or ce.completed_at <= $6::timestamptz)
         and ($7::uuid is null or ce.facility_id = $7::uuid)
-        and ($8::uuid is null or ce.task_id = $8::uuid)
-        and ($9::uuid is null or ce.booking_id = $9::uuid)
+        and ($8::uuid is null or ce.booking_id = $8::uuid)
       `;
 
       const [countResult] = await sql.unsafe<Array<{ total: string }>>(
@@ -308,8 +305,8 @@ export const createCareEventsRepository = (
             ce.completed_at desc,
             ce.created_at desc,
             ce.id desc
-          limit $10
-          offset $11
+          limit $9
+          offset $10
         `,
         [...filterParams, filters.pageSize, offset],
       );

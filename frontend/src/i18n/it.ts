@@ -135,16 +135,6 @@ export const it = {
         description:
           "Prescrizioni ancora necessarie, richieste o disponibili per il ritiro.",
       },
-      activeMedications: {
-        eyebrow: "Farmaci attivi",
-        description:
-          "Terapie che richiedono ancora monitoraggio o follow-up di rinnovo.",
-      },
-      activeConditions: {
-        eyebrow: "Condizioni attive",
-        description:
-          "Contesto clinico che sta orientando il piano di assistenza.",
-      },
     },
     overviewFeed: {
       upcomingAppointments: {
@@ -154,16 +144,6 @@ export const it = {
       pendingPrescriptions: {
         eyebrow: "Prescrizioni in corso",
         empty: "Nessuna prescrizione richiede follow-up al momento.",
-      },
-      activeMedications: {
-        eyebrow: "Rinnovi farmaci",
-        empty:
-          "Nessun farmaco attivo richiede follow-up di rinnovo al momento.",
-        openAction: "Apri farmaci",
-      },
-      activeConditions: {
-        eyebrow: "Condizioni attive",
-        empty: "Nessuna condizione attiva registrata al momento.",
       },
     },
     emptyTitle: "Nessun paziente ancora",
@@ -198,90 +178,6 @@ export const it = {
       dateOfBirth: "Data di nascita",
       fullName: "Nome completo",
       notes: "Note",
-    },
-  },
-  conditions: {
-    eyebrow: "Contesto clinico",
-    title: "Condizioni",
-    description:
-      "Tieni traccia delle condizioni attive e inattive di questo paziente cosi il lavoro di follow-up resta nel contesto corretto.",
-    createAction: "Aggiungi condizione",
-    createEyebrow: "Nuova condizione",
-    createTitle: "Aggiungi una condizione per questo paziente",
-    edit: "Modifica",
-    editEyebrow: "Dettagli condizione",
-    editTitle: "Aggiorna condizione",
-    save: "Salva condizione",
-    cancel: "Annulla",
-    closeForm: "Chiudi il modulo condizione",
-    deactivateAction: "Segna inattiva",
-    showInactive: "Mostra inattive",
-    activeBadge: "Attiva",
-    inactiveBadge: "Inattiva",
-    activeLabel: "Condizione attiva",
-    inactiveLabel: "Condizione inattiva",
-    emptyEyebrow: "Elenco condizioni",
-    emptyTitle: "Nessuna condizione ancora",
-    emptyDescription:
-      "Aggiungi la prima condizione per registrare il contesto clinico corrente del paziente.",
-    emptyActiveTitle: "Nessuna condizione attiva",
-    emptyActiveDescription:
-      "Tutte le condizioni salvate sono attualmente inattive. Attiva il filtro delle inattive per rivederle o aggiornarle.",
-    emptyNotes: "Nessuna nota per questa condizione.",
-    genericError:
-      "Qualcosa e andato storto durante il caricamento delle condizioni.",
-    validation: {
-      nameRequired: "Inserisci il nome della condizione.",
-    },
-    fields: {
-      name: "Nome condizione",
-      notes: "Note",
-    },
-  },
-  medications: {
-    eyebrow: "Piano farmaci",
-    title: "Farmaci",
-    description:
-      "Monitora le terapie attive con tempi di rinnovo, dettagli di dosaggio e contesto delle prescrizioni collegate nello spazio del paziente.",
-    createAction: "Aggiungi farmaco",
-    createEyebrow: "Nuovo farmaco",
-    createTitle: "Aggiungi un farmaco per questo paziente",
-    edit: "Modifica",
-    editEyebrow: "Dettagli farmaco",
-    editTitle: "Aggiorna farmaco",
-    save: "Salva farmaco",
-    cancel: "Annulla",
-    closeForm: "Chiudi il modulo farmaco",
-    archiveAction: "Archivia",
-    activeBadge: "Attivo",
-    linkedPrescriptionsLabel: "Prescrizioni collegate",
-    unlinkedCondition: "Nessuna condizione collegata",
-    missingCondition: "Condizione collegata non trovata",
-    emptyEyebrow: "Elenco farmaci",
-    emptyTitle: "Nessun farmaco ancora",
-    emptyDescription:
-      "Aggiungi il primo farmaco per mantenere visibili in un solo punto dosaggio, quantita e tempi di rinnovo con il medico di base.",
-    emptyNotes: "Nessuna nota sul farmaco.",
-    emptyDate: "Non pianificata",
-    emptyCadence: "Nessuna cadenza registrata",
-    emptyPrescribingDoctor: "Nessun medico prescrittore registrato",
-    emptyLinkedPrescriptions: "Nessuna prescrizione collegata per ora.",
-    genericError:
-      "Qualcosa e andato storto durante il caricamento dei farmaci.",
-    validation: {
-      dosageRequired: "Inserisci le istruzioni di dosaggio.",
-      nameRequired: "Inserisci il nome del farmaco.",
-      quantityRequired: "Inserisci la quantita monitorata.",
-    },
-    fields: {
-      condition: "Condizione",
-      dosage: "Dosaggio",
-      name: "Nome farmaco",
-      nextGpContactDate: "Prossimo contatto MMG",
-      notes: "Note",
-      prescribingDoctor: "Medico prescrittore",
-      quantity: "Quantita",
-      renewalCadence: "Cadenza rinnovo",
     },
   },
   careEvents: {
@@ -420,13 +316,11 @@ export const it = {
       prescription: "Prescrizione",
       booking: "Prenotazione",
       care_event: "Evento di cura",
-      medication: "Farmaco",
     },
     relatedEntityDescriptions: {
       patient: "File generale del paziente",
     },
     fallbacks: {
-      medication: "Farmaco",
       noDate: "Nessuna data registrata",
       patient: "Scheda paziente",
       relatedEntity: "Record collegato non disponibile",
@@ -518,7 +412,6 @@ export const it = {
     },
     types: {
       exam: "Esame",
-      medication: "Farmaco",
       therapy: "Terapia",
       visit: "Visita",
     },
@@ -645,8 +538,6 @@ export const it = {
       "Qualcosa e andato storto durante il caricamento delle attivita.",
     blockedReason:
       "{count} attivita prerequisito incompleta | {count} attivita prerequisito incomplete",
-    unlinkedCondition: "Nessuna condizione collegata",
-    missingCondition: "Condizione collegata non disponibile",
     groups: {
       overdue: "In ritardo",
       blocked: "Bloccate",
@@ -661,7 +552,6 @@ export const it = {
     },
     fields: {
       completedAt: "Completata il",
-      condition: "Collegamento condizione",
       description: "Descrizione",
       dueDate: "Scadenza",
       scheduledAt: "Data e ora pianificate",

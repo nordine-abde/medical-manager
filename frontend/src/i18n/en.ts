@@ -120,10 +120,6 @@ export const en = {
     summaryDescription:
       "Start from the current patient picture, then jump straight into the next prescription, booking, or care action without leaving the overview.",
     overviewCards: {
-      overdueTasks: {
-        eyebrow: "Overdue tasks",
-        description: "Care actions that are past due and still need attention.",
-      },
       upcomingAppointments: {
         eyebrow: "Upcoming appointments",
         description: "Scheduled visits and exams that are coming up next.",
@@ -133,16 +129,8 @@ export const en = {
         description:
           "Prescription work that is still needed, requested, or available for collection.",
       },
-      activeMedications: {
-        eyebrow: "Active medications",
-        description:
-          "Therapies that still need monitoring or renewal follow-up.",
-      },
-      activeConditions: {
-        eyebrow: "Active conditions",
-        description: "Clinical context currently shaping the care plan.",
-      },
     },
+
     overviewFeed: {
       upcomingAppointments: {
         eyebrow: "Upcoming appointments",
@@ -151,15 +139,6 @@ export const en = {
       pendingPrescriptions: {
         eyebrow: "Pending prescriptions",
         empty: "No pending prescriptions need follow-up right now.",
-      },
-      activeMedications: {
-        eyebrow: "Medication renewals",
-        empty: "No active medications need renewal follow-up right now.",
-        openAction: "Open medications",
-      },
-      activeConditions: {
-        eyebrow: "Active conditions",
-        empty: "No active conditions are recorded right now.",
       },
     },
     emptyTitle: "No patients yet",
@@ -193,88 +172,6 @@ export const en = {
       dateOfBirth: "Date of birth",
       fullName: "Full name",
       notes: "Notes",
-    },
-  },
-  conditions: {
-    eyebrow: "Clinical context",
-    title: "Conditions",
-    description:
-      "Track active and inactive conditions for this patient so follow-up work stays anchored in the right context.",
-    createAction: "Add condition",
-    createEyebrow: "New condition",
-    createTitle: "Add a condition for this patient",
-    edit: "Edit",
-    editEyebrow: "Condition details",
-    editTitle: "Update condition",
-    save: "Save condition",
-    cancel: "Cancel",
-    closeForm: "Close condition form",
-    deactivateAction: "Mark inactive",
-    showInactive: "Show inactive",
-    activeBadge: "Active",
-    inactiveBadge: "Inactive",
-    activeLabel: "Active condition",
-    inactiveLabel: "Inactive condition",
-    emptyEyebrow: "Condition list",
-    emptyTitle: "No conditions yet",
-    emptyDescription:
-      "Add the first condition to capture the patient's current clinical context.",
-    emptyActiveTitle: "No active conditions",
-    emptyActiveDescription:
-      "All saved conditions are currently inactive. Enable the inactive toggle to review or update them.",
-    emptyNotes: "No notes added for this condition.",
-    genericError: "Something went wrong while loading conditions.",
-    validation: {
-      nameRequired: "Enter the condition name.",
-    },
-    fields: {
-      name: "Condition name",
-      notes: "Notes",
-    },
-  },
-  medications: {
-    eyebrow: "Medication plan",
-    title: "Medications",
-    description:
-      "Track active therapies with renewal timing, dosage details, and linked prescription context in the patient workspace.",
-    createAction: "Add medication",
-    createEyebrow: "New medication",
-    createTitle: "Add a medication for this patient",
-    edit: "Edit",
-    editEyebrow: "Medication details",
-    editTitle: "Update medication",
-    save: "Save medication",
-    cancel: "Cancel",
-    closeForm: "Close medication form",
-    archiveAction: "Archive",
-    activeBadge: "Active",
-    linkedPrescriptionsLabel: "Linked prescriptions",
-    unlinkedCondition: "No linked condition",
-    missingCondition: "Linked condition not found",
-    emptyEyebrow: "Medication list",
-    emptyTitle: "No medications yet",
-    emptyDescription:
-      "Add the first medication to keep dosage, stock, and GP renewal timing visible in one place.",
-    emptyNotes: "No medication notes added.",
-    emptyDate: "Not scheduled",
-    emptyCadence: "No cadence recorded",
-    emptyPrescribingDoctor: "No prescribing doctor recorded",
-    emptyLinkedPrescriptions: "No linked prescriptions yet.",
-    genericError: "Something went wrong while loading medications.",
-    validation: {
-      dosageRequired: "Enter the dosage instructions.",
-      nameRequired: "Enter the medication name.",
-      quantityRequired: "Enter the tracked quantity.",
-    },
-    fields: {
-      condition: "Condition",
-      dosage: "Dosage",
-      name: "Medication name",
-      nextGpContactDate: "Next GP contact date",
-      notes: "Notes",
-      prescribingDoctor: "Prescribing doctor",
-      quantity: "Quantity",
-      renewalCadence: "Renewal cadence",
     },
   },
   careEvents: {
@@ -409,13 +306,11 @@ export const en = {
       prescription: "Prescription",
       booking: "Booking",
       care_event: "Care event",
-      medication: "Medication",
     },
     relatedEntityDescriptions: {
       patient: "General patient file",
     },
     fallbacks: {
-      medication: "Medication",
       noDate: "No date recorded",
       patient: "Patient record",
       relatedEntity: "Linked record unavailable",
@@ -506,7 +401,6 @@ export const en = {
     },
     types: {
       exam: "Exam",
-      medication: "Medication",
       therapy: "Therapy",
       visit: "Visit",
     },
@@ -631,8 +525,6 @@ export const en = {
     genericError: "Something went wrong while loading tasks.",
     blockedReason:
       "{count} incomplete prerequisite task | {count} incomplete prerequisite tasks",
-    unlinkedCondition: "No linked condition",
-    missingCondition: "Linked condition unavailable",
     groups: {
       overdue: "Overdue",
       blocked: "Blocked",
@@ -647,7 +539,6 @@ export const en = {
     },
     fields: {
       completedAt: "Completed at",
-      condition: "Condition link",
       description: "Description",
       dueDate: "Due date",
       scheduledAt: "Scheduled time",

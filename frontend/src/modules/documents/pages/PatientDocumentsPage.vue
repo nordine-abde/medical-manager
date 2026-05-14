@@ -12,8 +12,6 @@ import {
   type DocumentType,
   type RelatedEntityType,
 } from "../types";
-import { useMedicationsStore } from "../../medications/store";
-import type { MedicationRecord } from "../../medications/types";
 import { usePatientsStore } from "../../patients/store";
 import { usePrescriptionsStore } from "../../prescriptions/store";
 import type { PrescriptionRecord } from "../../prescriptions/types";
@@ -34,7 +32,6 @@ const patientsStore = usePatientsStore();
 const documentsStore = useDocumentsStore();
 const prescriptionsStore = usePrescriptionsStore();
 const bookingsStore = useBookingsStore();
-const medicationsStore = useMedicationsStore();
 
 const isLoading = ref(false);
 const isSaving = ref(false);
@@ -50,7 +47,6 @@ const documents = computed(() => documentsStore.documents);
 const prescriptions = computed(() => prescriptionsStore.prescriptions);
 const bookings = computed(() => bookingsStore.activeBookings);
 const facilities = computed(() => bookingsStore.facilities);
-const medications = computed(() => medicationsStore.activeMedications);
 
 const documentTypeOptions = computed(() =>
   documentTypes.map((documentType) => ({
@@ -92,16 +88,6 @@ const relatedEntityOptions = computed<RelatedEntityOption[]>(() => {
     });
   }
 
-  for (const medication of medications.value) {
-    options.push({
-      caption: medication.quantity,
-      label: medication.name,
-      relatedEntityId: medication.id,
-      relatedEntityType: "medication",
-      value: `medication:${medication.id}`,
-    });
-  }
-
   return options;
 });
 
@@ -123,7 +109,7 @@ const loadPage = async () => {
       prescriptionsStore.loadPrescriptions(patientId.value),
       bookingsStore.loadBookings(patientId.value),
       bookingsStore.loadFacilities(),
-      medicationsStore.loadMedications(patientId.value),
+
     ]);
   } catch (error) {
     errorMessage.value =
@@ -237,14 +223,6 @@ const resolveLinkedEntityLabel = (document: DocumentRecord): string => {
     return t("documents.relatedEntityLabels.booking");
   }
 
-  if (document.relatedEntityType === "medication") {
-    const medication = medications.value.find(
-      (item) => item.id === document.relatedEntityId,
-    );
-
-    return medication?.name ?? t("documents.fallbacks.medication");
-  }
-
   return t("documents.fallbacks.relatedEntity");
 };
 
@@ -269,14 +247,6 @@ const resolveLinkedEntityCaption = (document: DocumentRecord): string => {
     );
 
     return booking ? formatBookingCaption(booking) : t("documents.fallbacks.noDate");
-  }
-
-  if (document.relatedEntityType === "medication") {
-    const medication = medications.value.find(
-      (item) => item.id === document.relatedEntityId,
-    );
-
-    return medication?.quantity ?? t("documents.fallbacks.relatedEntity");
   }
 
   return t("documents.fallbacks.relatedEntity");

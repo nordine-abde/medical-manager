@@ -229,29 +229,6 @@ describe("usePatientsStore", () => {
       new Response(
         JSON.stringify({
           overview: {
-            activeConditions: [
-              {
-                id: "condition-1",
-                name: "Hypertension",
-                notes: "Monitor blood pressure weekly",
-              },
-            ],
-            activeMedications: [
-              {
-                conditionName: "Hypertension",
-                id: "medication-1",
-                name: "Atorvastatin",
-                nextGpContactDate: "2026-03-28",
-                quantity: "30 tablets",
-                renewalCadence: "Monthly",
-                renewalTask: {
-                  dueDate: "2026-03-26",
-                  id: "task-renewal-1",
-                  status: "pending",
-                  title: "Renew statin",
-                },
-              },
-            ],
             overdueTaskCount: 2,
             pendingPrescriptions: [
               {
@@ -259,7 +236,7 @@ describe("usePatientsStore", () => {
                 id: "prescription-1",
                 issueDate: "2026-03-19",
                 notes: "Request renewal",
-                prescriptionType: "medication",
+                prescriptionType: "exam",
                 status: "requested",
                 taskId: "task-1",
               },
@@ -286,10 +263,6 @@ describe("usePatientsStore", () => {
     );
 
     await store.loadOverview("patient-99");
-    expect(store.currentOverview?.activeConditions[0]?.name).toBe(
-      "Hypertension",
-    );
-
     expect(mockFetch).toHaveBeenCalledWith(
       "/api/v1/patients/patient-99/overview",
       {

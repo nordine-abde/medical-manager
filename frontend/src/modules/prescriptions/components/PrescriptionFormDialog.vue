@@ -55,7 +55,7 @@ const form = reactive({
   expirationDate: "",
           issueDate: "",
   notes: "",
-  prescriptionType: "medication" as PrescriptionUpsertPayload["prescriptionType"],
+  prescriptionType: "exam" as PrescriptionUpsertPayload["prescriptionType"],
   receivedAt: "",
   requestedAt: "",
   status: "needed" as PrescriptionStatus,
@@ -112,7 +112,7 @@ const syncForm = () => {
   form.expirationDate = props.prescription?.expirationDate ?? "";
   form.issueDate = props.prescription?.issueDate ?? "";
   form.notes = props.prescription?.notes ?? "";
-  form.prescriptionType = props.prescription?.prescriptionType ?? "medication";
+  form.prescriptionType = props.prescription?.prescriptionType ?? "exam";
   form.receivedAt = toInputDateTime(props.prescription?.receivedAt ?? null);
   form.requestedAt = toInputDateTime(props.prescription?.requestedAt ?? null);
   form.status = props.prescription?.status ?? "needed";

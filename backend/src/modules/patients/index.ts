@@ -135,18 +135,6 @@ const mapPatientUser = (patientUser: {
 });
 
 const mapPatientOverview = (overview: {
-  active_conditions: Array<{
-    condition_id: string;
-    name: string;
-    notes: string | null;
-  }>;
-  active_medications: Array<{
-    condition_name: string | null;
-    medication_id: string;
-    name: string;
-    next_gp_contact_date: Date | string | null;
-    quantity: string;
-  }>;
   pending_prescriptions: Array<{
     expiration_date: Date | string | null;
     issue_date: Date | string | null;
@@ -163,18 +151,6 @@ const mapPatientOverview = (overview: {
     prescription_id: string | null;
   }>;
 }) => ({
-  activeConditions: overview.active_conditions.map((condition) => ({
-    id: condition.condition_id,
-    name: condition.name,
-    notes: condition.notes,
-  })),
-  activeMedications: overview.active_medications.map((medication) => ({
-    conditionName: medication.condition_name,
-    id: medication.medication_id,
-    name: medication.name,
-    nextGpContactDate: formatDateOnly(medication.next_gp_contact_date),
-    quantity: medication.quantity,
-  })),
   pendingPrescriptions: overview.pending_prescriptions.map((prescription) => ({
     expirationDate: formatDateOnly(prescription.expiration_date),
     id: prescription.prescription_id,

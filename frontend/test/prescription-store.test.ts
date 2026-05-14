@@ -27,10 +27,9 @@ describe("usePrescriptionsStore", () => {
               expirationDate: "2026-04-15",
               id: "prescription-1",
               issueDate: "2026-03-19",
-              medicationId: null,
               notes: "Needs GP renewal before the next cycle.",
               patientId: "patient-1",
-              prescriptionType: "medication",
+              prescriptionType: "therapy",
               receivedAt: null,
               requestedAt: null,
               status: "needed",
@@ -89,7 +88,7 @@ describe("usePrescriptionsStore", () => {
               expirationDate: "2026-04-15",
               id: "prescription-2",
               issueDate: "2026-03-19",
-              medicationId: null,
+
               notes: "Request the exam authorization.",
               patientId: "patient-1",
               prescriptionType: "exam",
@@ -156,7 +155,7 @@ describe("usePrescriptionsStore", () => {
                 expirationDate: "2026-04-15",
                 id: "prescription-3",
                 issueDate: "2026-03-19",
-                medicationId: null,
+
                 notes: "Pick up the therapy plan.",
                 patientId: "patient-1",
                 prescriptionType: "therapy",
@@ -187,7 +186,7 @@ describe("usePrescriptionsStore", () => {
               expirationDate: "2026-04-20",
               id: "prescription-3",
               issueDate: "2026-03-19",
-              medicationId: null,
+
               notes: "Pick up the updated therapy plan.",
               patientId: "patient-1",
               prescriptionType: "therapy",
@@ -217,7 +216,7 @@ describe("usePrescriptionsStore", () => {
               expirationDate: "2026-04-20",
               id: "prescription-3",
               issueDate: "2026-03-19",
-              medicationId: null,
+
               notes: "Pick up the updated therapy plan.",
               patientId: "patient-1",
               prescriptionType: "therapy",
