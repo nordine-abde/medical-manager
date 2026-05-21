@@ -26,24 +26,3 @@ export interface PatientUpsertPayload {
   fullName: string;
   notes: string | null;
 }
-
-export interface PatientOverviewPrescriptionRecord {
-  expirationDate: string | null;
-  id: string;
-  issueDate: string | null;
-  notes: string | null;
-  prescriptionType: string;
-}
-
-export interface PatientOverviewAppointmentRecord {
-  appointmentAt: string;
-  bookingId: string;
-  bookingStatus: string;
-  facilityId: string | null;
-  prescriptionId: string | null;
-}
-
-export interface PatientOverviewRecord {
-  pendingPrescriptions: PatientOverviewPrescriptionRecord[];
-  upcomingAppointments: PatientOverviewAppointmentRecord[];
-}

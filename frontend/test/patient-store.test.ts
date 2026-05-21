@@ -222,57 +222,6 @@ describe("usePatientsStore", () => {
     );
   });
 
-  it("loads the aggregated patient overview", async () => {
-    const store = usePatientsStore();
-
-    mockFetch.mockResolvedValueOnce(
-      new Response(
-        JSON.stringify({
-          overview: {
-            overdueTaskCount: 2,
-            pendingPrescriptions: [
-              {
-                expirationDate: "2026-04-08",
-                id: "prescription-1",
-                issueDate: "2026-03-19",
-                notes: "Request renewal",
-                prescriptionType: "exam",
-                status: "requested",
-                taskId: "task-1",
-              },
-            ],
-            upcomingAppointments: [
-              {
-                appointmentAt: "2026-03-21T10:30:00.000Z",
-                facilityId: "facility-1",
-                id: "booking-1",
-                prescriptionId: null,
-                status: "booked",
-                taskId: "task-2",
-              },
-            ],
-          },
-        }),
-        {
-          headers: {
-            "content-type": "application/json",
-          },
-          status: 200,
-        },
-      ),
-    );
-
-    await store.loadOverview("patient-99");
-    expect(mockFetch).toHaveBeenCalledWith(
-      "/api/v1/patients/patient-99/overview",
-      {
-        credentials: "include",
-        headers: {},
-        method: "GET",
-      },
-    );
-  });
-
   it("loads, adds, and removes patient collaborators", async () => {
     const store = usePatientsStore();
 

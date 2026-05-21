@@ -7,7 +7,7 @@ import AppTopNav from "../components/AppTopNav.vue";
 
 const route = useRoute();
 const { t } = useI18n();
-const drawerOpen = ref(false);
+const drawerOpen = ref(typeof window !== "undefined" && window.innerWidth >= 768);
 
 const patientId = computed(() =>
   typeof route.params.patientId === "string" ? route.params.patientId : null,
@@ -30,6 +30,21 @@ const patientNavItems = computed(() => {
       icon: "insights",
     },
     {
+      label: t("nav.access"),
+      to: `/app/patients/${patientId.value}/access`,
+      icon: "group",
+    },
+    {
+      label: t("nav.prescriptions"),
+      to: `/app/patients/${patientId.value}/prescriptions`,
+      icon: "medication",
+    },
+    {
+      label: t("nav.bookings"),
+      to: `/app/patients/${patientId.value}/bookings`,
+      icon: "event",
+    },
+    {
       label: t("nav.careEvents"),
       to: `/app/patients/${patientId.value}/care-events`,
       icon: "history_edu",
@@ -45,7 +60,9 @@ const patientNavItems = computed(() => {
 watch(
   () => route.fullPath,
   () => {
-    drawerOpen.value = false;
+    if (typeof window !== "undefined" && window.innerWidth < 768) {
+      drawerOpen.value = false;
+    }
   },
 );
 </script>

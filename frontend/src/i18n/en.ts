@@ -25,6 +25,9 @@ export const en = {
   nav: {
     patients: "Patients",
     overview: "Overview",
+    access: "Access",
+    prescriptions: "Prescriptions",
+    bookings: "Bookings",
     careEvents: "Care events",
     documents: "Documents",
     settings: "Settings",
@@ -115,31 +118,14 @@ export const en = {
     archivedBadge: "Archived",
     emptyArchivedTitle: "No archived patients",
     overviewEyebrow: "Patient overview",
-    summaryEyebrow: "Care snapshot",
-    summaryTitle: "Current care state",
-    summaryDescription:
-      "Start from the current patient picture, then jump straight into the next prescription, booking, or care action without leaving the overview.",
-    overviewCards: {
-      upcomingAppointments: {
-        eyebrow: "Upcoming appointments",
-        description: "Scheduled visits and exams that are coming up next.",
-      },
-      pendingPrescriptions: {
-        eyebrow: "Pending prescriptions",
-        description:
-          "Prescription work that is still needed, requested, or available for collection.",
-      },
+    access: {
+      manageAction: "Manage patient access",
     },
-
-    overviewFeed: {
-      upcomingAppointments: {
-        eyebrow: "Upcoming appointments",
-        empty: "No upcoming appointments are scheduled right now.",
-      },
-      pendingPrescriptions: {
-        eyebrow: "Pending prescriptions",
-        empty: "No pending prescriptions need follow-up right now.",
-      },
+    prescriptions: {
+      viewAllAction: "View prescriptions",
+    },
+    bookings: {
+      viewAllAction: "View bookings",
     },
     emptyTitle: "No patients yet",
     emptyDescription:

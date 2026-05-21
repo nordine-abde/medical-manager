@@ -26,6 +26,9 @@ export const it = {
   nav: {
     patients: "Pazienti",
     overview: "Panoramica",
+    access: "Accesso",
+    prescriptions: "Ricette",
+    bookings: "Prenotazioni",
     careEvents: "Eventi clinici",
     documents: "Documenti",
     settings: "Impostazioni",
@@ -116,35 +119,14 @@ export const it = {
     archivedBadge: "Archiviato",
     emptyArchivedTitle: "Nessun paziente archiviato",
     overviewEyebrow: "Panoramica paziente",
-    summaryEyebrow: "Quadro operativo",
-    summaryTitle: "Stato attuale dell'assistenza",
-    summaryDescription:
-      "Parti dal quadro corrente del paziente e passa subito alla prossima prescrizione, prenotazione o azione di cura senza uscire dalla panoramica.",
-    overviewCards: {
-      overdueTasks: {
-        eyebrow: "Attivita in ritardo",
-        description:
-          "Azioni di assistenza scadute che richiedono ancora attenzione.",
-      },
-      upcomingAppointments: {
-        eyebrow: "Appuntamenti imminenti",
-        description: "Visite ed esami gia programmati in arrivo.",
-      },
-      pendingPrescriptions: {
-        eyebrow: "Prescrizioni in corso",
-        description:
-          "Prescrizioni ancora necessarie, richieste o disponibili per il ritiro.",
-      },
+    access: {
+      manageAction: "Gestisci accesso paziente",
     },
-    overviewFeed: {
-      upcomingAppointments: {
-        eyebrow: "Appuntamenti imminenti",
-        empty: "Nessun appuntamento imminente pianificato al momento.",
-      },
-      pendingPrescriptions: {
-        eyebrow: "Prescrizioni in corso",
-        empty: "Nessuna prescrizione richiede follow-up al momento.",
-      },
+    prescriptions: {
+      viewAllAction: "Vedi ricette",
+    },
+    bookings: {
+      viewAllAction: "Vedi prenotazioni",
     },
     emptyTitle: "Nessun paziente ancora",
     emptyDescription:

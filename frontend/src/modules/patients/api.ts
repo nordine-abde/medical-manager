@@ -1,6 +1,5 @@
 import type {
   PatientListFilters,
-  PatientOverviewRecord,
   PatientRecord,
   PatientUpsertPayload,
   PatientUserRecord,
@@ -19,10 +18,6 @@ interface PatientPayload {
 
 interface PatientListPayload {
   patients: PatientRecord[];
-}
-
-interface PatientOverviewPayload {
-  overview: PatientOverviewRecord;
 }
 
 interface PatientUserPayload {
@@ -136,20 +131,6 @@ export const getPatientRequest = async (
   );
 
   return response.patient;
-};
-
-export const getPatientOverviewRequest = async (
-  patientId: string,
-): Promise<PatientOverviewRecord> => {
-  const response = await requestJson<PatientOverviewPayload>(
-    `/patients/${patientId}/overview`,
-    {
-      method: "GET",
-    },
-    "Unable to load the patient overview.",
-  );
-
-  return response.overview;
 };
 
 export const updatePatientRequest = async (

@@ -4,7 +4,6 @@ import {
   addPatientUserRequest,
   archivePatientRequest,
   createPatientRequest,
-  getPatientOverviewRequest,
   getPatientRequest,
   listPatientsRequest,
   listPatientUsersRequest,
@@ -14,7 +13,6 @@ import {
 } from "./api";
 import type {
   PatientListFilters,
-  PatientOverviewRecord,
   PatientRecord,
   PatientUpsertPayload,
   PatientUserRecord,
@@ -22,7 +20,6 @@ import type {
 
 interface PatientsState {
   currentPatient: PatientRecord | null;
-  currentOverview: PatientOverviewRecord | null;
   patientUsers: PatientUserRecord[];
   patients: PatientRecord[];
   status: "idle" | "loading" | "ready";
@@ -76,7 +73,6 @@ let lastListFilters: PatientListFilters = {};
 export const usePatientsStore = defineStore("patients", {
   state: (): PatientsState => ({
     currentPatient: null,
-    currentOverview: null,
     patientUsers: [],
     patients: [],
     status: "idle",
@@ -128,10 +124,6 @@ export const usePatientsStore = defineStore("patients", {
         await listPatientUsersRequest(patientId),
       );
       return this.patientUsers;
-    },
-    async loadOverview(patientId: string) {
-      this.currentOverview = await getPatientOverviewRequest(patientId);
-      return this.currentOverview;
     },
     async addPatientUser(patientId: string, identifier: string) {
       const user = await addPatientUserRequest(patientId, identifier.trim());

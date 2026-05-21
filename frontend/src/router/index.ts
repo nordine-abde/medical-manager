@@ -55,6 +55,21 @@ const routes: RouteRecordRaw[] = [
           import("../modules/patients/pages/PatientOverviewPage.vue"),
       },
       {
+        path: "patients/:patientId/access",
+        component: () =>
+          import("../modules/patients/pages/PatientAccessPage.vue"),
+      },
+      {
+        path: "patients/:patientId/prescriptions",
+        component: () =>
+          import("../modules/prescriptions/pages/PatientPrescriptionsPage.vue"),
+      },
+      {
+        path: "patients/:patientId/bookings",
+        component: () =>
+          import("../modules/bookings/pages/PatientBookingsPage.vue"),
+      },
+      {
         path: "patients/:patientId/documents",
         component: () =>
           import("../modules/documents/pages/PatientDocumentsPage.vue"),
