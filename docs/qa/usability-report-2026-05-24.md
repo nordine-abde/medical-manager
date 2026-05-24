@@ -8,13 +8,17 @@ The application is usable enough to create a patient and basic care records, but
 
 The next most serious issues are booking save failures that produce no visible form-level error, partial side effects when creating a facility during a failed booking save, broken linked-document panels, and responsive layout problems that clip important headings and make pages difficult to read on narrow screens.
 
+Second-pass exploratory testing found the same error-handling weakness in additional workflows: adding a missing collaborator fails invisibly, care-event required-date validation is silent, and reversed date filters appear as normal empty search results. It also found misleading patient-list empty states, unsafe archive feedback, and care-event cards that hide recorded times.
+
 Areas needing immediate improvement:
 
 - Distinguishing labels for prescription, booking, and document record selectors.
 - Visible error handling and recovery in booking creation.
+- Visible error handling in patient sharing and care-event forms.
 - Atomic booking/facility creation or safer rollback behavior.
 - Responsive shell/header fixes.
 - Missing `RelatedDocumentsPanel` imports in booking and prescription pages.
+- Correct empty states for filtered lists and archived-only patient lists.
 
 ## Test Setup
 
@@ -85,6 +89,194 @@ Evidence screenshots:
 - [Document linked-record dropdown](./evidence/evidence-documents-linked-record-dropdown.png)
 - [Mobile header and heading clipping](./evidence/evidence-mobile-header-heading-clipping.png)
 - [800px overview layout compression](./evidence/evidence-overview-800.png)
+- [Second pass: missing collaborator error is not shown](./evidence/second-pass-access-missing-collaborator-no-error.png)
+- [Second pass: patient search no-results uses the wrong empty state](./evidence/second-pass-patient-search-no-results-wrong-empty-state.png)
+- [Second pass: archive action has no confirmation or success feedback](./evidence/second-pass-archive-no-confirmation-no-feedback.png)
+- [Second pass: booking empty submit has no visible validation](./evidence/second-pass-booking-empty-submit-no-validation.png)
+- [Second pass: care-event empty submit is silent](./evidence/second-pass-care-event-empty-submit-silent.png)
+- [Second pass: care-event card hides the recorded time](./evidence/second-pass-care-event-time-hidden-on-card.png)
+- [Second pass: invalid care-event date range shows no validation](./evidence/second-pass-care-event-invalid-date-range-no-validation.png)
+- [Second pass: document upload succeeds without confirmation](./evidence/second-pass-document-upload-success-no-confirmation.png)
+
+## Second-Pass Test Setup
+
+The second exploratory pass started from this report and reused the same application stack:
+
+```bash
+./full_run.sh
+```
+
+The first start attempt again failed while PostgreSQL was warming up with:
+
+```text
+PostgresError: the database system is starting up
+code: 57P03
+```
+
+Retrying `./full_run.sh` succeeded. Services were available at:
+
+```text
+Frontend: http://localhost:9000
+Backend:  http://localhost:3000
+```
+
+Browser and tooling:
+
+- Playwright MCP with Chromium.
+- Viewports tested again: `1440 x 900` and `390 x 844`.
+- Console output was inspected after error paths.
+- Temporary upload files were created for document-upload testing:
+
+```text
+.playwright-mcp/qa-invalid-upload.txt
+.playwright-mcp/qa-placeholder.pdf
+```
+
+Additional data created during this pass:
+
+```text
+Care event:
+Type: Exam
+Completed at: 2026-05-24 09:30
+Provider: Dr. Duplicate Label
+Outcome notes: Created during second-pass QA to verify completed-event defaults.
+
+Document:
+Filename: qa-placeholder.pdf
+Related record: Maria Rossi patient record
+Document type: General attachment
+```
+
+## Second-Pass Tested Workflows
+
+### Patient Access Error Handling
+
+Steps:
+
+1. Opened patient access for `Maria Rossi`.
+2. Entered `missing-caregiver@example.com` in `User email or ID`.
+3. Clicked `Add collaborator`.
+4. Inspected the visible UI and browser console.
+
+Expected behavior:
+
+- The page should show a clear inline error, such as `No account found for missing-caregiver@example.com. Ask the caregiver to create an account first.`
+- The input should remain editable and the user should know what to do next.
+
+Actual behavior:
+
+- The API returned `404 User not found`.
+- Vue logged an unhandled component event-handler warning.
+- No visible error was shown on the page.
+
+Evidence:
+
+- [Second pass: missing collaborator error is not shown](./evidence/second-pass-access-missing-collaborator-no-error.png)
+
+### Patient List Search and Archive States
+
+Steps:
+
+1. Opened the patient list.
+2. Searched for `zzzz-no-patient-match`.
+3. Cleared the search.
+4. Archived `Maria Rossi`.
+5. Enabled `Show archived`.
+6. Restored the patient.
+
+Expected behavior:
+
+- Search with no matches should say no patients match the current search.
+- Archiving should either ask for confirmation or show an undo/success message.
+- If all patients are archived and `Show archived` is off, the empty state should explain that active patients are hidden, not that no patients exist.
+
+Actual behavior:
+
+- Search with no matches displayed `No patients yet` and encouraged creating the first patient.
+- Archiving happened immediately from a small icon-only button.
+- No confirmation, undo action, or success message appeared.
+
+Evidence:
+
+- [Second pass: patient search no-results uses the wrong empty state](./evidence/second-pass-patient-search-no-results-wrong-empty-state.png)
+- [Second pass: archive action has no confirmation or success feedback](./evidence/second-pass-archive-no-confirmation-no-feedback.png)
+
+### Booking Empty Submit and Validation
+
+Steps:
+
+1. Opened `Add booking`.
+2. Left prescription, facility, dates, and notes empty.
+3. Clicked `Save booking`.
+4. Inspected UI and console.
+
+Expected behavior:
+
+- Either the form should prevent saving and explain required scheduling context, or it should clearly support an unscheduled draft.
+- If drafts are supported, the button and title should say so, for example `Save draft booking`.
+
+Actual behavior:
+
+- The form submitted without any client-side validation.
+- The booking request failed with `401 Unauthorized`.
+- The dialog stayed open with no visible error.
+
+Evidence:
+
+- [Second pass: booking empty submit has no visible validation](./evidence/second-pass-booking-empty-submit-no-validation.png)
+
+### Care Event Validation, Filtering, and Recorded Time
+
+Steps:
+
+1. Opened `Add care event`.
+2. Clicked `Save care event` with an empty `Completed at`.
+3. Filled `Completed at` as `2026-05-24T09:30`, provider, and notes.
+4. Saved the event.
+5. Reviewed the resulting care-event card.
+6. Applied a reversed date range: start `2026-06-01`, end `2026-05-01`.
+
+Expected behavior:
+
+- Empty `Completed at` should show the existing validation copy: `Enter when the care event was completed.`
+- The card should preserve the recorded time, not only the date.
+- Invalid date ranges should show a validation message, such as `Start date must be before end date.`
+
+Actual behavior:
+
+- Empty submit did nothing visible.
+- The saved event card displayed `Exam - May 24, 2026` and hid the `09:30` time.
+- Reversed date range showed `No care events match these filters`, which looks like a valid search result rather than an invalid filter.
+
+Evidence:
+
+- [Second pass: care-event empty submit is silent](./evidence/second-pass-care-event-empty-submit-silent.png)
+- [Second pass: care-event card hides the recorded time](./evidence/second-pass-care-event-time-hidden-on-card.png)
+- [Second pass: invalid care-event date range shows no validation](./evidence/second-pass-care-event-invalid-date-range-no-validation.png)
+
+### Document Upload
+
+Steps:
+
+1. Opened patient documents.
+2. Tried selecting a `.txt` file despite the supported-type helper text.
+3. Uploaded a small placeholder PDF.
+4. Reviewed the resulting library entry.
+
+Expected behavior:
+
+- Unsupported files should produce a visible reason if rejected.
+- Successful upload should show a short confirmation and make it clear which record the file was linked to.
+
+Actual behavior:
+
+- The unsupported `.txt` selection was effectively ignored by the file input with no user-facing explanation.
+- The PDF upload succeeded and appeared in the library.
+- No success confirmation was shown.
+
+Evidence:
+
+- [Second pass: document upload succeeds without confirmation](./evidence/second-pass-document-upload-success-no-confirmation.png)
 
 ## Tested Workflows
 
@@ -668,6 +860,404 @@ Recommended fix:
 - Add explicit `aria-label` values where Quasar default labels are vague.
 - Use field-specific clear labels where possible.
 
+### 11. Patient Access Errors Are Unhandled and Invisible
+
+Severity: High
+
+Location: Patient access page, collaborator add form.
+
+Steps to reproduce:
+
+1. Open a patient access page.
+2. Enter an email address that does not belong to an existing user, for example `missing-caregiver@example.com`.
+3. Click `Add collaborator`.
+
+Actual behavior:
+
+- API returned `404 User not found`.
+- The browser console showed an unhandled Vue event-handler warning.
+- The page did not show an error banner, field error, or recovery instruction.
+
+Expected behavior:
+
+The form should show a visible, specific message:
+
+```text
+No account found for missing-caregiver@example.com. Ask the caregiver to create an account first, then try again.
+```
+
+Why this is a problem:
+
+Sharing patient access is a safety-sensitive workflow. A caregiver trying to invite another caregiver cannot distinguish a typo, a missing account, a permission problem, or a temporary service failure.
+
+Evidence:
+
+- [Second pass: missing collaborator error is not shown](./evidence/second-pass-access-missing-collaborator-no-error.png)
+
+Source evidence:
+
+- `frontend/src/modules/patients/pages/PatientAccessPage.vue` lines 50-64 use `try/finally` around `patientsStore.addPatientUser` without a `catch` or page-level error state.
+
+Recommended fix:
+
+- Add `errorMessage` state to the access page.
+- Catch add/remove failures and show a visible `q-banner`.
+- Map `404` to a user-centered message about the missing caregiver account.
+- Keep the entered identifier in the field after failure.
+
+### 12. Patient Search No-Results State Says "No Patients Yet"
+
+Severity: Medium
+
+Location: Patient list page, search results.
+
+Steps to reproduce:
+
+1. Open the patient list.
+2. Search for a string with no matches, for example `zzzz-no-patient-match`.
+
+Actual behavior:
+
+The page shows:
+
+```text
+No patients yet
+Create your first patient record to start building a shared care plan.
+```
+
+Expected behavior:
+
+When a search is active, the empty state should say:
+
+```text
+No patients match "zzzz-no-patient-match"
+Clear the search or adjust the name.
+```
+
+Why this is a problem:
+
+The current copy falsely suggests the workspace has no patients. Users may create duplicate patient records instead of clearing or correcting the search.
+
+Evidence:
+
+- [Second pass: patient search no-results uses the wrong empty state](./evidence/second-pass-patient-search-no-results-wrong-empty-state.png)
+
+Source evidence:
+
+- `frontend/src/modules/patients/pages/PatientListPage.vue` lines 195-205 only distinguish archived vs non-archived empty states, not active search filters.
+
+Recommended fix:
+
+- Add a `hasActiveSearch` computed value.
+- Use a separate filtered empty state:
+
+```text
+No matching patients
+No patient matches "{search}". Clear the search to see all patients.
+```
+
+### 13. Archiving a Patient Has No Confirmation, Undo, or Feedback
+
+Severity: Medium
+
+Location: Patient list page, patient card archive action.
+
+Steps to reproduce:
+
+1. Open the patient list.
+2. Click the archive icon on a patient card.
+
+Actual behavior:
+
+- The patient is archived immediately.
+- The patient disappears when `Show archived` is off.
+- No confirmation, success toast, undo action, or explanatory empty state appears.
+
+Expected behavior:
+
+For a destructive or high-impact action, either:
+
+```text
+Archive Maria Rossi?
+Archived patients are hidden from the active list but can be restored.
+```
+
+or a reversible toast:
+
+```text
+Maria Rossi archived.
+Undo
+```
+
+Why this is a problem:
+
+The archive button is a compact icon-only control near other actions. A misclick can hide a patient record and make users think data disappeared.
+
+Evidence:
+
+- [Second pass: archive action has no confirmation or success feedback](./evidence/second-pass-archive-no-confirmation-no-feedback.png)
+
+Source evidence:
+
+- `frontend/src/modules/patients/pages/PatientListPage.vue` lines 114-123 call archive/restore immediately.
+- The icon-only action is wired at lines 280-286.
+
+Recommended fix:
+
+- Add a confirmation dialog for archive, or use an undo snackbar after archive.
+- After archiving the last active patient, show an empty state that says active patients are hidden and offer `Show archived`.
+- Add accessible labels directly to the icon buttons, not only tooltips.
+
+### 14. Booking Form Allows an Empty Save Attempt Without Validation
+
+Severity: High
+
+Location: Booking creation dialog.
+
+Steps to reproduce:
+
+1. Open `Add booking`.
+2. Leave all fields empty.
+3. Click `Save booking`.
+
+Actual behavior:
+
+- The form submits without any visible client validation.
+- The API request fails with `401 Unauthorized`.
+- The dialog remains open without visible error.
+
+Expected behavior:
+
+The form should make the data model explicit. If bookings require scheduling context, validate at least:
+
+```text
+Choose a status.
+Add a booking date, appointment time, facility, or linked prescription.
+```
+
+If empty bookings are valid drafts, the UI should say:
+
+```text
+Save draft booking
+```
+
+and show a draft card with clear missing fields.
+
+Why this is a problem:
+
+Users cannot tell whether a booking can be a placeholder, whether they missed a required field, or whether the system failed for another reason. This compounds the existing booking-save error issue.
+
+Evidence:
+
+- [Second pass: booking empty submit has no visible validation](./evidence/second-pass-booking-empty-submit-no-validation.png)
+
+Source evidence:
+
+- `frontend/src/modules/bookings/components/BookingFormDialog.vue` lines 147-173 emits the submit payload without checking dates, facility, prescription, or draft intent.
+- The form fields at lines 207-245 do not define validation rules except for the nested facility name when creating a facility.
+
+Recommended fix:
+
+- Decide whether empty booking drafts are supported.
+- Add validation rules and an inline form error if at least one scheduling anchor is required.
+- If drafts are supported, rename the action and make missing fields first-class on the resulting booking card.
+
+### 15. Care Event Required-Date Validation Is Silent on Empty Submit
+
+Severity: Medium
+
+Location: Care event creation dialog.
+
+Steps to reproduce:
+
+1. Open `Add care event`.
+2. Leave `Completed at` empty.
+3. Click `Save care event`.
+
+Actual behavior:
+
+Nothing visible happens.
+
+Expected behavior:
+
+The `Completed at` field should show:
+
+```text
+Enter when the care event was completed.
+```
+
+Why this is a problem:
+
+The form appears broken because the primary action produces no visible response. This is especially confusing because the field already has a validation rule in the template, but `handleSubmit` returns before Quasar displays it.
+
+Evidence:
+
+- [Second pass: care-event empty submit is silent](./evidence/second-pass-care-event-empty-submit-silent.png)
+
+Source evidence:
+
+- `frontend/src/modules/care-events/components/CareEventFormDialog.vue` lines 311-314 return early when `completedAt` is empty.
+- The field validation rule exists at lines 385-395 but is bypassed by the early return.
+
+Recommended fix:
+
+- Let `q-form` validation run before returning.
+- Keep a form ref and call `await formRef.validate()`.
+- Alternatively set a visible form-level error when `completedAt` is missing.
+
+### 16. Care Event Cards Hide the Recorded Time
+
+Severity: Medium
+
+Location: Care event list card.
+
+Steps to reproduce:
+
+1. Create a care event with `Completed at` set to `2026-05-24T09:30`.
+2. Review the saved care-event card.
+
+Actual behavior:
+
+The card title shows:
+
+```text
+Exam - May 24, 2026
+```
+
+The `09:30` time is not visible on the card.
+
+Expected behavior:
+
+Care-event cards should preserve the recorded time:
+
+```text
+Exam - May 24, 2026, 09:30
+```
+
+or:
+
+```text
+May 24, 2026 - 09:30
+Exam
+```
+
+Why this is a problem:
+
+Care events can happen multiple times in a day. Hiding the time makes same-day records harder to distinguish and weakens the clinical timeline.
+
+Evidence:
+
+- [Second pass: care-event card hides the recorded time](./evidence/second-pass-care-event-time-hidden-on-card.png)
+
+Source evidence:
+
+- `frontend/src/modules/care-events/pages/PatientCareEventsPage.vue` lines 221-227 uses the `short` date formatter.
+- `resolveCareEventTitle` at lines 267-275 uses that formatter for the title.
+
+Recommended fix:
+
+- Add a date-time formatter for care event titles.
+- Include provider or facility as secondary distinguishing context when subtype is empty.
+- Use the same date-time style in care-event selectors and linked records.
+
+### 17. Reversed Care Event Date Filters Show a Misleading No-Results State
+
+Severity: Medium
+
+Location: Care events filter panel.
+
+Steps to reproduce:
+
+1. Open care events.
+2. Enter start date `2026-06-01`.
+3. Enter end date `2026-05-01`.
+4. Click `Apply filters`.
+
+Actual behavior:
+
+The page shows:
+
+```text
+No care events match these filters
+```
+
+Expected behavior:
+
+The filter form should block the request and show:
+
+```text
+Start date must be before end date.
+```
+
+Why this is a problem:
+
+The current message makes an invalid filter look like a valid empty result set. Users may believe there are no clinical events in the range instead of correcting the dates.
+
+Evidence:
+
+- [Second pass: invalid care-event date range shows no validation](./evidence/second-pass-care-event-invalid-date-range-no-validation.png)
+
+Source evidence:
+
+- `frontend/src/modules/care-events/pages/PatientCareEventsPage.vue` lines 102-115 normalize start and end independently.
+- `hasActiveFilters` at lines 92-100 causes the filtered empty state to appear, but there is no date-range validation before `applyFilters`.
+
+Recommended fix:
+
+- Validate `from <= to` before calling `loadCareEvents`.
+- Show inline helper/error text near both date inputs.
+- Disable `Apply filters` while the date range is invalid.
+
+### 18. Document Upload Has Weak Feedback for Rejected and Successful Files
+
+Severity: Low
+
+Location: Documents page, upload panel.
+
+Steps to reproduce:
+
+1. Try choosing an unsupported `.txt` file.
+2. Upload a supported PDF.
+
+Actual behavior:
+
+- Unsupported file selection is effectively ignored by the browser/file input, with no application-level explanation.
+- Supported upload succeeds and the file appears in the library.
+- No success confirmation is shown.
+
+Expected behavior:
+
+Unsupported file:
+
+```text
+qa-invalid-upload.txt was not added. Upload a PDF, JPG, PNG, or WEBP file.
+```
+
+Successful upload:
+
+```text
+qa-placeholder.pdf uploaded and linked to Maria Rossi.
+```
+
+Why this is a problem:
+
+Documents are often uploaded under time pressure. Users need clear feedback that the file was rejected or successfully attached to the intended record.
+
+Evidence:
+
+- [Second pass: document upload succeeds without confirmation](./evidence/second-pass-document-upload-success-no-confirmation.png)
+
+Source evidence:
+
+- `frontend/src/modules/documents/pages/PatientDocumentsPage.vue` lines 154-165 only handles missing file or missing related entity.
+- `resetUploadForm` at lines 147-151 clears the upload after success without a success message.
+
+Recommended fix:
+
+- Add a success banner/snackbar after upload.
+- Add client-side validation for rejected file extensions/MIME types where possible.
+- Include the linked-record display label in the success message.
+
 ## Specific Review Areas
 
 ### Page Titles and Headings
@@ -722,6 +1312,9 @@ Facility - Centro Diagnostico Delta - Rovigo
 - Patient required-name validation worked.
 - Booking save errors were not shown.
 - Booking form should show async failure messages and session-expired handling.
+- Patient access errors were not shown when adding a missing collaborator.
+- Care-event required-date validation was silently bypassed on empty submit.
+- Care-event date filters accepted an invalid reversed range and showed a misleading no-results state.
 
 ### Navigation and Information Architecture
 
@@ -732,6 +1325,8 @@ Facility - Centro Diagnostico Delta - Rovigo
 ### Empty States and Loading States
 
 - Empty states are generally understandable and task-oriented.
+- Patient search no-results state is misleading because it reuses the first-run `No patients yet` copy.
+- Archived-only patient states need copy that explains active patients are hidden and can be restored.
 - Loading states were not deeply stressed.
 - Failed async states need more visible feedback.
 
@@ -741,6 +1336,8 @@ Facility - Centro Diagnostico Delta - Rovigo
 - Vague accessible names reduce screen-reader clarity.
 - Browser title does not give route context.
 - Selector options need unique accessible names, not only unique visual captions.
+- Icon-only patient-card actions need explicit accessible labels because tooltips are not enough for touch and assistive technology users.
+- Error states should use alert semantics consistently for failed form submissions.
 
 ## Recommended Improvements
 
@@ -790,6 +1387,11 @@ Recommended replacements:
 - `Create new facility` -> `Add new facility`
 - Sidebar `Current` -> patient full name, for example `Maria Rossi`
 - Booking card title `Booking` -> appointment date and facility
+- Patient search empty state `No patients yet` -> `No patients match "{search}"`
+- Missing collaborator error -> `No account found for {email}. Ask the caregiver to create an account first.`
+- Archive feedback -> `{patientName} archived. Undo`
+- Care-event date-range error -> `Start date must be before end date.`
+- Document upload success -> `{filename} uploaded and linked to {recordLabel}.`
 
 ### Layout and Interaction Changes
 
@@ -798,6 +1400,10 @@ Recommended replacements:
 - Use route-specific document titles.
 - Show async form errors inline near submit actions.
 - Preserve form values after failed saves.
+- Add confirmation or undo for patient archive actions.
+- Add active-filter empty states for every searchable list.
+- Show care-event times in timeline cards and selector labels.
+- Validate date ranges before making filtered API requests.
 
 ### Backend/API Changes
 
@@ -813,6 +1419,8 @@ Recommended backend support:
 
 - Update booking prescription dropdown to include type, subtype, issue date, and expiration date.
 - Add visible booking save error handling.
+- Add visible patient-access add/remove collaborator error handling.
+- Fix care-event required-date validation so empty submit shows an error.
 - Make create-facility-with-booking atomic or recoverable.
 - Fix mobile/tablet header and hero clipping.
 - Import or remove `RelatedDocumentsPanel` in booking and prescription pages.
@@ -824,6 +1432,10 @@ Recommended backend support:
 - Replace generic booking card title with date/facility/status.
 - Add route-specific browser titles.
 - Add tests for duplicate prescription selector labels.
+- Add filtered empty states for patient search and archived-only lists.
+- Add date-range validation for care-event filters.
+- Include care-event times on timeline cards.
+- Add archive confirmation or undo feedback.
 
 ### Nice-to-Have Improvements
 
@@ -831,3 +1443,4 @@ Recommended backend support:
 - Add visual regression checks for 390px, 800px, and 1440px.
 - Add component smoke tests that catch unresolved Vue components.
 - Add standardized record-label utilities for future task, notification, and care-event selectors.
+- Add success feedback after document uploads.
