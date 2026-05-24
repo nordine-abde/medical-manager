@@ -16,11 +16,37 @@ describe("usePrescriptionsStore", () => {
   it("loads patient prescriptions with the active-only endpoint by default", async () => {
     const store = usePrescriptionsStore();
 
-    mockFetch.mockResolvedValueOnce(
-      new Response(
-        JSON.stringify({
-          prescriptions: [
-            {
+    mockFetch
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            prescriptions: [
+              {
+                createdAt: "2026-03-19T00:00:00.000Z",
+                deletedAt: null,
+                expirationDate: "2026-04-15",
+                id: "prescription-1",
+                issueDate: "2026-03-19",
+                notes: "Request the exam authorization.",
+                patientId: "patient-1",
+                prescriptionType: "exam",
+                subtype: "Blood test",
+                updatedAt: "2026-03-19T09:00:00.000Z",
+              },
+            ],
+          }),
+          {
+            headers: {
+              "content-type": "application/json",
+            },
+            status: 200,
+          },
+        ),
+      )
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            prescription: {
               createdAt: "2026-03-19T00:00:00.000Z",
               deletedAt: null,
               expirationDate: "2026-04-15",
@@ -32,16 +58,15 @@ describe("usePrescriptionsStore", () => {
               subtype: "Blood test",
               updatedAt: "2026-03-19T09:00:00.000Z",
             },
-          ],
-        }),
-        {
-          headers: {
-            "content-type": "application/json",
+          }),
+          {
+            headers: {
+              "content-type": "application/json",
+            },
+            status: 200,
           },
-          status: 200,
-        },
-      ),
-    );
+        ),
+      );
 
     await store.loadPrescriptions("patient-1");
     await store.createPrescription("patient-1", {

@@ -13,6 +13,7 @@ const route = useRoute();
 const router = useRouter();
 const { d, t } = useI18n();
 
+const errorMessage = ref("");
 const isLoading = ref(false);
 const isPatientUsersSaving = ref(false);
 const patientUserIdentifier = ref("");
@@ -54,21 +55,34 @@ const handleAddPatientUser = async () => {
     return;
   }
 
+  errorMessage.value = "";
   isPatientUsersSaving.value = true;
 
   try {
     await patientsStore.addPatientUser(patientId.value, identifier);
     patientUserIdentifier.value = "";
+  } catch (error) {
+    const message = error instanceof Error ? error.message : t("patients.sharing.genericError");
+
+    if (message.toLowerCase().includes("not found") || message.toLowerCase().includes("404")) {
+      errorMessage.value = t("patients.sharing.userNotFoundError", { email: identifier });
+    } else {
+      errorMessage.value = message;
+    }
   } finally {
     isPatientUsersSaving.value = false;
   }
 };
 
 const handleRemovePatientUser = async (userId: string) => {
+  errorMessage.value = "";
   isPatientUsersSaving.value = true;
 
   try {
     await patientsStore.removePatientUser(patientId.value, userId);
+  } catch (error) {
+    errorMessage.value =
+      error instanceof Error ? error.message : t("patients.sharing.genericError");
   } finally {
     isPatientUsersSaving.value = false;
   }
@@ -77,6 +91,15 @@ const handleRemovePatientUser = async (userId: string) => {
 
 <template>
   <q-page class="patient-access-page">
+    <q-banner
+      v-if="errorMessage"
+      dense
+      rounded
+      class="patient-access-page__banner bg-negative text-white"
+    >
+      {{ errorMessage }}
+    </q-banner>
+
     <q-card
       flat
       bordered
@@ -215,6 +238,10 @@ const handleRemovePatientUser = async (userId: string) => {
 .patient-access-page {
   display: grid;
   gap: 1rem;
+}
+
+.patient-access-page__banner {
+  margin-bottom: 0.5rem;
 }
 
 .patient-access-page__hero {

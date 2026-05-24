@@ -61,6 +61,7 @@ export const en = {
     summary:
       "The authenticated shell is ready for patient workflows, route guards, and future Better Auth session wiring.",
     sidebarLabel: "Primary navigation",
+    userMenuLabel: "Open user menu for {name}",
     mainNav: "Main",
     patientNav: "Patient",
     currentPatient: "Current",
@@ -115,8 +116,16 @@ export const en = {
     searchPlaceholder: "Search by name...",
     archiveAction: "Archive",
     restoreAction: "Restore",
+    archiveConfirmTitle: "Archive {name}?",
+    archiveConfirmDescription:
+      "Archived patients are hidden from the active list but can be restored at any time.",
+    archiveSuccess: "{name} archived.",
+    restoreSuccess: "{name} restored.",
     archivedBadge: "Archived",
     emptyArchivedTitle: "No archived patients",
+    emptySearchTitle: "No matching patients",
+    emptySearchDescription:
+      'No patient matches "{search}". Clear the search to see all patients.',
     overviewEyebrow: "Patient overview",
     access: {
       manageAction: "Manage patient access",
@@ -149,6 +158,9 @@ export const en = {
       removeAction: "Remove access",
       linkedAt: "Linked at",
       currentUserBadge: "Current account",
+      genericError: "Something went wrong while managing access.",
+      userNotFoundError:
+        "No account found for {email}. Ask the caregiver to create an account first, then try again.",
       emptyEyebrow: "Collaborators",
       emptyTitle: "No collaborators yet",
       emptyDescription:
@@ -233,6 +245,7 @@ export const en = {
       allFacilities: "All facilities",
       allTypes: "All event types",
       apply: "Apply filters",
+      dateRangeError: "Start date must be before end date.",
       endDateLabel: "End date",
       facilityLabel: "Facility",
       reset: "Reset",
@@ -261,6 +274,7 @@ export const en = {
     uploadDescription:
       "Accepted files are PDF, JPG, PNG, and WEBP. Link each file to the patient or to the workflow record it supports.",
     uploadAction: "Upload document",
+    uploadSuccess: "{filename} uploaded successfully.",
     openPageAction: "Open documents",
     listEyebrow: "Saved files",
     listTitle: "Document library",
@@ -418,7 +432,7 @@ export const en = {
       bookedAt: "Booked at",
       facility: "Facility",
       notes: "Notes",
-      prescription: "Prescription link",
+      prescription: "Linked prescription",
       status: "Status",
       task: "Task link",
     },
@@ -431,6 +445,8 @@ export const en = {
     },
     validation: {
       facilityNameRequired: "Enter the facility name.",
+      minimumRequired:
+        "Add a booking date, appointment time, facility, or linked prescription.",
       taskRequired: "Select the related task.",
     },
     statuses: {

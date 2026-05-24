@@ -1,12 +1,14 @@
 <script setup lang="ts">
-import { computed, ref, watch } from "vue";
+import { computed, onMounted, ref, watch } from "vue";
 import { useRoute } from "vue-router";
 import { useI18n } from "vue-i18n";
 
 import AppTopNav from "../components/AppTopNav.vue";
+import { usePatientsStore } from "../modules/patients/store";
 
 const route = useRoute();
 const { t } = useI18n();
+const patientsStore = usePatientsStore();
 const drawerOpen = ref(typeof window !== "undefined" && window.innerWidth >= 768);
 
 const patientId = computed(() =>
@@ -19,6 +21,27 @@ const mainNavItems = computed(() => [
   { label: t("nav.patients"), to: "/app/patients", icon: "group" },
   { label: t("nav.settings"), to: "/app/settings", icon: "settings" },
 ]);
+
+const currentPatientName = computed(() => {
+  if (!patientId.value) {
+    return null;
+  }
+
+  return patientsStore.currentPatient?.fullName ?? t("shell.currentPatient");
+});
+
+const loadPatientForSidebar = async () => {
+  if (patientId.value && !patientsStore.currentPatient) {
+    try {
+      await patientsStore.loadPatient(patientId.value);
+    } catch {
+    }
+  }
+};
+
+watch(patientId, loadPatientForSidebar);
+
+onMounted(loadPatientForSidebar);
 
 const patientNavItems = computed(() => {
   if (!patientId.value) return [];
@@ -117,7 +140,7 @@ watch(
             <span class="app-layout__nav-label">{{ t("shell.patientNav") }}</span>
             <div class="app-layout__patient-badge">
               <q-icon name="person" size="0.875rem" />
-              <span class="app-layout__patient-id">{{ t("shell.currentPatient") }}</span>
+              <span class="app-layout__patient-id">{{ currentPatientName }}</span>
             </div>
             <RouterLink
               v-for="item in patientNavItems"

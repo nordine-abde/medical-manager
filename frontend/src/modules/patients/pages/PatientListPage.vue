@@ -16,12 +16,16 @@ const filters = reactive({
   search: "",
 });
 const errorMessage = ref("");
+const successMessage = ref("");
 const isFormOpen = ref(false);
 const isSaving = ref(false);
 const editingPatient = ref<PatientRecord | null>(null);
+const archiveConfirmDialog = ref(false);
+const archiveTargetPatient = ref<PatientRecord | null>(null);
 
 const patients = computed(() => patientsStore.patients);
 const isLoading = computed(() => patientsStore.status === "loading");
+const hasActiveSearch = computed(() => filters.search.trim().length > 0);
 
 const loadPatients = async () => {
   errorMessage.value = "";
@@ -111,8 +115,53 @@ const handleSubmit = async (payload: PatientUpsertPayload) => {
   }
 };
 
+const promptArchiveConfirm = (patient: PatientRecord) => {
+  if (patient.archived) {
+    void handleArchiveToggle(patient);
+    return;
+  }
+
+  archiveTargetPatient.value = patient;
+  archiveConfirmDialog.value = true;
+};
+
+const handleArchiveConfirm = async () => {
+  if (!archiveTargetPatient.value) {
+    return;
+  }
+
+  archiveConfirmDialog.value = false;
+  const patient = archiveTargetPatient.value;
+  archiveTargetPatient.value = null;
+
+  errorMessage.value = "";
+  successMessage.value = "";
+
+  try {
+    await patientsStore.archivePatient(patient.id);
+    successMessage.value = t("patients.archiveSuccess", { name: patient.fullName });
+  } catch (error) {
+    errorMessage.value =
+      error instanceof Error ? error.message : t("patients.genericError");
+  }
+};
+
+const handleRestorePatient = async (patient: PatientRecord) => {
+  errorMessage.value = "";
+  successMessage.value = "";
+
+  try {
+    await patientsStore.restorePatient(patient.id);
+    successMessage.value = t("patients.restoreSuccess", { name: patient.fullName });
+  } catch (error) {
+    errorMessage.value =
+      error instanceof Error ? error.message : t("patients.genericError");
+  }
+};
+
 const handleArchiveToggle = async (patient: PatientRecord) => {
   errorMessage.value = "";
+  successMessage.value = "";
 
   try {
     if (patient.archived) {
@@ -121,6 +170,7 @@ const handleArchiveToggle = async (patient: PatientRecord) => {
     }
 
     await patientsStore.archivePatient(patient.id);
+    successMessage.value = t("patients.archiveSuccess", { name: patient.fullName });
   } catch (error) {
     errorMessage.value =
       error instanceof Error ? error.message : t("patients.genericError");
@@ -199,13 +249,25 @@ const getInitials = (name: string) => {
         <div class="patient-list-page__empty-content">
           <q-icon name="group_off" size="4rem" color="grey-4" />
           <h2 class="patient-list-page__empty-title">
-            {{ filters.includeArchived ? $t("patients.emptyArchivedTitle") : $t("patients.emptyTitle") }}
+            {{
+              hasActiveSearch
+                ? $t("patients.emptySearchTitle")
+                : filters.includeArchived
+                  ? $t("patients.emptyArchivedTitle")
+                  : $t("patients.emptyTitle")
+            }}
           </h2>
           <p class="patient-list-page__empty-text">
-            {{ filters.includeArchived ? $t("patients.emptyArchivedDescription") : $t("patients.emptyDescription") }}
+            {{
+              hasActiveSearch
+                ? $t("patients.emptySearchDescription", { search: filters.search })
+                : filters.includeArchived
+                  ? $t("patients.emptyArchivedDescription")
+                  : $t("patients.emptyDescription")
+            }}
           </p>
           <q-btn
-            v-if="!filters.includeArchived"
+            v-if="!filters.includeArchived && !hasActiveSearch"
             color="primary"
             unelevated
             no-caps
@@ -283,7 +345,7 @@ const getInitials = (name: string) => {
               dense
               :color="patient.archived ? 'positive' : 'grey-7'"
               :icon="patient.archived ? 'unarchive' : 'archive'"
-              @click="handleArchiveToggle(patient)"
+              @click="promptArchiveConfirm(patient)"
             >
               <q-tooltip>
                 {{ patient.archived ? $t('patients.restoreAction') : $t('patients.archiveAction') }}
@@ -293,6 +355,22 @@ const getInitials = (name: string) => {
         </q-card>
       </div>
     </q-card>
+
+    <q-banner
+      v-if="successMessage"
+      rounded
+      class="patient-list-page__banner patient-list-page__banner--success"
+    >
+      {{ successMessage }}
+      <template #action>
+        <q-btn
+          flat
+          color="positive"
+          :label="$t('common.dismiss')"
+          @click="successMessage = ''"
+        />
+      </template>
+    </q-banner>
 
     <q-banner
       v-if="errorMessage"
@@ -312,6 +390,34 @@ const getInitials = (name: string) => {
         />
       </template>
     </q-banner>
+
+    <q-dialog v-model="archiveConfirmDialog">
+      <q-card class="patient-list-page__confirm-card">
+        <q-card-section>
+          <h3 class="patient-list-page__confirm-title">
+            {{ $t("patients.archiveConfirmTitle", { name: archiveTargetPatient?.fullName ?? "" }) }}
+          </h3>
+          <p class="patient-list-page__confirm-text">
+            {{ $t("patients.archiveConfirmDescription") }}
+          </p>
+        </q-card-section>
+        <q-card-actions align="right">
+          <q-btn
+            flat
+            no-caps
+            :label="$t('common.cancel')"
+            @click="archiveConfirmDialog = false"
+          />
+          <q-btn
+            color="negative"
+            unelevated
+            no-caps
+            :label="$t('patients.archiveAction')"
+            @click="handleArchiveConfirm"
+          />
+        </q-card-actions>
+      </q-card>
+    </q-dialog>
 
     <PatientFormDialog
       v-model="isFormOpen"
@@ -541,6 +647,30 @@ const getInitials = (name: string) => {
   border: 1px solid rgba(183, 80, 63, 0.2);
   border-radius: 0.75rem;
   box-shadow: 0 4px 12px rgba(20, 50, 63, 0.15);
+}
+
+.patient-list-page__banner--success {
+  border-color: rgba(50, 120, 80, 0.2);
+  color: #1b5e3a;
+}
+
+.patient-list-page__confirm-card {
+  padding: 1.5rem;
+  border-radius: 1.25rem;
+  min-width: 20rem;
+}
+
+.patient-list-page__confirm-title {
+  margin: 0 0 0.5rem;
+  color: #14323f;
+  font-family: "Newsreader", serif;
+  font-size: 1.25rem;
+}
+
+.patient-list-page__confirm-text {
+  margin: 0;
+  color: #32505d;
+  line-height: 1.5;
 }
 
 @media (max-width: 768px) {

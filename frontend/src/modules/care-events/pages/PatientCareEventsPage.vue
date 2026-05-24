@@ -178,6 +178,13 @@ const loadPage = async () => {
 };
 
 const applyFilters = async () => {
+  dateTimeFilterError.value = "";
+
+  if (filters.from && filters.to && filters.from > filters.to) {
+    dateTimeFilterError.value = t("careEvents.filters.dateRangeError");
+    return;
+  }
+
   filters.page = 1;
 
   try {
@@ -196,6 +203,7 @@ const resetFilters = async () => {
   filters.search = "";
   filters.subtype = "";
   filters.to = "";
+  dateTimeFilterError.value = "";
   await applyFilters();
 };
 
@@ -218,12 +226,22 @@ onMounted(async () => {
   await loadPage();
 });
 
+const dateTimeFilterError = ref("");
+
 const formatDateTime = (value: string | null) => {
   if (!value) {
     return t("careEvents.emptyDate");
   }
 
   return d(new Date(value), "short");
+};
+
+const formatDateTimeWithTime = (value: string | null) => {
+  if (!value) {
+    return t("careEvents.emptyDate");
+  }
+
+  return d(new Date(value), "long");
 };
 
 const resolveFacilityLabel = (facilityId: string | null) => {
@@ -272,7 +290,7 @@ const resolveCareEventTitle = (careEvent: CareEventRecord): string => {
     titleParts.push(subtype);
   }
 
-  titleParts.push(formatDateTime(careEvent.completedAt));
+  titleParts.push(formatDateTimeWithTime(careEvent.completedAt));
 
   return titleParts.join(" · ");
 };
@@ -492,6 +510,15 @@ const openOverviewAnchor = async (anchor: string) => {
               :label="$t('careEvents.filters.endDateLabel')"
             />
           </div>
+
+          <q-banner
+            v-if="dateTimeFilterError"
+            dense
+            rounded
+            class="bg-warning text-white"
+          >
+            {{ dateTimeFilterError }}
+          </q-banner>
 
           <div class="patient-care-events-page__filter-actions">
             <q-btn

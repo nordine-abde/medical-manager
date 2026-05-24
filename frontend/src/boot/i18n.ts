@@ -10,12 +10,26 @@ export const i18n = createI18n({
         month: "short",
         year: "numeric",
       },
+      long: {
+        day: "numeric",
+        month: "short",
+        year: "numeric",
+        hour: "numeric",
+        minute: "2-digit",
+      },
     },
     it: {
       short: {
         day: "numeric",
         month: "short",
         year: "numeric",
+      },
+      long: {
+        day: "numeric",
+        month: "short",
+        year: "numeric",
+        hour: "numeric",
+        minute: "2-digit",
       },
     },
   },

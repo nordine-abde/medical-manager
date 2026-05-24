@@ -95,6 +95,7 @@ const userInitials = computed(() => {
           flat
           no-caps
           class="app-top-nav__user-btn"
+          :aria-label="t('shell.userMenuLabel', { name: authStore.user.fullName })"
         >
           <template #label>
             <div class="app-top-nav__user-label">
@@ -225,6 +226,20 @@ const userInitials = computed(() => {
 .app-top-nav__user-name {
   color: #14323f;
   font-weight: 500;
+}
+
+@media (max-width: 768px) {
+  .app-top-nav__title {
+    font-size: 1rem;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 140px;
+  }
+
+  .app-top-nav__language {
+    min-width: 5rem;
+  }
 }
 
 .app-top-nav__menu {

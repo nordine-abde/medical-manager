@@ -14,6 +14,7 @@ import {
 } from "../types";
 import { usePatientsStore } from "../../patients/store";
 import { usePrescriptionsStore } from "../../prescriptions/store";
+import { formatPrescriptionDisplayLabel } from "../../prescriptions/utils";
 import type { PrescriptionRecord } from "../../prescriptions/types";
 
 interface RelatedEntityOption {
@@ -36,6 +37,7 @@ const bookingsStore = useBookingsStore();
 const isLoading = ref(false);
 const isSaving = ref(false);
 const errorMessage = ref("");
+const successMessage = ref("");
 const selectedFile = ref<File | null>(null);
 const selectedDocumentType = ref<DocumentType>("general_attachment");
 const selectedRelatedEntity = ref("");
@@ -166,6 +168,7 @@ const handleUpload = async () => {
 
   isSaving.value = true;
   errorMessage.value = "";
+  successMessage.value = "";
 
   try {
     await documentsStore.uploadDocument(patientId.value, {
@@ -174,6 +177,9 @@ const handleUpload = async () => {
       notes: uploadNotes.value.trim() || null,
       relatedEntityId: relatedEntity.relatedEntityId,
       relatedEntityType: relatedEntity.relatedEntityType,
+    });
+    successMessage.value = t("documents.uploadSuccess", {
+      filename: selectedFile.value.name,
     });
     resetUploadForm();
   } catch (error) {
@@ -185,11 +191,7 @@ const handleUpload = async () => {
 };
 
 function formatPrescriptionCaption(prescription: PrescriptionRecord): string {
-  if (prescription.issueDate) {
-    return d(new Date(`${prescription.issueDate}T00:00:00`), "short");
-  }
-
-  return t("documents.fallbacks.noDate");
+  return formatPrescriptionDisplayLabel(prescription, { d, t });
 }
 
 function resolveFacilityName(facilityId: string | null): string | null {
@@ -269,6 +271,15 @@ const formatFileSize = (value: number): string => {
 
 <template>
   <q-page class="patient-documents-page">
+    <q-banner
+      v-if="successMessage"
+      dense
+      rounded
+      class="bg-positive text-white"
+    >
+      {{ successMessage }}
+    </q-banner>
+
     <q-banner
       v-if="errorMessage"
       rounded

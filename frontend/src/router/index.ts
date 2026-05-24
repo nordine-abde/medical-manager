@@ -8,6 +8,12 @@ import { useAuthStore } from "../modules/auth/store";
 import { pinia } from "../stores";
 import { resolveRouteAccess } from "./guards";
 
+const APP_NAME = "Medical Manager";
+
+const setDocumentTitle = (title: string) => {
+  document.title = `${title} - ${APP_NAME}`;
+};
+
 const routes: RouteRecordRaw[] = [
   {
     path: "/",
@@ -48,36 +54,57 @@ const routes: RouteRecordRaw[] = [
         path: "patients",
         component: () =>
           import("../modules/patients/pages/PatientListPage.vue"),
+        meta: {
+          title: "Patients",
+        },
       },
       {
         path: "patients/:patientId/overview",
         component: () =>
           import("../modules/patients/pages/PatientOverviewPage.vue"),
+        meta: {
+          title: "Patient Overview",
+        },
       },
       {
         path: "patients/:patientId/access",
         component: () =>
           import("../modules/patients/pages/PatientAccessPage.vue"),
+        meta: {
+          title: "Patient Access",
+        },
       },
       {
         path: "patients/:patientId/prescriptions",
         component: () =>
           import("../modules/prescriptions/pages/PatientPrescriptionsPage.vue"),
+        meta: {
+          title: "Prescriptions",
+        },
       },
       {
         path: "patients/:patientId/bookings",
         component: () =>
           import("../modules/bookings/pages/PatientBookingsPage.vue"),
+        meta: {
+          title: "Bookings",
+        },
       },
       {
         path: "patients/:patientId/documents",
         component: () =>
           import("../modules/documents/pages/PatientDocumentsPage.vue"),
+        meta: {
+          title: "Documents",
+        },
       },
       {
         path: "patients/:patientId/care-events",
         component: () =>
           import("../modules/care-events/pages/PatientCareEventsPage.vue"),
+        meta: {
+          title: "Care Events",
+        },
       },
       {
         path: "overview",
@@ -87,11 +114,17 @@ const routes: RouteRecordRaw[] = [
           description:
             "This protected route is reserved for the current patient summary shell.",
         },
+        meta: {
+          title: "Overview",
+        },
       },
       {
         path: "settings",
         component: () =>
           import("../modules/auth/pages/SettingsProfilePage.vue"),
+        meta: {
+          title: "Settings",
+        },
       },
     ],
   },
@@ -131,4 +164,9 @@ router.beforeEach(async (to) => {
   }
 
   return resolution.redirectTo;
+});
+
+router.afterEach((to) => {
+  const title = (to.meta?.title as string) ?? APP_NAME;
+  setDocumentTitle(title);
 });

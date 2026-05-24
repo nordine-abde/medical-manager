@@ -5,7 +5,9 @@ import { useI18n } from "vue-i18n";
 
 import { useDocumentsStore } from "../../documents/store";
 import { filterDocumentsByRelatedEntity } from "../../documents/utils";
+import RelatedDocumentsPanel from "../../documents/components/RelatedDocumentsPanel.vue";
 import { usePrescriptionsStore } from "../../prescriptions/store";
+import { formatPrescriptionDisplayLabel } from "../../prescriptions/utils";
 import BookingFormDialog from "../components/BookingFormDialog.vue";
 import { useBookingsStore } from "../store";
 import type {
@@ -22,6 +24,7 @@ const route = useRoute();
 const router = useRouter();
 const { d, t } = useI18n();
 
+const errorMessage = ref("");
 const isLoading = ref(false);
 const isBookingSaving = ref(false);
 const isBookingFormOpen = ref(false);
@@ -54,7 +57,7 @@ const bookingPrescriptionOptions = computed(() => [
     value: null,
   },
   ...prescriptions.value.map((prescription) => ({
-    label: `${t(`prescriptions.types.${prescription.prescriptionType}`)}`,
+    label: formatPrescriptionDisplayLabel(prescription, { d, t }),
     value: prescription.id,
   })),
 ]);
@@ -120,10 +123,29 @@ const resolveBookingPrescriptionLabel = (prescriptionId: string | null) => {
     return t("bookings.missingPrescription");
   }
 
-  const typeLabel = t(`prescriptions.types.${prescription.prescriptionType}`);
-  const subtype = prescription.subtype?.trim();
+  return formatPrescriptionDisplayLabel(prescription, { d, t });
+};
 
-  return subtype ? `${typeLabel} · ${subtype}` : typeLabel;
+const resolveBookingTitle = (booking: BookingRecord): string => {
+  const dateLabel = formatBookingDateTime(
+    booking.appointmentAt ?? booking.bookedAt,
+  );
+  const facilityLabel = resolveBookingFacilityLabel(booking.facilityId);
+  const statusLabel = t(`bookings.statuses.${booking.status}`);
+
+  const parts: string[] = [];
+  if (dateLabel && dateLabel !== t("bookings.emptyDate")) {
+    parts.push(dateLabel);
+  }
+  if (facilityLabel && facilityLabel !== t("bookings.unlinkedFacility")) {
+    parts.push(facilityLabel);
+  }
+  if (parts.length === 0) {
+    parts.push(t("bookings.title"));
+  }
+  parts.push(`(${statusLabel})`);
+
+  return parts.join(" - ");
 };
 
 const nextBookingStatus = (
@@ -164,6 +186,8 @@ const handleBookingSubmit = async (
   facilityPayload: FacilityUpsertPayload | null,
 ) => {
   isBookingSaving.value = true;
+
+  errorMessage.value = "";
 
   try {
     let facilityId = payload.facilityId;
@@ -208,6 +232,9 @@ const handleBookingSubmit = async (
 
     isBookingFormOpen.value = false;
     editingBooking.value = null;
+  } catch (error) {
+    errorMessage.value =
+      error instanceof Error ? error.message : t("bookings.genericError");
   } finally {
     isBookingSaving.value = false;
   }
@@ -237,6 +264,15 @@ const handleAdvanceBookingStatus = async (
 
 <template>
   <q-page class="patient-bookings-page">
+    <q-banner
+      v-if="errorMessage"
+      dense
+      rounded
+      class="patient-bookings-page__banner bg-negative text-white"
+    >
+      {{ errorMessage }}
+    </q-banner>
+
     <q-card
       flat
       bordered
@@ -322,7 +358,9 @@ const handleAdvanceBookingStatus = async (
             <div class="patient-bookings-page__booking-head">
               <div class="patient-bookings-page__booking-main">
                 <div class="patient-bookings-page__booking-title-row">
-                  <h3 class="patient-bookings-page__booking-title">Booking</h3>
+                  <h3 class="patient-bookings-page__booking-title">
+                    {{ resolveBookingTitle(booking) }}
+                  </h3>
                   <q-badge
                     rounded
                     color="accent"
@@ -434,6 +472,10 @@ const handleAdvanceBookingStatus = async (
 .patient-bookings-page {
   display: grid;
   gap: 1rem;
+}
+
+.patient-bookings-page__banner {
+  margin-bottom: 0.5rem;
 }
 
 .patient-bookings-page__hero {

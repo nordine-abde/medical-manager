@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, reactive, watch } from "vue";
+import { computed, reactive, ref, watch } from "vue";
 import { useI18n } from "vue-i18n";
 
 import {
@@ -39,6 +39,9 @@ const emit = defineEmits<{
 }>();
 
 const { t } = useI18n();
+
+const formRef = ref<any>(null);
+const formError = ref("");
 
 const form = reactive({
   appointmentAt: "",
@@ -142,9 +145,16 @@ watch(
 
 const closeDialog = () => {
   emit("update:modelValue", false);
+  formError.value = "";
 };
 
-const handleSubmit = () => {
+const handleSubmit = async () => {
+  formError.value = "";
+
+  if (!form.prescriptionId && !form.facilityId && !form.appointmentAt && !form.bookedAt) {
+    formError.value = t("bookings.validation.minimumRequired");
+    return;
+  }
 
   emit(
     "submit",
@@ -308,6 +318,15 @@ const handleSubmit = () => {
             :label="$t('bookings.fields.notes')"
           />
 
+          <q-banner
+            v-if="formError"
+            dense
+            rounded
+            class="booking-form-dialog__error bg-negative text-white"
+          >
+            {{ formError }}
+          </q-banner>
+
           <div class="booking-form-dialog__actions">
             <q-btn
               flat
@@ -392,7 +411,11 @@ const handleSubmit = () => {
     grid-template-columns: 1fr;
   }
 
-  .booking-form-dialog__actions {
+.booking-form-dialog__error {
+  margin-bottom: 0.5rem;
+}
+
+.booking-form-dialog__actions {
     justify-content: stretch;
   }
 }

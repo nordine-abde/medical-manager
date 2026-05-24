@@ -308,8 +308,13 @@ const resolveFacilitySelection = (): {
   };
 };
 
-const handleSubmit = () => {
+const formError = ref("");
+
+const handleSubmit = async () => {
+  formError.value = "";
+
   if (!form.completedAt.trim()) {
+    formError.value = t("careEvents.validation.completedAtRequired");
     return;
   }
 
@@ -537,6 +542,15 @@ const handleSubmit = () => {
             :label="$t('careEvents.fields.outcomeNotes')"
           />
 
+          <q-banner
+            v-if="formError"
+            dense
+            rounded
+            class="care-event-form-dialog__error bg-negative text-white"
+          >
+            {{ formError }}
+          </q-banner>
+
           <div class="care-event-form-dialog__actions">
             <q-btn
               flat
@@ -633,6 +647,10 @@ const handleSubmit = () => {
   margin: -0.35rem 0 0;
   color: #5b6c77;
   font-size: 0.92rem;
+}
+
+.care-event-form-dialog__error {
+  margin-bottom: 0.5rem;
 }
 
 .care-event-form-dialog__actions {
