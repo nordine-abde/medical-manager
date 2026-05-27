@@ -300,4 +300,68 @@ describe("useBookingsStore", () => {
     });
     expect(mockFetch).toHaveBeenCalledTimes(2);
   });
+
+  it("deletes a booking and removes it from the active list", async () => {
+    const store = useBookingsStore();
+
+    mockFetch
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            bookings: [
+              {
+                appointmentAt: "2026-03-24T10:00:00.000Z",
+                bookedAt: "2026-03-20T09:00:00.000Z",
+                createdAt: "2026-03-20T09:00:00.000Z",
+                deletedAt: null,
+                facilityId: "facility-1",
+                id: "booking-1",
+                notes: "Baseline cardiology review.",
+                patientId: "patient-1",
+                prescriptionId: null,
+                status: "booked",
+                updatedAt: "2026-03-20T09:00:00.000Z",
+              },
+            ],
+          }),
+          {
+            headers: { "content-type": "application/json" },
+            status: 200,
+          },
+        ),
+      )
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            booking: {
+              appointmentAt: "2026-03-24T10:00:00.000Z",
+              bookedAt: "2026-03-20T09:00:00.000Z",
+              createdAt: "2026-03-20T09:00:00.000Z",
+              deletedAt: "2026-03-21T09:00:00.000Z",
+              facilityId: "facility-1",
+              id: "booking-1",
+              notes: "Baseline cardiology review.",
+              patientId: "patient-1",
+              prescriptionId: null,
+              status: "booked",
+              updatedAt: "2026-03-21T09:00:00.000Z",
+            },
+          }),
+          {
+            headers: { "content-type": "application/json" },
+            status: 200,
+          },
+        ),
+      );
+
+    await store.loadBookings("patient-1");
+    await store.deleteBooking("booking-1");
+
+    expect(store.bookings).toHaveLength(0);
+    expect(mockFetch).toHaveBeenNthCalledWith(2, "/api/v1/bookings/booking-1", {
+      credentials: "include",
+      headers: {},
+      method: "DELETE",
+    });
+  });
 });

@@ -455,4 +455,118 @@ describe("useCareEventsStore", () => {
       }),
     );
   });
+
+  it("deletes a care event and refreshes the filtered list", async () => {
+    const store = useCareEventsStore();
+
+    mockFetch
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            careEvents: [
+              {
+                bookingId: null,
+                completedAt: "2026-03-18T10:00:00.000Z",
+                createdAt: "2026-03-18T10:05:00.000Z",
+                eventType: "exam",
+                facilityId: null,
+                id: "care-event-1",
+                outcomeNotes: "Routine blood work completed.",
+                patientId: "patient-1",
+                providerName: "Dr. Rossi",
+                subtype: "Blood test",
+                updatedAt: "2026-03-18T10:05:00.000Z",
+              },
+            ],
+            pagination: {
+              page: 1,
+              pageSize: 20,
+              total: 1,
+              totalPages: 1,
+            },
+          }),
+          {
+            headers: {
+              "content-type": "application/json",
+            },
+            status: 200,
+          },
+        ),
+      )
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            careEvent: {
+              bookingId: null,
+              completedAt: "2026-03-18T10:00:00.000Z",
+              createdAt: "2026-03-18T10:05:00.000Z",
+              eventType: "exam",
+              facilityId: null,
+              id: "care-event-1",
+              outcomeNotes: "Routine blood work completed.",
+              patientId: "patient-1",
+              providerName: "Dr. Rossi",
+              subtype: "Blood test",
+              updatedAt: "2026-03-18T10:05:00.000Z",
+            },
+          }),
+          {
+            headers: {
+              "content-type": "application/json",
+            },
+            status: 200,
+          },
+        ),
+      )
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            careEvents: [],
+            pagination: {
+              page: 1,
+              pageSize: 20,
+              total: 0,
+              totalPages: 0,
+            },
+          }),
+          {
+            headers: {
+              "content-type": "application/json",
+            },
+            status: 200,
+          },
+        ),
+      )
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            subtypesByType: {
+              exam: [],
+              specialist_visit: [],
+              treatment: [],
+            },
+          }),
+          {
+            headers: {
+              "content-type": "application/json",
+            },
+            status: 200,
+          },
+        ),
+      );
+
+    await store.loadCareEvents("patient-1");
+    await store.deleteCareEvent("care-event-1");
+
+    expect(store.careEvents).toHaveLength(0);
+    expect(mockFetch).toHaveBeenNthCalledWith(
+      2,
+      "/api/v1/care-events/care-event-1",
+      {
+        credentials: "include",
+        headers: {},
+        method: "DELETE",
+      },
+    );
+  });
 });

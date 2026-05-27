@@ -677,6 +677,31 @@ export const createCareEventsModule = (
         params: careEventIdParamsSchema,
       },
     )
+    .delete(
+      "/care-events/:careEventId",
+      async ({ params, request, status }) => {
+        try {
+          const session = await requireRequestSession(authInstance, request);
+          const careEvent = await service.deleteCareEvent(
+            session.user.id,
+            params.careEventId,
+          );
+
+          return {
+            careEvent: mapCareEvent(careEvent),
+          };
+        } catch (error) {
+          if (error instanceof CareEventAccessError) {
+            return status(404, careEventNotFoundPayload);
+          }
+
+          return status(401, unauthorizedPayload);
+        }
+      },
+      {
+        params: careEventIdParamsSchema,
+      },
+    )
     .patch(
       "/care-events/:careEventId",
       async ({ body, params, request, status }) => {

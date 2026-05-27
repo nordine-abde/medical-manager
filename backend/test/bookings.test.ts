@@ -447,6 +447,55 @@ describe("bookings and facilities modules", () => {
     expect(listBookingsResponse.status).toBe(200);
     expect(listBookingsPayload.bookings).toHaveLength(1);
     expect(listBookingsPayload.bookings[0]?.id).toBe(bookingId);
+
+    const deleteBookingResponse = await getTestContext().app.handle(
+      new Request(`http://localhost/api/v1/bookings/${bookingId}`, {
+        headers: {
+          "x-test-user-id": "user-1",
+        },
+        method: "DELETE",
+      }),
+    );
+    const deleteBookingPayload =
+      (await deleteBookingResponse.json()) as BookingPayload;
+
+    expect(deleteBookingResponse.status).toBe(200);
+    expect(deleteBookingPayload.booking.id).toBe(bookingId);
+    expect(deleteBookingPayload.booking.deletedAt).not.toBeNull();
+
+    const activeListAfterDeleteResponse = await getTestContext().app.handle(
+      new Request(
+        `http://localhost/api/v1/patients/11111111-1111-4111-8111-111111111111/bookings?status=booked&facilityId=${facilityId}&from=2026-04-01T00:00:00.000Z&to=2026-04-30T23:59:59.000Z`,
+        {
+          headers: {
+            "x-test-user-id": "user-1",
+          },
+        },
+      ),
+    );
+    const activeListAfterDeletePayload =
+      (await activeListAfterDeleteResponse.json()) as BookingListPayload;
+
+    expect(activeListAfterDeleteResponse.status).toBe(200);
+    expect(activeListAfterDeletePayload.bookings).toHaveLength(0);
+
+    const archivedListResponse = await getTestContext().app.handle(
+      new Request(
+        `http://localhost/api/v1/patients/11111111-1111-4111-8111-111111111111/bookings?includeArchived=true&status=booked&facilityId=${facilityId}&from=2026-04-01T00:00:00.000Z&to=2026-04-30T23:59:59.000Z`,
+        {
+          headers: {
+            "x-test-user-id": "user-1",
+          },
+        },
+      ),
+    );
+    const archivedListPayload =
+      (await archivedListResponse.json()) as BookingListPayload;
+
+    expect(archivedListResponse.status).toBe(200);
+    expect(archivedListPayload.bookings).toHaveLength(1);
+    expect(archivedListPayload.bookings[0]?.id).toBe(bookingId);
+    expect(archivedListPayload.bookings[0]?.deletedAt).not.toBeNull();
   });
 
   it("rejects invalid booking transitions", async () => {

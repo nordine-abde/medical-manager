@@ -286,6 +286,31 @@ export const createBookingsModule = (
         params: bookingIdParamsSchema,
       },
     )
+    .delete(
+      "/bookings/:bookingId",
+      async ({ params, request, status }) => {
+        try {
+          const session = await requireRequestSession(authInstance, request);
+          const booking = await service.deleteBooking(
+            session.user.id,
+            params.bookingId,
+          );
+
+          return {
+            booking: mapBooking(booking),
+          };
+        } catch (error) {
+          if (error instanceof BookingAccessError) {
+            return status(404, bookingNotFoundPayload);
+          }
+
+          return status(401, unauthorizedPayload);
+        }
+      },
+      {
+        params: bookingIdParamsSchema,
+      },
+    )
     .patch(
       "/bookings/:bookingId",
       async ({ body, params, request, status }) => {

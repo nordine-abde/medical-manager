@@ -228,6 +228,20 @@ export const getCareEventRequest = async (
   return response.careEvent;
 };
 
+export const deleteCareEventRequest = async (
+  careEventId: string,
+): Promise<CareEventRecord> => {
+  const response = await requestJson<CareEventPayload>(
+    `/care-events/${careEventId}`,
+    {
+      method: "DELETE",
+    },
+    "Unable to delete the care event.",
+  );
+
+  return response.careEvent;
+};
+
 export const updateCareEventRequest = async (
   careEventId: string,
   payload: Partial<CareEventUpsertPayload>,

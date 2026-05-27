@@ -391,6 +391,26 @@ export const createCareEventsRepository = (
       return careEvent ?? null;
     },
 
+    async deleteAccessible(
+      userId: string,
+      careEventId: string,
+    ): Promise<CareEventRecord | null> {
+      const [careEvent] = await sql.unsafe<[CareEventRecord]>(
+        `
+          delete from ${qualifiedCareEventsTable} as ce
+          using ${qualifiedPatientUsersTable} as pu
+          where pu.patient_id = ce.patient_id
+            and pu.user_id = $1
+            and ce.id = $2
+          returning
+            ${careEventColumns}
+        `,
+        [userId, careEventId],
+      );
+
+      return careEvent ?? null;
+    },
+
     async hasPatientAccess(
       userId: string,
       patientId: string,

@@ -86,3 +86,17 @@ export const uploadDocumentRequest = async (
 
   return response.document;
 };
+
+export const deleteDocumentRequest = async (
+  documentId: string,
+): Promise<DocumentRecord> => {
+  const response = await requestJson<DocumentPayload>(
+    `/documents/${documentId}`,
+    {
+      method: "DELETE",
+    },
+    "Unable to delete the document.",
+  );
+
+  return response.document;
+};

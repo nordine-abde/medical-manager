@@ -26,6 +26,7 @@ const { d, t } = useI18n();
 
 const isLoading = ref(false);
 const isPrescriptionSaving = ref(false);
+const isPrescriptionDeleting = ref(false);
 const isPrescriptionFormOpen = ref(false);
 const editingPrescription = ref<PrescriptionRecord | null>(null);
 const errorMessage = ref("");
@@ -215,6 +216,32 @@ const openCreatePrescriptionDialog = () => {
 const openEditPrescriptionDialog = (prescription: PrescriptionRecord) => {
   editingPrescription.value = prescription;
   isPrescriptionFormOpen.value = true;
+};
+
+const handleDeletePrescription = async (prescription: PrescriptionRecord) => {
+  const title = resolvePrescriptionTitle(prescription);
+
+  if (
+    !window.confirm(
+      t("prescriptions.deleteConfirm", {
+        title,
+      }),
+    )
+  ) {
+    return;
+  }
+
+  isPrescriptionDeleting.value = true;
+  errorMessage.value = "";
+
+  try {
+    await prescriptionsStore.deletePrescription(prescription.id);
+  } catch (error) {
+    errorMessage.value =
+      error instanceof Error ? error.message : t("prescriptions.genericError");
+  } finally {
+    isPrescriptionDeleting.value = false;
+  }
 };
 
 const handlePrescriptionSubmit = async (payload: {
@@ -510,6 +537,17 @@ const handlePrescriptionDialogModelChange = (value: boolean) => {
                   no-caps
                   :label="$t('prescriptions.edit')"
                   @click="openEditPrescriptionDialog(prescription)"
+                />
+                <q-btn
+                  :key="`delete-${prescription.id}`"
+                  flat
+                  color="negative"
+                  icon="delete"
+                  no-caps
+                  :disable="Boolean(prescription.deletedAt)"
+                  :loading="isPrescriptionDeleting"
+                  :label="$t('prescriptions.deleteAction')"
+                  @click="handleDeletePrescription(prescription)"
                 />
               </div>
             </div>

@@ -260,6 +260,35 @@ export const createDocumentsModule = (
         params: documentIdParamsSchema,
       },
     )
+    .delete(
+      "/documents/:documentId",
+      async ({ params, request, status }) => {
+        try {
+          const session = await requireRequestSession(authInstance, request);
+          const document = await service.deleteDocument(
+            session.user.id,
+            params.documentId,
+          );
+
+          return {
+            document: mapDocument(document),
+          };
+        } catch (error) {
+          if (error instanceof DocumentAccessError) {
+            return status(404, documentNotFoundPayload);
+          }
+
+          if (isAuthenticationRequiredError(error)) {
+            return status(401, unauthorizedPayload);
+          }
+
+          throw error;
+        }
+      },
+      {
+        params: documentIdParamsSchema,
+      },
+    )
     .get(
       "/documents/:documentId/download",
       async ({ params, request, status }) => {

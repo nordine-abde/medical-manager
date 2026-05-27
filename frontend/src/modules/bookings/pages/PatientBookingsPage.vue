@@ -27,6 +27,7 @@ const { d, t } = useI18n();
 const errorMessage = ref("");
 const isLoading = ref(false);
 const isBookingSaving = ref(false);
+const isBookingDeleting = ref(false);
 const isBookingFormOpen = ref(false);
 const editingBooking = ref<BookingRecord | null>(null);
 
@@ -174,6 +175,30 @@ const openCreateBookingDialog = () => {
 const openEditBookingDialog = (booking: BookingRecord) => {
   editingBooking.value = booking;
   isBookingFormOpen.value = true;
+};
+
+const handleDeleteBooking = async (booking: BookingRecord) => {
+  if (
+    !window.confirm(
+      t("bookings.deleteConfirm", {
+        title: resolveBookingTitle(booking),
+      }),
+    )
+  ) {
+    return;
+  }
+
+  isBookingDeleting.value = true;
+  errorMessage.value = "";
+
+  try {
+    await bookingsStore.deleteBooking(booking.id);
+  } catch (error) {
+    errorMessage.value =
+      error instanceof Error ? error.message : t("bookings.genericError");
+  } finally {
+    isBookingDeleting.value = false;
+  }
 };
 
 const handleBookingSubmit = async (
@@ -419,6 +444,16 @@ const handleAdvanceBookingStatus = async (
                   no-caps
                   :label="$t('bookings.edit')"
                   @click="openEditBookingDialog(booking)"
+                />
+                <q-btn
+                  :key="`delete-booking-${booking.id}`"
+                  flat
+                  color="negative"
+                  icon="delete"
+                  no-caps
+                  :loading="isBookingDeleting"
+                  :label="$t('bookings.deleteAction')"
+                  @click="handleDeleteBooking(booking)"
                 />
               </div>
             </div>

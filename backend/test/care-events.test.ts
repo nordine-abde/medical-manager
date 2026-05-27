@@ -423,6 +423,48 @@ describe("care events module", () => {
       outcomeNotes: "Specialist follow-up completed.",
       providerName: null,
     });
+
+    const deleteResponse = await app.handle(
+      new Request(`http://localhost/api/v1/care-events/${careEventId}`, {
+        headers: {
+          "x-test-user-id": "user-1",
+        },
+        method: "DELETE",
+      }),
+    );
+    const deletePayload = (await deleteResponse.json()) as CareEventPayload;
+
+    expect(deleteResponse.status).toBe(200);
+    expect(deletePayload.careEvent.id).toBe(careEventId);
+
+    const getAfterDeleteResponse = await app.handle(
+      new Request(`http://localhost/api/v1/care-events/${careEventId}`, {
+        headers: {
+          "x-test-user-id": "user-1",
+        },
+      }),
+    );
+    const getAfterDeletePayload = await getAfterDeleteResponse.json();
+
+    expect(getAfterDeleteResponse.status).toBe(404);
+    expect(getAfterDeletePayload).toEqual({
+      error: "care_event_not_found",
+      message: "Care event not found.",
+    });
+
+    const listAfterDeleteResponse = await app.handle(
+      new Request(`http://localhost/api/v1/patients/${patientId}/care-events`, {
+        headers: {
+          "x-test-user-id": "user-1",
+        },
+      }),
+    );
+    const listAfterDeletePayload =
+      (await listAfterDeleteResponse.json()) as CareEventListPayload;
+
+    expect(listAfterDeleteResponse.status).toBe(200);
+    expect(listAfterDeletePayload.pagination.total).toBe(0);
+    expect(listAfterDeletePayload.careEvents).toHaveLength(0);
   });
 
   it("searches, filters by subtype, and pages patient care events", async () => {

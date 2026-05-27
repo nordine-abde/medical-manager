@@ -188,6 +188,26 @@ export const createDocumentsRepository = (
       return document ?? null;
     },
 
+    async deleteAccessible(
+      userId: string,
+      documentId: string,
+    ): Promise<DocumentRecord | null> {
+      const [document] = await sql.unsafe<[DocumentRecord]>(
+        `
+          delete from ${qualifiedDocumentsTable} as d
+          using ${qualifiedPatientUsersTable} as pu
+          where pu.patient_id = d.patient_id
+            and pu.user_id = $1
+            and d.id = $2
+          returning
+            ${documentSelectColumns}
+        `,
+        [userId, documentId],
+      );
+
+      return document ?? null;
+    },
+
     async hasPatientAccess(
       userId: string,
       patientId: string,

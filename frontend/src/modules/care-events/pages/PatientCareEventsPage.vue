@@ -30,6 +30,7 @@ const careEventsStore = useCareEventsStore();
 
 const isLoading = ref(false);
 const isSaving = ref(false);
+const isDeleting = ref(false);
 const isFormOpen = ref(false);
 const editingCareEvent = ref<CareEventRecord | null>(null);
 const errorMessage = ref("");
@@ -306,6 +307,30 @@ const openCreateDialog = () => {
 const openEditDialog = (careEvent: CareEventRecord) => {
   editingCareEvent.value = careEvent;
   isFormOpen.value = true;
+};
+
+const handleDeleteCareEvent = async (careEvent: CareEventRecord) => {
+  if (
+    !window.confirm(
+      t("careEvents.deleteConfirm", {
+        title: resolveCareEventTitle(careEvent),
+      }),
+    )
+  ) {
+    return;
+  }
+
+  isDeleting.value = true;
+  errorMessage.value = "";
+
+  try {
+    await careEventsStore.deleteCareEvent(careEvent.id);
+  } catch (error) {
+    errorMessage.value =
+      error instanceof Error ? error.message : t("careEvents.genericError");
+  } finally {
+    isDeleting.value = false;
+  }
 };
 
 const handleDialogModelChange = (value: boolean) => {
@@ -637,6 +662,15 @@ const openOverviewAnchor = async (anchor: string) => {
                   no-caps
                   :label="$t('careEvents.edit')"
                   @click="openEditDialog(careEvent)"
+                />
+                <q-btn
+                  flat
+                  color="negative"
+                  icon="delete"
+                  no-caps
+                  :loading="isDeleting"
+                  :label="$t('careEvents.deleteAction')"
+                  @click="handleDeleteCareEvent(careEvent)"
                 />
               </div>
             </div>

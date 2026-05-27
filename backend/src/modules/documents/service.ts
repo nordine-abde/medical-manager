@@ -129,6 +129,21 @@ export const createDocumentsService = (
     return document;
   },
 
+  async deleteDocument(
+    userId: string,
+    documentId: string,
+  ): Promise<DocumentRecord> {
+    const document = await repository.deleteAccessible(userId, documentId);
+
+    if (!document) {
+      throw new DocumentAccessError();
+    }
+
+    await storage.deleteDocument(document.stored_filename);
+
+    return document;
+  },
+
   async listDocuments(
     userId: string,
     patientId: string,

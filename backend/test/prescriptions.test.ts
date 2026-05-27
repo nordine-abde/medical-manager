@@ -399,6 +399,55 @@ describe("prescriptions module", () => {
     expect(filteredListResponse.status).toBe(200);
     expect(filteredListPayload.prescriptions).toHaveLength(1);
     expect(filteredListPayload.prescriptions[0]?.id).toBe(prescriptionId);
+
+    const deleteResponse = await getTestContext().app.handle(
+      new Request(`http://localhost/api/v1/prescriptions/${prescriptionId}`, {
+        headers: {
+          "x-test-user-id": "user-1",
+        },
+        method: "DELETE",
+      }),
+    );
+    const deletePayload = (await deleteResponse.json()) as PrescriptionPayload;
+
+    expect(deleteResponse.status).toBe(200);
+    expect(deletePayload.prescription.id).toBe(prescriptionId);
+    expect(deletePayload.prescription.deletedAt).not.toBeNull();
+
+    const activeListAfterDeleteResponse = await getTestContext().app.handle(
+      new Request(
+        `http://localhost/api/v1/patients/${patientId}/prescriptions`,
+        {
+          headers: {
+            "x-test-user-id": "user-1",
+          },
+        },
+      ),
+    );
+    const activeListAfterDeletePayload =
+      (await activeListAfterDeleteResponse.json()) as PrescriptionListPayload;
+
+    expect(activeListAfterDeleteResponse.status).toBe(200);
+    expect(activeListAfterDeletePayload.pagination.total).toBe(0);
+    expect(activeListAfterDeletePayload.prescriptions).toHaveLength(0);
+
+    const archivedListResponse = await getTestContext().app.handle(
+      new Request(
+        `http://localhost/api/v1/patients/${patientId}/prescriptions?includeArchived=true`,
+        {
+          headers: {
+            "x-test-user-id": "user-1",
+          },
+        },
+      ),
+    );
+    const archivedListPayload =
+      (await archivedListResponse.json()) as PrescriptionListPayload;
+
+    expect(archivedListResponse.status).toBe(200);
+    expect(archivedListPayload.pagination.total).toBe(1);
+    expect(archivedListPayload.prescriptions[0]?.id).toBe(prescriptionId);
+    expect(archivedListPayload.prescriptions[0]?.deletedAt).not.toBeNull();
   });
 
   it("lists prescriptions with pagination, filters, and subtype suggestions", async () => {

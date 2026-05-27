@@ -210,6 +210,35 @@ export const createBookingsRepository = (
       return booking ?? null;
     },
 
+    async deleteAccessible(
+      userId: string,
+      bookingId: string,
+    ): Promise<BookingRecord | null> {
+      const existingBooking = await this.findAccessibleById(userId, bookingId);
+
+      if (!existingBooking) {
+        return null;
+      }
+
+      const [deletedBooking] = await sql.unsafe<Array<{ id: string }>>(
+        `
+          update ${qualifiedBookingsTable}
+          set
+            deleted_at = coalesce(deleted_at, now()),
+            updated_at = now()
+          where id = $1
+          returning id
+        `,
+        [bookingId],
+      );
+
+      if (!deletedBooking) {
+        return null;
+      }
+
+      return this.findAccessibleById(userId, deletedBooking.id);
+    },
+
     async hasPatientAccess(
       userId: string,
       patientId: string,

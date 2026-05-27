@@ -321,6 +321,47 @@ describe("documents module", () => {
       "report.pdf",
     );
     expect(await downloadResponse.text()).toBe("pdf-binary-content");
+
+    const deleteResponse = await app.handle(
+      new Request(`http://localhost/api/v1/documents/${documentId}`, {
+        headers: {
+          "x-test-user-id": "user-1",
+        },
+        method: "DELETE",
+      }),
+    );
+    const deletePayload = (await deleteResponse.json()) as DocumentPayload;
+
+    expect(deleteResponse.status).toBe(200);
+    expect(deletePayload.document.id).toBe(documentId);
+
+    const listAfterDeleteResponse = await app.handle(
+      new Request(`http://localhost/api/v1/patients/${patientId}/documents`, {
+        headers: {
+          "x-test-user-id": "user-1",
+        },
+      }),
+    );
+    const listAfterDeletePayload =
+      (await listAfterDeleteResponse.json()) as DocumentListPayload;
+
+    expect(listAfterDeleteResponse.status).toBe(200);
+    expect(listAfterDeletePayload.documents).toHaveLength(0);
+
+    const downloadAfterDeleteResponse = await app.handle(
+      new Request(`http://localhost/api/v1/documents/${documentId}/download`, {
+        headers: {
+          "x-test-user-id": "user-1",
+        },
+      }),
+    );
+    const downloadAfterDeletePayload = await downloadAfterDeleteResponse.json();
+
+    expect(downloadAfterDeleteResponse.status).toBe(404);
+    expect(downloadAfterDeletePayload).toEqual({
+      error: "document_not_found",
+      message: "Document not found.",
+    });
   });
 
   it("uploads a document linked to a persisted care event", async () => {

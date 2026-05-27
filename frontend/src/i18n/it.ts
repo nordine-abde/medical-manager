@@ -176,6 +176,9 @@ export const it = {
     edit: "Modifica",
     editEyebrow: "Dettagli evento clinico",
     editTitle: "Aggiorna evento clinico",
+    deleteAction: "Elimina",
+    deleteConfirm:
+      "Eliminare l'evento clinico \"{title}\"? L'azione non puo essere annullata.",
     save: "Salva evento clinico",
     cancel: "Annulla",
     closeForm: "Chiudi il modulo evento clinico",
@@ -266,12 +269,16 @@ export const it = {
     uploadDescription:
       "Sono accettati PDF, JPG, PNG e WEBP. Collega ogni file al paziente o al record di lavoro che supporta.",
     uploadAction: "Carica documento",
+    uploadSuccess: "{filename} caricato correttamente.",
     openPageAction: "Apri documenti",
     listEyebrow: "File salvati",
     listTitle: "Archivio documenti",
     uploadedAt: "Caricato",
     linkedTo: "Collegato a",
     downloadAction: "Scarica",
+    deleteAction: "Elimina",
+    deleteConfirm:
+      'Eliminare il documento "{filename}"? Il file verra rimosso definitivamente.',
     backToOverview: "Torna alla panoramica",
     emptyEyebrow: "Elenco documenti",
     emptyTitle: "Nessun documento",
@@ -328,6 +335,9 @@ export const it = {
     edit: "Modifica",
     editEyebrow: "Dettagli prescrizione",
     editTitle: "Aggiorna prescrizione",
+    deleteAction: "Elimina",
+    deleteConfirm:
+      'Eliminare la prescrizione "{title}"? Non sara piu visibile nell\'elenco attivo.',
     save: "Salva prescrizione",
     cancel: "Annulla",
     closeForm: "Chiudi il modulo prescrizione",
@@ -421,6 +431,9 @@ export const it = {
     edit: "Modifica",
     editEyebrow: "Dettagli prenotazione",
     editTitle: "Aggiorna prenotazione",
+    deleteAction: "Elimina",
+    deleteConfirm:
+      'Eliminare la prenotazione "{title}"? Non sara piu visibile nell\'elenco attivo.',
     save: "Salva prenotazione",
     cancel: "Annulla",
     closeForm: "Chiudi il modulo prenotazione",

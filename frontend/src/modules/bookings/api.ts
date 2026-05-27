@@ -135,6 +135,20 @@ export const createBookingRequest = async (
   return response.booking;
 };
 
+export const deleteBookingRequest = async (
+  bookingId: string,
+): Promise<BookingRecord> => {
+  const response = await requestJson<BookingPayload>(
+    `/bookings/${bookingId}`,
+    {
+      method: "DELETE",
+    },
+    "Unable to delete the booking.",
+  );
+
+  return response.booking;
+};
+
 export const updateBookingRequest = async (
   bookingId: string,
   payload: Partial<BookingUpsertPayload>,

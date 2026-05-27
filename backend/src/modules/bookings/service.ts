@@ -125,6 +125,19 @@ export const createBookingsService = (
     return booking;
   },
 
+  async deleteBooking(
+    userId: string,
+    bookingId: string,
+  ): Promise<BookingRecord> {
+    const booking = await repository.deleteAccessible(userId, bookingId);
+
+    if (!booking) {
+      throw new BookingAccessError();
+    }
+
+    return booking;
+  },
+
   async updateBooking(
     userId: string,
     bookingId: string,

@@ -151,6 +151,22 @@ export const createPrescriptionsService = (
     return prescription;
   },
 
+  async deletePrescription(
+    userId: string,
+    prescriptionId: string,
+  ): Promise<PrescriptionRecord> {
+    const prescription = await repository.deleteAccessible(
+      userId,
+      prescriptionId,
+    );
+
+    if (!prescription) {
+      throw new PrescriptionAccessError();
+    }
+
+    return prescription;
+  },
+
   async updatePrescription(
     userId: string,
     prescriptionId: string,

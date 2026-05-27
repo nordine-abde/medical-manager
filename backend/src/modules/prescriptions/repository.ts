@@ -317,6 +317,38 @@ export const createPrescriptionsRepository = (
       return prescription ?? null;
     },
 
+    async deleteAccessible(
+      userId: string,
+      prescriptionId: string,
+    ): Promise<PrescriptionRecord | null> {
+      const existingPrescription = await this.findAccessibleById(
+        userId,
+        prescriptionId,
+      );
+
+      if (!existingPrescription) {
+        return null;
+      }
+
+      const [deletedPrescription] = await sql.unsafe<Array<{ id: string }>>(
+        `
+          update ${qualifiedPrescriptionsTable}
+          set
+            deleted_at = coalesce(deleted_at, now()),
+            updated_at = now()
+          where id = $1
+          returning id
+        `,
+        [prescriptionId],
+      );
+
+      if (!deletedPrescription) {
+        return null;
+      }
+
+      return this.findAccessibleById(userId, deletedPrescription.id);
+    },
+
     async hasPatientAccess(
       userId: string,
       patientId: string,

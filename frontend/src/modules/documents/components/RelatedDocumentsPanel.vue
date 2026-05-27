@@ -35,6 +35,7 @@ const documentsStore = useDocumentsStore();
 const { d, t } = useI18n();
 
 const errorMessage = ref("");
+const isDeleting = ref(false);
 const isSaving = ref(false);
 const selectedDocumentType = ref<DocumentType>("general_attachment");
 const selectedFile = ref<File | null>(null);
@@ -91,6 +92,30 @@ const handleUpload = async () => {
       error instanceof Error ? error.message : t("documents.genericError");
   } finally {
     isSaving.value = false;
+  }
+};
+
+const handleDeleteDocument = async (document: DocumentRecord) => {
+  if (
+    !window.confirm(
+      t("documents.deleteConfirm", {
+        filename: document.originalFilename,
+      }),
+    )
+  ) {
+    return;
+  }
+
+  errorMessage.value = "";
+  isDeleting.value = true;
+
+  try {
+    await documentsStore.deleteDocument(document.id);
+  } catch (error) {
+    errorMessage.value =
+      error instanceof Error ? error.message : t("documents.genericError");
+  } finally {
+    isDeleting.value = false;
   }
 };
 </script>
@@ -163,6 +188,15 @@ const handleUpload = async () => {
             :href="document.downloadUrl"
             :label="$t('documents.downloadAction')"
             target="_blank"
+          />
+          <q-btn
+            color="negative"
+            flat
+            no-caps
+            icon="delete"
+            :loading="isDeleting"
+            :label="$t('documents.deleteAction')"
+            @click="handleDeleteDocument(document)"
           />
         </div>
       </q-card>

@@ -3,6 +3,7 @@ import type { DocumentRecord } from "../documents/types";
 import {
   createPrescriptionRequest,
   createPrescriptionWithDocumentRequest,
+  deletePrescriptionRequest,
   listPrescriptionSubtypesRequest,
   listPrescriptionsRequest,
   updatePrescriptionRequest,
@@ -114,6 +115,24 @@ export const usePrescriptionsStore = defineStore("prescriptions", {
       }
 
       await this.loadPrescriptionSubtypes(lastPatientId);
+    },
+    async deletePrescription(
+      prescriptionId: string,
+    ): Promise<PrescriptionRecord> {
+      const prescription = await deletePrescriptionRequest(prescriptionId);
+
+      if (lastPatientId) {
+        await Promise.all([
+          this.refreshPrescriptions(),
+          this.refreshPrescriptionSubtypes(),
+        ]);
+      } else {
+        this.prescriptions = this.prescriptions.filter(
+          (item) => item.id !== prescriptionId,
+        );
+      }
+
+      return prescription;
     },
     async createPrescription(
       patientId: string,

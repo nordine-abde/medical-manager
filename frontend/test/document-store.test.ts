@@ -146,4 +146,77 @@ describe("useDocumentsStore", () => {
     expect(formData.get("notes")).toBe("Blood test panel");
     expect(formData.get("file")).toBe(file);
   });
+
+  it("deletes a document and removes it from the store", async () => {
+    const store = useDocumentsStore();
+
+    mockFetch
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            documents: [
+              {
+                documentType: "general_attachment",
+                downloadUrl: "/api/v1/documents/document-1/download",
+                fileSizeBytes: 512000,
+                id: "document-1",
+                mimeType: "application/pdf",
+                notes: "Upload",
+                originalFilename: "older.pdf",
+                patientId: "patient-1",
+                relatedEntityId: "patient-1",
+                relatedEntityType: "patient",
+                uploadedAt: "2026-03-18T09:00:00.000Z",
+                uploadedByUserId: "user-1",
+              },
+            ],
+          }),
+          {
+            headers: {
+              "content-type": "application/json",
+            },
+            status: 200,
+          },
+        ),
+      )
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            document: {
+              documentType: "general_attachment",
+              downloadUrl: "/api/v1/documents/document-1/download",
+              fileSizeBytes: 512000,
+              id: "document-1",
+              mimeType: "application/pdf",
+              notes: "Upload",
+              originalFilename: "older.pdf",
+              patientId: "patient-1",
+              relatedEntityId: "patient-1",
+              relatedEntityType: "patient",
+              uploadedAt: "2026-03-18T09:00:00.000Z",
+              uploadedByUserId: "user-1",
+            },
+          }),
+          {
+            headers: {
+              "content-type": "application/json",
+            },
+            status: 200,
+          },
+        ),
+      );
+
+    await store.loadDocuments("patient-1");
+    await store.deleteDocument("document-1");
+
+    expect(store.documents).toHaveLength(0);
+    expect(mockFetch).toHaveBeenNthCalledWith(
+      2,
+      "/api/v1/documents/document-1",
+      {
+        credentials: "include",
+        method: "DELETE",
+      },
+    );
+  });
 });

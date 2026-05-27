@@ -540,6 +540,31 @@ export const createPrescriptionsModule = (
         params: prescriptionIdParamsSchema,
       },
     )
+    .delete(
+      "/prescriptions/:prescriptionId",
+      async ({ params, request, status }) => {
+        try {
+          const session = await requireRequestSession(authInstance, request);
+          const prescription = await service.deletePrescription(
+            session.user.id,
+            params.prescriptionId,
+          );
+
+          return {
+            prescription: mapPrescription(prescription),
+          };
+        } catch (error) {
+          if (error instanceof PrescriptionAccessError) {
+            return status(404, prescriptionNotFoundPayload);
+          }
+
+          return status(401, unauthorizedPayload);
+        }
+      },
+      {
+        params: prescriptionIdParamsSchema,
+      },
+    )
     .patch(
       "/prescriptions/:prescriptionId",
       async ({ body, params, request, status }) => {

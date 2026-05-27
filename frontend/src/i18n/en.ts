@@ -186,6 +186,9 @@ export const en = {
     edit: "Edit",
     editEyebrow: "Care event details",
     editTitle: "Update care event",
+    deleteAction: "Delete",
+    deleteConfirm:
+      'Delete the care event "{title}"? This action cannot be undone.',
     save: "Save care event",
     cancel: "Cancel",
     closeForm: "Close care-event form",
@@ -281,6 +284,9 @@ export const en = {
     uploadedAt: "Uploaded",
     linkedTo: "Linked to",
     downloadAction: "Download",
+    deleteAction: "Delete",
+    deleteConfirm:
+      'Delete the document "{filename}"? The file will be permanently removed.',
     backToOverview: "Back to overview",
     emptyEyebrow: "Document list",
     emptyTitle: "No documents yet",
@@ -336,6 +342,9 @@ export const en = {
     edit: "Edit",
     editEyebrow: "Prescription details",
     editTitle: "Update prescription",
+    deleteAction: "Delete",
+    deleteConfirm:
+      'Delete the prescription "{title}"? It will no longer appear in the active list.',
     save: "Save prescription",
     cancel: "Cancel",
     closeForm: "Close prescription form",
@@ -427,6 +436,9 @@ export const en = {
     edit: "Edit",
     editEyebrow: "Booking details",
     editTitle: "Update booking",
+    deleteAction: "Delete",
+    deleteConfirm:
+      'Delete the booking "{title}"? It will no longer appear in the active list.',
     save: "Save booking",
     cancel: "Cancel",
     closeForm: "Close booking form",

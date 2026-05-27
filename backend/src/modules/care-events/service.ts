@@ -121,6 +121,19 @@ export const createCareEventsService = (
     return careEvent;
   },
 
+  async deleteCareEvent(
+    userId: string,
+    careEventId: string,
+  ): Promise<CareEventRecord> {
+    const careEvent = await repository.deleteAccessible(userId, careEventId);
+
+    if (!careEvent) {
+      throw new CareEventAccessError();
+    }
+
+    return careEvent;
+  },
+
   async listCareEvents(
     userId: string,
     patientId: string,

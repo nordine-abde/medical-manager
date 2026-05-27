@@ -3,6 +3,7 @@ import { defineStore } from "pinia";
 import {
   createBookingRequest,
   createFacilityRequest,
+  deleteBookingRequest,
   listBookingsRequest,
   listFacilitiesRequest,
   updateBookingRequest,
@@ -182,6 +183,17 @@ export const useBookingsStore = defineStore("bookings", {
 
       if (matchesFilters(booking, lastListFilters)) {
         this.bookings = upsertBooking(this.bookings, booking);
+      }
+
+      return booking;
+    },
+    async deleteBooking(bookingId: string): Promise<BookingRecord> {
+      const booking = await deleteBookingRequest(bookingId);
+
+      if (matchesFilters(booking, lastListFilters)) {
+        this.bookings = upsertBooking(this.bookings, booking);
+      } else {
+        this.bookings = this.bookings.filter((item) => item.id !== bookingId);
       }
 
       return booking;

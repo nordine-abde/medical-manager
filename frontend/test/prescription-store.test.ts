@@ -505,4 +505,117 @@ describe("usePrescriptionsStore", () => {
     expect(body.get("prescriptionType")).toBe("exam");
     expect(body.get("documentNotes")).toBe("Original prescription scan.");
   });
+
+  it("deletes a prescription and refreshes active lists", async () => {
+    const store = usePrescriptionsStore();
+
+    mockFetch
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            pagination: {
+              page: 1,
+              pageSize: 20,
+              total: 1,
+              totalPages: 1,
+            },
+            prescriptions: [
+              {
+                createdAt: "2026-03-19T00:00:00.000Z",
+                deletedAt: null,
+                expirationDate: null,
+                id: "prescription-1",
+                issueDate: "2026-03-19",
+                notes: null,
+                patientId: "patient-1",
+                prescriptionType: "exam",
+                subtype: "Blood test",
+                updatedAt: "2026-03-19T09:00:00.000Z",
+              },
+            ],
+          }),
+          {
+            headers: {
+              "content-type": "application/json",
+            },
+            status: 200,
+          },
+        ),
+      )
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            prescription: {
+              createdAt: "2026-03-19T00:00:00.000Z",
+              deletedAt: "2026-03-20T09:00:00.000Z",
+              expirationDate: null,
+              id: "prescription-1",
+              issueDate: "2026-03-19",
+              notes: null,
+              patientId: "patient-1",
+              prescriptionType: "exam",
+              subtype: "Blood test",
+              updatedAt: "2026-03-20T09:00:00.000Z",
+            },
+          }),
+          {
+            headers: {
+              "content-type": "application/json",
+            },
+            status: 200,
+          },
+        ),
+      )
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            pagination: {
+              page: 1,
+              pageSize: 20,
+              total: 0,
+              totalPages: 0,
+            },
+            prescriptions: [],
+          }),
+          {
+            headers: {
+              "content-type": "application/json",
+            },
+            status: 200,
+          },
+        ),
+      )
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            subtypesByType: {
+              exam: [],
+              medication: [],
+              therapy: [],
+              visit: [],
+            },
+          }),
+          {
+            headers: {
+              "content-type": "application/json",
+            },
+            status: 200,
+          },
+        ),
+      );
+
+    await store.loadPrescriptions("patient-1");
+    await store.deletePrescription("prescription-1");
+
+    expect(store.prescriptions).toHaveLength(0);
+    expect(mockFetch).toHaveBeenNthCalledWith(
+      2,
+      "/api/v1/prescriptions/prescription-1",
+      {
+        credentials: "include",
+        headers: {},
+        method: "DELETE",
+      },
+    );
+  });
 });

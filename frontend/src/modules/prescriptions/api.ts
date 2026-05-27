@@ -160,6 +160,20 @@ export const createPrescriptionRequest = async (
   return response.prescription;
 };
 
+export const deletePrescriptionRequest = async (
+  prescriptionId: string,
+): Promise<PrescriptionRecord> => {
+  const response = await requestJson<PrescriptionPayload>(
+    `/prescriptions/${prescriptionId}`,
+    {
+      method: "DELETE",
+    },
+    "Unable to delete the prescription.",
+  );
+
+  return response.prescription;
+};
+
 const appendNullableFormField = (
   body: FormData,
   key: string,

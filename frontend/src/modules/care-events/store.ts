@@ -4,6 +4,7 @@ import type { DocumentRecord, DocumentType } from "../documents/types";
 import {
   createCareEventRequest,
   createCareEventWithRelatedDataRequest,
+  deleteCareEventRequest,
   listCareEventSubtypesRequest,
   listCareEventsRequest,
   updateCareEventRequest,
@@ -114,7 +115,7 @@ export const useCareEventsStore = defineStore("care-events", {
         return;
       }
 
-      await this.loadCareEvents(lastPatientId);
+      await this.loadCareEvents(lastPatientId, lastListFilters);
     },
     async refreshCareEventSubtypes() {
       if (!lastPatientId) {
@@ -160,6 +161,22 @@ export const useCareEventsStore = defineStore("care-events", {
         this.refreshCareEventSubtypes(),
       ]);
       return result;
+    },
+    async deleteCareEvent(careEventId: string): Promise<CareEventRecord> {
+      const careEvent = await deleteCareEventRequest(careEventId);
+
+      if (lastPatientId) {
+        await Promise.all([
+          this.refreshCareEvents(),
+          this.refreshCareEventSubtypes(),
+        ]);
+      } else {
+        this.careEvents = this.careEvents.filter(
+          (item) => item.id !== careEventId,
+        );
+      }
+
+      return careEvent;
     },
     async updateCareEvent(
       careEventId: string,

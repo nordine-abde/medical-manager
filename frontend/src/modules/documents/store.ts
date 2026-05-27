@@ -1,6 +1,10 @@
 import { defineStore } from "pinia";
 
-import { listDocumentsRequest, uploadDocumentRequest } from "./api";
+import {
+  deleteDocumentRequest,
+  listDocumentsRequest,
+  uploadDocumentRequest,
+} from "./api";
 import type { DocumentRecord, DocumentUploadPayload } from "./types";
 
 interface DocumentsState {
@@ -67,6 +71,11 @@ export const useDocumentsStore = defineStore("documents", {
     ): Promise<DocumentRecord> {
       const document = await uploadDocumentRequest(patientId, payload);
       this.documents = upsertDocument(this.documents, document);
+      return document;
+    },
+    async deleteDocument(documentId: string): Promise<DocumentRecord> {
+      const document = await deleteDocumentRequest(documentId);
+      this.documents = this.documents.filter((item) => item.id !== documentId);
       return document;
     },
     recordDocument(document: DocumentRecord) {
