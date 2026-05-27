@@ -3,20 +3,32 @@ import type { DocumentRecord } from "../documents/types";
 import {
   createPrescriptionRequest,
   createPrescriptionWithDocumentRequest,
+  listPrescriptionSubtypesRequest,
   listPrescriptionsRequest,
   updatePrescriptionRequest,
   updatePrescriptionWithDocumentRequest,
 } from "./api";
 import type {
   PrescriptionListFilters,
+  PrescriptionPagination,
   PrescriptionRecord,
+  PrescriptionSubtypesByType,
   PrescriptionUpsertPayload,
 } from "./types";
 
 interface PrescriptionsState {
+  pagination: PrescriptionPagination;
   prescriptions: PrescriptionRecord[];
   status: "idle" | "loading" | "ready";
+  subtypesByType: PrescriptionSubtypesByType;
 }
+
+const emptyPrescriptionSubtypesByType = (): PrescriptionSubtypesByType => ({
+  exam: [],
+  medication: [],
+  therapy: [],
+  visit: [],
+});
 
 const sortPrescriptions = (
   prescriptions: PrescriptionRecord[],
@@ -33,50 +45,24 @@ const sortPrescriptions = (
     return left.prescriptionType.localeCompare(right.prescriptionType);
   });
 
-const upsertPrescription = (
-  prescriptions: PrescriptionRecord[],
-  prescription: PrescriptionRecord,
-): PrescriptionRecord[] => {
-  const existingIndex = prescriptions.findIndex(
-    (item) => item.id === prescription.id,
-  );
-
-  if (existingIndex === -1) {
-    return sortPrescriptions([...prescriptions, prescription]);
-  }
-
-  return sortPrescriptions(
-    prescriptions.map((item) =>
-      item.id === prescription.id ? prescription : item,
-    ),
-  );
-};
-
-const matchesFilters = (
-  prescription: PrescriptionRecord,
-  filters: PrescriptionListFilters,
-): boolean => {
-  if (!filters.includeArchived && prescription.deletedAt !== null) {
-    return false;
-  }
-
-  if (
-    filters.prescriptionType &&
-    prescription.prescriptionType !== filters.prescriptionType
-  ) {
-    return false;
-  }
-
-  return true;
-};
-
 let lastPatientId = "";
-let lastListFilters: PrescriptionListFilters = {};
+let lastListFilters: PrescriptionListFilters = {
+  includeArchived: false,
+  page: 1,
+  pageSize: 20,
+};
 
 export const usePrescriptionsStore = defineStore("prescriptions", {
   state: (): PrescriptionsState => ({
+    pagination: {
+      page: 1,
+      pageSize: 20,
+      total: 0,
+      totalPages: 0,
+    },
     prescriptions: [],
     status: "idle",
+    subtypesByType: emptyPrescriptionSubtypesByType(),
   }),
   actions: {
     async loadPrescriptions(
@@ -87,20 +73,33 @@ export const usePrescriptionsStore = defineStore("prescriptions", {
       lastPatientId = patientId;
       lastListFilters = {
         includeArchived: filters.includeArchived ?? false,
+        page: filters.page ?? 1,
+        pageSize: filters.pageSize ?? this.pagination.pageSize,
+        ...(filters.from ? { from: filters.from } : {}),
         ...(filters.prescriptionType
           ? { prescriptionType: filters.prescriptionType }
           : {}),
+        ...(filters.search?.trim() ? { search: filters.search.trim() } : {}),
+        ...(filters.subtype?.trim() ? { subtype: filters.subtype.trim() } : {}),
+        ...(filters.to ? { to: filters.to } : {}),
       };
 
       try {
-        this.prescriptions = sortPrescriptions(
-          await listPrescriptionsRequest(patientId, lastListFilters),
+        const result = await listPrescriptionsRequest(
+          patientId,
+          lastListFilters,
         );
+        this.prescriptions = sortPrescriptions(result.prescriptions);
+        this.pagination = result.pagination;
         this.status = "ready";
       } catch (error) {
         this.status = "ready";
         throw error;
       }
+    },
+    async loadPrescriptionSubtypes(patientId: string) {
+      lastPatientId = patientId;
+      this.subtypesByType = await listPrescriptionSubtypesRequest(patientId);
     },
     async refreshPrescriptions() {
       if (!lastPatientId) {
@@ -109,18 +108,24 @@ export const usePrescriptionsStore = defineStore("prescriptions", {
 
       await this.loadPrescriptions(lastPatientId, lastListFilters);
     },
+    async refreshPrescriptionSubtypes() {
+      if (!lastPatientId) {
+        return;
+      }
+
+      await this.loadPrescriptionSubtypes(lastPatientId);
+    },
     async createPrescription(
       patientId: string,
       payload: PrescriptionUpsertPayload,
     ): Promise<PrescriptionRecord> {
       const prescription = await createPrescriptionRequest(patientId, payload);
+      lastPatientId = patientId;
 
-      if (matchesFilters(prescription, lastListFilters)) {
-        this.prescriptions = upsertPrescription(
-          this.prescriptions,
-          prescription,
-        );
-      }
+      await Promise.all([
+        this.refreshPrescriptions(),
+        this.refreshPrescriptionSubtypes(),
+      ]);
 
       return prescription;
     },
@@ -138,13 +143,12 @@ export const usePrescriptionsStore = defineStore("prescriptions", {
         patientId,
         payload,
       );
+      lastPatientId = patientId;
 
-      if (matchesFilters(result.prescription, lastListFilters)) {
-        this.prescriptions = upsertPrescription(
-          this.prescriptions,
-          result.prescription,
-        );
-      }
+      await Promise.all([
+        this.refreshPrescriptions(),
+        this.refreshPrescriptionSubtypes(),
+      ]);
 
       return result;
     },
@@ -157,15 +161,11 @@ export const usePrescriptionsStore = defineStore("prescriptions", {
         payload,
       );
 
-      if (matchesFilters(prescription, lastListFilters)) {
-        this.prescriptions = upsertPrescription(
-          this.prescriptions,
-          prescription,
-        );
-      } else {
-        this.prescriptions = this.prescriptions.filter(
-          (item) => item.id !== prescriptionId,
-        );
+      if (lastPatientId) {
+        await Promise.all([
+          this.refreshPrescriptions(),
+          this.refreshPrescriptionSubtypes(),
+        ]);
       }
 
       return prescription;
@@ -185,15 +185,11 @@ export const usePrescriptionsStore = defineStore("prescriptions", {
         payload,
       );
 
-      if (matchesFilters(result.prescription, lastListFilters)) {
-        this.prescriptions = upsertPrescription(
-          this.prescriptions,
-          result.prescription,
-        );
-      } else {
-        this.prescriptions = this.prescriptions.filter(
-          (item) => item.id !== prescriptionId,
-        );
+      if (lastPatientId) {
+        await Promise.all([
+          this.refreshPrescriptions(),
+          this.refreshPrescriptionSubtypes(),
+        ]);
       }
 
       return result;

@@ -65,7 +65,22 @@ type PrescriptionPayload = {
 };
 
 type PrescriptionListPayload = {
+  pagination: {
+    page: number;
+    pageSize: number;
+    total: number;
+    totalPages: number;
+  };
   prescriptions: Array<PrescriptionPayload["prescription"]>;
+};
+
+type PrescriptionSubtypesPayload = {
+  subtypesByType: {
+    exam: string[];
+    medication: string[];
+    therapy: string[];
+    visit: string[];
+  };
 };
 
 let testContext: TestContext | null = null;
@@ -168,6 +183,45 @@ const insertPatient = async (
     `,
     [patientId, userId],
   );
+};
+
+const insertPrescription = async (
+  sql: postgres.Sql,
+  schemaName: string,
+  patientId: string,
+  input: {
+    issueDate: string;
+    notes?: string | null;
+    prescriptionType: "exam" | "medication" | "therapy" | "visit";
+    subtype?: string | null;
+  },
+): Promise<string> => {
+  const [prescription] = await sql.unsafe<Array<{ id: string }>>(
+    `
+      insert into "${schemaName}"."prescriptions" (
+        patient_id,
+        prescription_type,
+        subtype,
+        issue_date,
+        notes
+      )
+      values ($1, $2, $3, $4, $5)
+      returning id
+    `,
+    [
+      patientId,
+      input.prescriptionType,
+      input.subtype ?? null,
+      input.issueDate,
+      input.notes ?? null,
+    ],
+  );
+
+  if (!prescription) {
+    throw new Error("Failed to insert prescription");
+  }
+
+  return prescription.id;
 };
 
 beforeEach(async () => {
@@ -285,6 +339,12 @@ describe("prescriptions module", () => {
     expect(listResponse.status).toBe(200);
     expect(listPayload.prescriptions).toHaveLength(1);
     expect(listPayload.prescriptions[0]?.id).toBe(prescriptionId);
+    expect(listPayload.pagination).toMatchObject({
+      page: 1,
+      pageSize: 20,
+      total: 1,
+      totalPages: 1,
+    });
 
     const getResponse = await getTestContext().app.handle(
       new Request(`http://localhost/api/v1/prescriptions/${prescriptionId}`, {
@@ -339,6 +399,89 @@ describe("prescriptions module", () => {
     expect(filteredListResponse.status).toBe(200);
     expect(filteredListPayload.prescriptions).toHaveLength(1);
     expect(filteredListPayload.prescriptions[0]?.id).toBe(prescriptionId);
+  });
+
+  it("lists prescriptions with pagination, filters, and subtype suggestions", async () => {
+    const { app, schemaName, sql } = getTestContext();
+    const patientId = "11111111-1111-4111-8111-111111111111";
+
+    const bloodTestId = await insertPrescription(sql, schemaName, patientId, {
+      issueDate: "2026-03-01",
+      notes: "Routine controls",
+      prescriptionType: "exam",
+      subtype: "Blood test",
+    });
+    await insertPrescription(sql, schemaName, patientId, {
+      issueDate: "2026-04-01",
+      notes: "Cardio follow up",
+      prescriptionType: "visit",
+      subtype: "Cardiology",
+    });
+    await insertPrescription(sql, schemaName, patientId, {
+      issueDate: "2026-02-01",
+      notes: "Rehab cycle",
+      prescriptionType: "therapy",
+      subtype: "Physiotherapy",
+    });
+
+    const pagedResponse = await app.handle(
+      new Request(
+        `http://localhost/api/v1/patients/${patientId}/prescriptions?page=2&pageSize=1`,
+        {
+          headers: {
+            "x-test-user-id": "user-1",
+          },
+        },
+      ),
+    );
+    const pagedPayload =
+      (await pagedResponse.json()) as PrescriptionListPayload;
+
+    expect(pagedResponse.status).toBe(200);
+    expect(pagedPayload.pagination).toEqual({
+      page: 2,
+      pageSize: 1,
+      total: 3,
+      totalPages: 3,
+    });
+    expect(pagedPayload.prescriptions[0]?.id).toBe(bloodTestId);
+
+    const searchResponse = await app.handle(
+      new Request(
+        `http://localhost/api/v1/patients/${patientId}/prescriptions?search=cardio&from=2026-03-01&to=2026-04-30`,
+        {
+          headers: {
+            "x-test-user-id": "user-1",
+          },
+        },
+      ),
+    );
+    const searchPayload =
+      (await searchResponse.json()) as PrescriptionListPayload;
+
+    expect(searchResponse.status).toBe(200);
+    expect(searchPayload.pagination.total).toBe(1);
+    expect(searchPayload.prescriptions[0]?.subtype).toBe("Cardiology");
+
+    const subtypesResponse = await app.handle(
+      new Request(
+        `http://localhost/api/v1/patients/${patientId}/prescription-subtypes`,
+        {
+          headers: {
+            "x-test-user-id": "user-1",
+          },
+        },
+      ),
+    );
+    const subtypesPayload =
+      (await subtypesResponse.json()) as PrescriptionSubtypesPayload;
+
+    expect(subtypesResponse.status).toBe(200);
+    expect(subtypesPayload.subtypesByType).toMatchObject({
+      exam: ["Blood test"],
+      therapy: ["Physiotherapy"],
+      visit: ["Cardiology"],
+    });
   });
 
   it("accepts every supported prescription type and normalizes the legacy alias", async () => {

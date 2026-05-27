@@ -1,7 +1,9 @@
 import type { DocumentRecord } from "../documents/types";
 import type {
   PrescriptionListFilters,
+  PrescriptionListResult,
   PrescriptionRecord,
+  PrescriptionSubtypesByType,
   PrescriptionUpsertPayload,
 } from "./types";
 
@@ -22,17 +24,16 @@ interface PrescriptionWithDocumentPayload {
 }
 
 interface PrescriptionsPayload {
+  pagination: PrescriptionListResult["pagination"];
   prescriptions: PrescriptionRecord[];
 }
 
-const buildRequestHeaders = (body?: BodyInit | null): HeadersInit => {
-  if (body === undefined || body === null) {
-    return {};
-  }
+interface PrescriptionSubtypesPayload {
+  subtypesByType: PrescriptionSubtypesByType;
+}
 
-  return {
-    "content-type": "application/json",
-  };
+const buildRequestHeaders = (body?: BodyInit | null): HeadersInit => {
+  return typeof body === "string" ? { "content-type": "application/json" } : {};
 };
 
 const readErrorMessage = async (
@@ -74,12 +75,36 @@ const requestJson = async <T>(
 const toQueryString = (filters: PrescriptionListFilters): string => {
   const searchParams = new URLSearchParams();
 
+  if (filters.from) {
+    searchParams.set("from", filters.from);
+  }
+
   if (filters.includeArchived) {
     searchParams.set("includeArchived", "true");
   }
 
+  if (filters.page) {
+    searchParams.set("page", String(filters.page));
+  }
+
+  if (filters.pageSize) {
+    searchParams.set("pageSize", String(filters.pageSize));
+  }
+
   if (filters.prescriptionType) {
     searchParams.set("prescriptionType", filters.prescriptionType);
+  }
+
+  if (filters.search?.trim()) {
+    searchParams.set("search", filters.search.trim());
+  }
+
+  if (filters.subtype?.trim()) {
+    searchParams.set("subtype", filters.subtype.trim());
+  }
+
+  if (filters.to) {
+    searchParams.set("to", filters.to);
   }
 
   const queryString = searchParams.toString();
@@ -90,7 +115,7 @@ const toQueryString = (filters: PrescriptionListFilters): string => {
 export const listPrescriptionsRequest = async (
   patientId: string,
   filters: PrescriptionListFilters = {},
-): Promise<PrescriptionRecord[]> => {
+): Promise<PrescriptionListResult> => {
   const payload = await requestJson<PrescriptionsPayload>(
     `/patients/${patientId}/prescriptions${toQueryString(filters)}`,
     {
@@ -99,7 +124,24 @@ export const listPrescriptionsRequest = async (
     "Unable to load prescriptions.",
   );
 
-  return payload.prescriptions;
+  return {
+    pagination: payload.pagination,
+    prescriptions: payload.prescriptions,
+  };
+};
+
+export const listPrescriptionSubtypesRequest = async (
+  patientId: string,
+): Promise<PrescriptionSubtypesByType> => {
+  const payload = await requestJson<PrescriptionSubtypesPayload>(
+    `/patients/${patientId}/prescription-subtypes`,
+    {
+      method: "GET",
+    },
+    "Unable to load prescription subtypes.",
+  );
+
+  return payload.subtypesByType;
 };
 
 export const createPrescriptionRequest = async (

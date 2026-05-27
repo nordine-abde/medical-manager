@@ -6,6 +6,7 @@ import { mapDocument } from "../documents/dto";
 import { UnsupportedDocumentMimeTypeError } from "../documents/storage";
 import {
   legacyPrescriptionTypeAlias,
+  type PrescriptionListFilters,
   type PrescriptionType,
   prescriptionTypes,
 } from "./repository";
@@ -73,8 +74,14 @@ const prescriptionUpdateBodySchema = t.Object({
 });
 
 const prescriptionListQuerySchema = t.Object({
+  from: t.Optional(t.String()),
   includeArchived: t.Optional(t.Union([t.Literal("true"), t.Literal("false")])),
+  page: t.Optional(t.String()),
+  pageSize: t.Optional(t.String()),
   prescriptionType: t.Optional(prescriptionTypeSchema),
+  search: t.Optional(t.String()),
+  subtype: t.Optional(t.String()),
+  to: t.Optional(t.String()),
 });
 
 const unauthorizedPayload = {
@@ -166,12 +173,105 @@ const mapPrescription = (prescription: {
 const parseIncludeArchived = (value?: "true" | "false"): boolean =>
   value === "true";
 
+const normalizeOptionalQueryText = (value?: string): string | undefined => {
+  const normalized = value?.trim();
+  return normalized ? normalized : undefined;
+};
+
+const parsePositiveInteger = (
+  value: string | undefined,
+  fallback: number,
+): number => {
+  const parsed = Number.parseInt(value ?? "", 10);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
+};
+
+const buildPagination = (query: {
+  page?: string;
+  pageSize?: string;
+}): {
+  page: number;
+  pageSize: number;
+} => {
+  const page = parsePositiveInteger(query.page, 1);
+  const pageSize = Math.min(parsePositiveInteger(query.pageSize, 20), 100);
+
+  return {
+    page,
+    pageSize,
+  };
+};
+
 const normalizePrescriptionType = (
   prescriptionType: string,
 ): PrescriptionType =>
   prescriptionType === legacyPrescriptionTypeAlias
     ? "visit"
     : (prescriptionType as PrescriptionType);
+
+const buildPrescriptionListFilters = (query: {
+  from?: string;
+  includeArchived?: "true" | "false";
+  page?: string;
+  pageSize?: string;
+  prescriptionType?: (typeof acceptedPrescriptionTypes)[number];
+  search?: string;
+  subtype?: string;
+  to?: string;
+}): PrescriptionListFilters => {
+  const filters: PrescriptionListFilters = {
+    ...buildPagination(query),
+    includeArchived: parseIncludeArchived(query.includeArchived),
+  };
+  const from = normalizeOptionalQueryText(query.from);
+  const search = normalizeOptionalQueryText(query.search);
+  const subtype = normalizeOptionalQueryText(query.subtype);
+  const to = normalizeOptionalQueryText(query.to);
+
+  if (query.prescriptionType) {
+    filters.prescriptionType = normalizePrescriptionType(
+      query.prescriptionType,
+    );
+  }
+
+  if (from) {
+    filters.from = from;
+  }
+
+  if (search) {
+    filters.search = search;
+  }
+
+  if (subtype) {
+    filters.subtype = subtype;
+  }
+
+  if (to) {
+    filters.to = to;
+  }
+
+  return filters;
+};
+
+const mapPrescriptionSubtypesByType = (
+  subtypes: Array<{
+    prescription_type: PrescriptionType;
+    subtype: string;
+  }>,
+) => {
+  const subtypeMap: Record<PrescriptionType, string[]> = {
+    exam: [],
+    medication: [],
+    therapy: [],
+    visit: [],
+  };
+
+  for (const subtype of subtypes) {
+    subtypeMap[subtype.prescription_type].push(subtype.subtype);
+  }
+
+  return subtypeMap;
+};
 
 const parseCreatePrescriptionDocumentFormData = async (request: Request) => {
   const formData = await request.formData();
@@ -267,27 +367,49 @@ export const createPrescriptionsModule = (
 ) =>
   new Elysia({ name: "prescriptions-module" })
     .get(
+      "/patients/:patientId/prescription-subtypes",
+      async ({ params, request, status }) => {
+        try {
+          const session = await requireRequestSession(authInstance, request);
+          const subtypes = await service.listPrescriptionSubtypes(
+            session.user.id,
+            params.patientId,
+          );
+
+          return {
+            subtypesByType: mapPrescriptionSubtypesByType(subtypes),
+          };
+        } catch (error) {
+          if (error instanceof PatientPrescriptionAccessError) {
+            return status(404, patientNotFoundPayload);
+          }
+
+          return status(401, unauthorizedPayload);
+        }
+      },
+      {
+        params: patientIdParamsSchema,
+      },
+    )
+    .get(
       "/patients/:patientId/prescriptions",
       async ({ params, query, request, status }) => {
         try {
           const session = await requireRequestSession(authInstance, request);
-          const prescriptions = await service.listPrescriptions(
+          const result = await service.listPrescriptions(
             session.user.id,
             params.patientId,
-            {
-              includeArchived: parseIncludeArchived(query.includeArchived),
-              ...(query.prescriptionType === undefined
-                ? {}
-                : {
-                    prescriptionType: normalizePrescriptionType(
-                      query.prescriptionType,
-                    ),
-                  }),
-            },
+            buildPrescriptionListFilters(query),
           );
 
           return {
-            prescriptions: prescriptions.map(mapPrescription),
+            pagination: {
+              page: result.page,
+              pageSize: result.pageSize,
+              total: result.total,
+              totalPages: result.totalPages,
+            },
+            prescriptions: result.items.map(mapPrescription),
           };
         } catch (error) {
           if (error instanceof PatientPrescriptionAccessError) {

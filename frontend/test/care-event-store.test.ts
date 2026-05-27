@@ -359,6 +359,7 @@ describe("useCareEventsStore", () => {
       "/api/v1/patients/patient-1/care-events/with-related-data",
     );
     expect(init?.method).toBe("POST");
+    expect(init?.headers).toEqual({});
 
     const body = init?.body as FormData;
     expect(body.get("file")).toBe(file);

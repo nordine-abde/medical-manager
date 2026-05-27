@@ -34,13 +34,7 @@ interface CareEventSubtypesPayload {
 }
 
 const buildRequestHeaders = (body?: BodyInit | null): HeadersInit => {
-  if (body === undefined || body === null) {
-    return {};
-  }
-
-  return {
-    "content-type": "application/json",
-  };
+  return typeof body === "string" ? { "content-type": "application/json" } : {};
 };
 
 const readErrorMessage = async (

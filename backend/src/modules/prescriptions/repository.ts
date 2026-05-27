@@ -51,8 +51,25 @@ export type PrescriptionWithDocumentRecord = {
   prescription: PrescriptionRecord;
 };
 export type PrescriptionListFilters = {
+  from?: string;
   includeArchived: boolean;
+  page: number;
+  pageSize: number;
   prescriptionType?: PrescriptionType;
+  search?: string;
+  subtype?: string;
+  to?: string;
+};
+export type PrescriptionListResult = {
+  items: PrescriptionRecord[];
+  page: number;
+  pageSize: number;
+  total: number;
+  totalPages: number;
+};
+export type PrescriptionSubtypeOption = {
+  prescription_type: PrescriptionType;
+  subtype: string;
 };
 
 const patientsTable = (schemaName: string): string =>
@@ -324,14 +341,50 @@ export const createPrescriptionsRepository = (
       userId: string,
       patientId: string,
       filters: PrescriptionListFilters,
-    ): Promise<PrescriptionRecord[] | null> {
+    ): Promise<PrescriptionListResult | null> {
       const hasAccess = await this.hasPatientAccess(userId, patientId);
 
       if (!hasAccess) {
         return null;
       }
 
-      return sql.unsafe<PrescriptionRecord[]>(
+      const search = filters.search?.trim().toLowerCase() ?? null;
+      const subtype = filters.subtype?.trim().toLowerCase() ?? null;
+      const offset = (filters.page - 1) * filters.pageSize;
+      const filterParams = [
+        patientId,
+        filters.includeArchived,
+        filters.prescriptionType ?? null,
+        search,
+        subtype,
+        filters.from ?? null,
+        filters.to ?? null,
+      ];
+      const whereClause = `
+        p.patient_id = $1
+        and ($2 or p.deleted_at is null)
+        and ($3::${qualifiedPrescriptionTypeType} is null or p.prescription_type = $3::${qualifiedPrescriptionTypeType})
+        and (
+          $4::text is null
+          or lower(coalesce(p.subtype, '')) like '%' || $4 || '%'
+          or lower(coalesce(p.notes, '')) like '%' || $4 || '%'
+          or p.prescription_type::text like '%' || $4 || '%'
+        )
+        and ($5::text is null or lower(coalesce(p.subtype, '')) = $5)
+        and ($6::date is null or p.issue_date >= $6::date)
+        and ($7::date is null or p.issue_date <= $7::date)
+      `;
+
+      const [countResult] = await sql.unsafe<Array<{ total: string }>>(
+        `
+          select count(*)::text as total
+          from ${qualifiedPrescriptionsTable} as p
+          where ${whereClause}
+        `,
+        filterParams,
+      );
+
+      const items = await sql.unsafe<PrescriptionRecord[]>(
         `
           select
             p.id,
@@ -345,15 +398,53 @@ export const createPrescriptionsRepository = (
             p.created_at,
             p.updated_at
           from ${qualifiedPrescriptionsTable} as p
-          where p.patient_id = $1
-            and ($2 or p.deleted_at is null)
-            and ($3::${qualifiedPrescriptionTypeType} is null or p.prescription_type = $3::${qualifiedPrescriptionTypeType})
+          where ${whereClause}
           order by
             p.deleted_at asc nulls first,
             p.issue_date desc nulls last,
-            p.created_at desc
+            p.created_at desc,
+            p.id desc
+          limit $8
+          offset $9
         `,
-        [patientId, filters.includeArchived, filters.prescriptionType ?? null],
+        [...filterParams, filters.pageSize, offset],
+      );
+
+      const total = Number.parseInt(countResult?.total ?? "0", 10);
+
+      return {
+        items,
+        page: filters.page,
+        pageSize: filters.pageSize,
+        total,
+        totalPages: Math.ceil(total / filters.pageSize),
+      };
+    },
+
+    async listSubtypesByPatient(
+      userId: string,
+      patientId: string,
+    ): Promise<PrescriptionSubtypeOption[] | null> {
+      const hasAccess = await this.hasPatientAccess(userId, patientId);
+
+      if (!hasAccess) {
+        return null;
+      }
+
+      return sql.unsafe<PrescriptionSubtypeOption[]>(
+        `
+          select
+            p.prescription_type,
+            btrim(p.subtype) as subtype
+          from ${qualifiedPrescriptionsTable} as p
+          where p.patient_id = $1
+            and p.deleted_at is null
+            and p.subtype is not null
+            and btrim(p.subtype) <> ''
+          group by p.prescription_type, btrim(p.subtype)
+          order by p.prescription_type, btrim(p.subtype)
+        `,
+        [patientId],
       );
     },
 

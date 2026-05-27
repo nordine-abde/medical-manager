@@ -317,8 +317,11 @@ export const it = {
   prescriptions: {
     eyebrow: "Monitor prescrizioni",
     title: "Prescrizioni",
+    subtitle:
+      "Gestisci ricette, scadenze e documenti caricati per {patientName} con gli stessi filtri dello storico clinico.",
     description:
       "Segui il flusso con medico di base e ritiro nel contesto del paziente, mantieni visibili le date chiave e torna rapidamente all'attivita collegata quando esiste.",
+    backToOverview: "Torna alla panoramica",
     createAction: "Aggiungi prescrizione",
     createEyebrow: "Nuova prescrizione",
     createTitle: "Aggiungi una prescrizione per questo paziente",
@@ -330,12 +333,19 @@ export const it = {
     closeForm: "Chiudi il modulo prescrizione",
     openTask: "Apri attivita collegata",
     advanceAction: "Passa a {status}",
+    summaryCount: "{count} prescrizioni registrate",
+    downloadDocumentLink: "Scarica {filename}",
+    archivedBadge: "Archiviata",
     emptyEyebrow: "Elenco prescrizioni",
     emptyTitle: "Nessuna prescrizione ancora",
     emptyDescription:
       "Aggiungi la prima prescrizione per mantenere visibile il flusso con il medico di base e il ritiro.",
+    emptyFilteredTitle: "Nessuna prescrizione corrisponde ai filtri",
+    emptyFilteredDescription:
+      "Modifica ricerca, sottotipo, tipo prescrizione o intervallo date per ampliare l'elenco.",
     emptyDate: "Non registrata",
     emptyNotes: "Nessuna nota per questa prescrizione.",
+    emptySubtype: "Nessun sottotipo registrato",
     genericError:
       "Qualcosa e andato storto durante il caricamento delle prescrizioni.",
     linkedDocumentsEyebrow: "Documenti collegati",
@@ -350,6 +360,20 @@ export const it = {
     createTaskInline: "Crea una attivita collegata in questo modulo",
     documentSectionTitle: "Documento ricetta",
     defaultInlineTaskTitle: "Prenota {subtype}",
+    filters: {
+      allTypes: "Tutti i tipi",
+      apply: "Applica filtri",
+      dateRangeError:
+        "La data iniziale non puo essere successiva alla data finale.",
+      endDateLabel: "Emessa entro",
+      includeArchived: "Includi archiviate",
+      reset: "Reimposta",
+      searchLabel: "Cerca",
+      searchPlaceholder: "Cerca per note, tipo o sottotipo...",
+      startDateLabel: "Emessa dal",
+      subtypeLabel: "Sottotipo",
+      typeLabel: "Tipo prescrizione",
+    },
     fields: {
       expirationDate: "Data di scadenza",
       issueDate: "Data emissione",
@@ -381,6 +405,7 @@ export const it = {
     },
     types: {
       exam: "Esame",
+      medication: "Farmaco",
       therapy: "Terapia",
       visit: "Visita",
     },

@@ -325,8 +325,11 @@ export const en = {
   prescriptions: {
     eyebrow: "Prescription tracker",
     title: "Prescriptions",
+    subtitle:
+      "Manage prescriptions, due dates, and uploaded documents for {patientName} with the same filters used by the clinical history.",
     description:
       "Track GP and collection workflow in patient context, keep key dates visible, and jump back to the related task when follow-up work is already linked.",
+    backToOverview: "Back to overview",
     createAction: "Add prescription",
     createEyebrow: "New prescription",
     createTitle: "Add a prescription for this patient",
@@ -338,12 +341,19 @@ export const en = {
     closeForm: "Close prescription form",
     openTask: "Open linked task",
     advanceAction: "Move to {status}",
+    summaryCount: "{count} recorded prescriptions",
+    downloadDocumentLink: "Download {filename}",
+    archivedBadge: "Archived",
     emptyEyebrow: "Prescription list",
     emptyTitle: "No prescriptions yet",
     emptyDescription:
       "Add the first prescription to keep the GP workflow and collection path visible.",
+    emptyFilteredTitle: "No prescriptions match these filters",
+    emptyFilteredDescription:
+      "Adjust the search, subtype, prescription type, or date range to widen the list.",
     emptyDate: "Not recorded",
     emptyNotes: "No notes added for this prescription.",
+    emptySubtype: "No subtype recorded",
     genericError: "Something went wrong while loading prescriptions.",
     linkedDocumentsEyebrow: "Linked documents",
     linkedDocumentsTitle: "Attached files",
@@ -357,6 +367,19 @@ export const en = {
     createTaskInline: "Create a linked task in this form",
     documentSectionTitle: "Ricetta document",
     defaultInlineTaskTitle: "Book {subtype}",
+    filters: {
+      allTypes: "All types",
+      apply: "Apply filters",
+      dateRangeError: "The start date cannot be after the end date.",
+      endDateLabel: "Issued by",
+      includeArchived: "Include archived",
+      reset: "Reset",
+      searchLabel: "Search",
+      searchPlaceholder: "Search notes, type, or subtype...",
+      startDateLabel: "Issued from",
+      subtypeLabel: "Subtype",
+      typeLabel: "Prescription type",
+    },
     fields: {
       expirationDate: "Expiration date",
       issueDate: "Issue date",
@@ -388,6 +411,7 @@ export const en = {
     },
     types: {
       exam: "Exam",
+      medication: "Medication",
       therapy: "Therapy",
       visit: "Visit",
     },

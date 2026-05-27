@@ -76,7 +76,7 @@ const loadPage = async () => {
     await Promise.all([
       bookingsStore.loadBookings(patientId.value),
       bookingsStore.loadFacilities(),
-      prescriptionsStore.loadPrescriptions(patientId.value),
+      prescriptionsStore.loadPrescriptions(patientId.value, { pageSize: 100 }),
       documentsStore.loadDocuments(patientId.value),
     ]);
   } finally {

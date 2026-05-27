@@ -9,7 +9,9 @@ import {
   type CreatePrescriptionInput,
   createPrescriptionsRepository,
   type PrescriptionListFilters,
+  type PrescriptionListResult,
   type PrescriptionRecord,
+  type PrescriptionSubtypeOption,
   type PrescriptionsRepository,
   type PrescriptionWithDocumentRecord,
   type UpdatePrescriptionInput,
@@ -49,18 +51,27 @@ export const createPrescriptionsService = (
     userId: string,
     patientId: string,
     filters: PrescriptionListFilters,
-  ): Promise<PrescriptionRecord[]> {
-    const prescriptions = await repository.listByPatient(
-      userId,
-      patientId,
-      filters,
-    );
+  ): Promise<PrescriptionListResult> {
+    const result = await repository.listByPatient(userId, patientId, filters);
 
-    if (!prescriptions) {
+    if (!result) {
       throw new PatientPrescriptionAccessError();
     }
 
-    return prescriptions;
+    return result;
+  },
+
+  async listPrescriptionSubtypes(
+    userId: string,
+    patientId: string,
+  ): Promise<PrescriptionSubtypeOption[]> {
+    const subtypes = await repository.listSubtypesByPatient(userId, patientId);
+
+    if (!subtypes) {
+      throw new PatientPrescriptionAccessError();
+    }
+
+    return subtypes;
   },
 
   async createPrescription(
