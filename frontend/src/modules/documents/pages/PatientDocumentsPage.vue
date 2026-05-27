@@ -5,6 +5,7 @@ import { useI18n } from "vue-i18n";
 
 import { useBookingsStore } from "../../bookings/store";
 import type { BookingRecord } from "../../bookings/types";
+import { formatBookingDisplayLabel } from "../../bookings/utils";
 import { useDocumentsStore } from "../store";
 import {
   documentTypes,
@@ -71,9 +72,11 @@ const relatedEntityOptions = computed<RelatedEntityOption[]>(() => {
   }
 
   for (const prescription of prescriptions.value) {
+    const prescriptionLabel = formatPrescriptionCaption(prescription);
+
     options.push({
-      caption: formatPrescriptionCaption(prescription),
-      label: t(`documents.relatedEntityLabels.prescription`),
+      caption: prescriptionLabel,
+      label: `${t("documents.relatedEntityLabels.prescription")} — ${prescriptionLabel}`,
       relatedEntityId: prescription.id,
       relatedEntityType: "prescription",
       value: `prescription:${prescription.id}`,
@@ -81,9 +84,11 @@ const relatedEntityOptions = computed<RelatedEntityOption[]>(() => {
   }
 
   for (const booking of bookings.value) {
+    const bookingLabel = formatBookingCaption(booking);
+
     options.push({
-      caption: formatBookingCaption(booking),
-      label: t(`documents.relatedEntityLabels.booking`),
+      caption: bookingLabel,
+      label: `${t("documents.relatedEntityLabels.booking")} — ${bookingLabel}`,
       relatedEntityId: booking.id,
       relatedEntityType: "booking",
       value: `booking:${booking.id}`,
@@ -194,22 +199,12 @@ function formatPrescriptionCaption(prescription: PrescriptionRecord): string {
   return formatPrescriptionDisplayLabel(prescription, { d, t });
 }
 
-function resolveFacilityName(facilityId: string | null): string | null {
-  return facilities.value.find((facility) => facility.id === facilityId)?.name ?? null;
-}
-
 function formatBookingCaption(booking: BookingRecord): string {
-  const facilityName = resolveFacilityName(booking.facilityId);
-
-  if (booking.appointmentAt) {
-    const appointmentLabel = d(new Date(booking.appointmentAt), "short");
-
-    return facilityName
-      ? `${appointmentLabel} · ${facilityName}`
-      : appointmentLabel;
-  }
-
-  return facilityName ?? t("documents.fallbacks.noDate");
+  return formatBookingDisplayLabel(booking, {
+    d,
+    facilities: facilities.value,
+    t,
+  });
 }
 
 const resolveLinkedEntityLabel = (document: DocumentRecord): string => {

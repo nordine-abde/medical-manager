@@ -23,7 +23,7 @@ describe("useBookingsStore", () => {
             bookings: [
               {
                 appointmentAt: "2026-03-24T10:00:00.000Z",
-                bookedAt: "2026-03-20T09:00:00.000Z",
+                bookedAt: "2026-03-20T11:00:00.000Z",
                 createdAt: "2026-03-20T09:00:00.000Z",
                 deletedAt: null,
                 facilityId: "facility-1",
@@ -137,7 +137,80 @@ describe("useBookingsStore", () => {
     });
   });
 
-  it("updates booking details and workflow status through separate endpoints", async () => {
+  it("creates a booking with a nested facility through the booking endpoint", async () => {
+    const store = useBookingsStore();
+
+    mockFetch.mockResolvedValueOnce(
+      new Response(
+        JSON.stringify({
+          booking: {
+            appointmentAt: "2026-03-24T10:00:00.000Z",
+            bookedAt: "2026-03-20T09:00:00.000Z",
+            createdAt: "2026-03-20T09:00:00.000Z",
+            deletedAt: null,
+            facilityId: "facility-3",
+            id: "booking-4",
+            notes: "First visit at a new facility.",
+            patientId: "patient-1",
+            prescriptionId: "prescription-1",
+            status: "booked",
+            taskId: "task-4",
+            updatedAt: "2026-03-20T09:00:00.000Z",
+          },
+        }),
+        {
+          headers: { "content-type": "application/json" },
+          status: 200,
+        },
+      ),
+    );
+
+    const booking = await store.createBooking("patient-1", {
+      appointmentAt: "2026-03-24T10:00:00.000Z",
+      bookedAt: "2026-03-20T09:00:00.000Z",
+      facility: {
+        address: "Via Nuova 1",
+        city: "Milan",
+        facilityType: "Clinic",
+        name: "New Care Clinic",
+        notes: null,
+      },
+      facilityId: null,
+      notes: "First visit at a new facility.",
+      prescriptionId: "prescription-1",
+      status: "booked",
+    });
+
+    expect(booking.facilityId).toBe("facility-3");
+    expect(mockFetch).toHaveBeenCalledTimes(1);
+    expect(mockFetch).toHaveBeenCalledWith(
+      "/api/v1/patients/patient-1/bookings",
+      {
+        body: JSON.stringify({
+          appointmentAt: "2026-03-24T10:00:00.000Z",
+          bookedAt: "2026-03-20T09:00:00.000Z",
+          facility: {
+            address: "Via Nuova 1",
+            city: "Milan",
+            facilityType: "Clinic",
+            name: "New Care Clinic",
+            notes: null,
+          },
+          facilityId: null,
+          notes: "First visit at a new facility.",
+          prescriptionId: "prescription-1",
+          status: "booked",
+        }),
+        credentials: "include",
+        headers: {
+          "content-type": "application/json",
+        },
+        method: "POST",
+      },
+    );
+  });
+
+  it("updates booking details and workflow status through one endpoint", async () => {
     const store = useBookingsStore();
 
     mockFetch
@@ -155,35 +228,11 @@ describe("useBookingsStore", () => {
                 notes: "Baseline cardiology review.",
                 patientId: "patient-1",
                 prescriptionId: "prescription-1",
-                status: "booking_in_progress",
+                status: "booked",
                 taskId: "task-3",
                 updatedAt: "2026-03-20T09:00:00.000Z",
               },
             ],
-          }),
-          {
-            headers: { "content-type": "application/json" },
-            status: 200,
-          },
-        ),
-      )
-      .mockResolvedValueOnce(
-        new Response(
-          JSON.stringify({
-            booking: {
-              appointmentAt: "2026-03-24T11:00:00.000Z",
-              bookedAt: "2026-03-20T09:00:00.000Z",
-              createdAt: "2026-03-20T09:00:00.000Z",
-              deletedAt: null,
-              facilityId: "facility-2",
-              id: "booking-3",
-              notes: "Moved to the afternoon intake queue.",
-              patientId: "patient-1",
-              prescriptionId: "prescription-1",
-              status: "booking_in_progress",
-              taskId: "task-3",
-              updatedAt: "2026-03-20T10:30:00.000Z",
-            },
           }),
           {
             headers: { "content-type": "application/json" },
@@ -238,8 +287,10 @@ describe("useBookingsStore", () => {
     expect(mockFetch).toHaveBeenNthCalledWith(2, "/api/v1/bookings/booking-3", {
       body: JSON.stringify({
         appointmentAt: "2026-03-24T11:00:00.000Z",
+        bookedAt: "2026-03-20T11:00:00.000Z",
         facilityId: "facility-2",
         notes: "Moved to the afternoon intake queue.",
+        status: "booked",
       }),
       credentials: "include",
       headers: {
@@ -247,20 +298,6 @@ describe("useBookingsStore", () => {
       },
       method: "PATCH",
     });
-    expect(mockFetch).toHaveBeenNthCalledWith(
-      3,
-      "/api/v1/bookings/booking-3/status",
-      {
-        body: JSON.stringify({
-          bookedAt: "2026-03-20T11:00:00.000Z",
-          status: "booked",
-        }),
-        credentials: "include",
-        headers: {
-          "content-type": "application/json",
-        },
-        method: "POST",
-      },
-    );
+    expect(mockFetch).toHaveBeenCalledTimes(2);
   });
 });

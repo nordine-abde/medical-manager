@@ -15,9 +15,36 @@ import { createFacilitiesService } from "../src/modules/facilities/service";
 
 const databaseUrl =
   process.env.DATABASE_URL ??
-  "postgres://postgres:postgres@localhost:5432/medical_manager";
+  "postgres://postgres:postgres@localhost:55432/medical_manager";
 
 const migrationDirectory = path.join(import.meta.dir, "../src/db/migrations");
+const currentSchemaMigrations = [
+  "0001_initial_setup.sql",
+  "0002_better_auth_core.sql",
+  "0003_user_profile_language.sql",
+  "0004_patient_access.sql",
+  "0005_conditions.sql",
+  "0007_tasks.sql",
+  "0008_task_dependencies.sql",
+  "0009_prescriptions.sql",
+  "0010_bookings.sql",
+  "0011_medications.sql",
+  "0012_medication_archiving.sql",
+  "0013_task_medication_links.sql",
+  "0014_documents.sql",
+  "0015_care_events.sql",
+  "0016_notifications.sql",
+  "0017_notification_delivery_tracking.sql",
+  "0018_prescription_subtypes.sql",
+  "0019_prescription_subtype_data.sql",
+  "0020_care_event_subtypes.sql",
+  "0021_drop_notifications.sql",
+  "0022_drop_tasks.sql",
+  "0023_drop_medical_instructions.sql",
+  "0024_drop_conditions.sql",
+  "0025_drop_medications.sql",
+  "0026_simplify_prescriptions.sql",
+] as const;
 
 type TestContext = {
   app: {
@@ -53,7 +80,6 @@ type BookingPayload = {
     patientId: string;
     prescriptionId: string | null;
     status: string;
-    taskId: string;
   };
 };
 
@@ -163,32 +189,10 @@ const insertPatient = async (
   );
 };
 
-const insertTask = async (
-  sql: postgres.Sql,
-  schemaName: string,
-  patientId: string,
-  taskId: string,
-): Promise<void> => {
-  await sql.unsafe(
-    `
-      insert into "${schemaName}"."tasks" (
-        id,
-        patient_id,
-        title,
-        task_type,
-        status
-      )
-      values ($1, $2, $3, $4, 'pending')
-    `,
-    [taskId, patientId, "Seeded task", "visit_booking"],
-  );
-};
-
 const insertPrescription = async (
   sql: postgres.Sql,
   schemaName: string,
   patientId: string,
-  taskId: string,
   prescriptionId: string,
 ): Promise<void> => {
   await sql.unsafe(
@@ -196,13 +200,11 @@ const insertPrescription = async (
       insert into "${schemaName}"."prescriptions" (
         id,
         patient_id,
-        task_id,
-        prescription_type,
-        status
+        prescription_type
       )
-      values ($1, $2, $3, 'exam', 'requested')
+      values ($1, $2, 'exam')
     `,
-    [prescriptionId, patientId, taskId],
+    [prescriptionId, patientId],
   );
 };
 
@@ -214,12 +216,10 @@ beforeEach(async () => {
     ssl: false,
   });
 
-  await applyMigration(sql, schemaName, "0001_initial_setup.sql");
-  await applyMigration(sql, schemaName, "0002_better_auth_core.sql");
-  await applyMigration(sql, schemaName, "0004_patient_access.sql");
-  await applyMigration(sql, schemaName, "0007_tasks.sql");
-  await applyMigration(sql, schemaName, "0009_prescriptions.sql");
-  await applyMigration(sql, schemaName, "0010_bookings.sql");
+  for (const migration of currentSchemaMigrations) {
+    await applyMigration(sql, schemaName, migration);
+  }
+
   await insertTestUser(sql, schemaName, "user-1");
   await insertTestUser(sql, schemaName, "user-2");
   await insertPatient(
@@ -234,30 +234,16 @@ beforeEach(async () => {
     "22222222-2222-4222-8222-222222222222",
     "user-2",
   );
-  await insertTask(
-    sql,
-    schemaName,
-    "11111111-1111-4111-8111-111111111111",
-    "33333333-3333-4333-8333-333333333333",
-  );
-  await insertTask(
-    sql,
-    schemaName,
-    "22222222-2222-4222-8222-222222222222",
-    "44444444-4444-4444-8444-444444444444",
-  );
   await insertPrescription(
     sql,
     schemaName,
     "11111111-1111-4111-8111-111111111111",
-    "33333333-3333-4333-8333-333333333333",
     "55555555-5555-4555-8555-555555555555",
   );
   await insertPrescription(
     sql,
     schemaName,
     "22222222-2222-4222-8222-222222222222",
-    "44444444-4444-4444-8444-444444444444",
     "66666666-6666-4666-8666-666666666666",
   );
 
@@ -374,7 +360,6 @@ describe("bookings and facilities modules", () => {
             notes: "Bring paper prescription",
             prescriptionId: "55555555-5555-4555-8555-555555555555",
             status: "booking_in_progress",
-            taskId: "33333333-3333-4333-8333-333333333333",
           }),
           headers: {
             "content-type": "application/json",
@@ -404,8 +389,8 @@ describe("bookings and facilities modules", () => {
       (await getBookingResponse.json()) as BookingPayload;
 
     expect(getBookingResponse.status).toBe(200);
-    expect(getBookingPayload.booking.taskId).toBe(
-      "33333333-3333-4333-8333-333333333333",
+    expect(getBookingPayload.booking.prescriptionId).toBe(
+      "55555555-5555-4555-8555-555555555555",
     );
 
     const updateBookingResponse = await getTestContext().app.handle(
@@ -470,7 +455,7 @@ describe("bookings and facilities modules", () => {
         "http://localhost/api/v1/patients/11111111-1111-4111-8111-111111111111/bookings",
         {
           body: JSON.stringify({
-            taskId: "33333333-3333-4333-8333-333333333333",
+            notes: "Booking without an appointment yet",
           }),
           headers: {
             "content-type": "application/json",
@@ -513,7 +498,6 @@ describe("bookings and facilities modules", () => {
         {
           body: JSON.stringify({
             prescriptionId: "66666666-6666-4666-8666-666666666666",
-            taskId: "33333333-3333-4333-8333-333333333333",
           }),
           headers: {
             "content-type": "application/json",

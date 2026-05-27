@@ -456,6 +456,10 @@ export const en = {
       completed: "Completed",
       cancelled: "Cancelled",
     },
+    labels: {
+      appointment: "Appointment {date}",
+      booked: "Booked {date}",
+    },
   },
   tasks: {
     eyebrow: "Care tasks",

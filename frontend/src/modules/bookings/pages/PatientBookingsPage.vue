@@ -190,16 +190,10 @@ const handleBookingSubmit = async (
   errorMessage.value = "";
 
   try {
-    let facilityId = payload.facilityId;
-
-    if (facilityPayload) {
-      const createdFacility = await bookingsStore.createFacility(facilityPayload);
-      facilityId = createdFacility.id;
-    }
-
     const bookingPayload: BookingUpsertPayload = {
       ...payload,
-      facilityId,
+      facility: facilityPayload,
+      facilityId: facilityPayload ? null : payload.facilityId,
     };
 
     if (editingBooking.value) {
@@ -208,6 +202,7 @@ const handleBookingSubmit = async (
         {
           appointmentAt: bookingPayload.appointmentAt,
           bookedAt: bookingPayload.bookedAt,
+          facility: facilityPayload,
           facilityId: bookingPayload.facilityId,
           notes: bookingPayload.notes,
           prescriptionId: bookingPayload.prescriptionId,
@@ -217,17 +212,11 @@ const handleBookingSubmit = async (
         },
       );
     } else {
-      const createdBooking = await bookingsStore.createBooking(
-        patientId.value,
-        bookingPayload,
-      );
+      await bookingsStore.createBooking(patientId.value, bookingPayload);
+    }
 
-      if (statusPayload.status !== createdBooking.status) {
-        await bookingsStore.changeBookingStatus(
-          createdBooking.id,
-          statusPayload.status,
-        );
-      }
+    if (facilityPayload) {
+      await bookingsStore.loadFacilities();
     }
 
     isBookingFormOpen.value = false;

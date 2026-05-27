@@ -182,4 +182,76 @@ describe("usePrescriptionsStore", () => {
       },
     );
   });
+
+  it("creates a prescription with a document through the composite endpoint", async () => {
+    const store = usePrescriptionsStore();
+    const file = new File(["prescription"], "prescription.pdf", {
+      type: "application/pdf",
+    });
+
+    mockFetch.mockResolvedValueOnce(
+      new Response(
+        JSON.stringify({
+          document: {
+            documentType: "prescription",
+            downloadUrl: "/api/v1/documents/document-1/download",
+            fileSizeBytes: 12,
+            id: "document-1",
+            mimeType: "application/pdf",
+            notes: "Original prescription scan.",
+            originalFilename: "prescription.pdf",
+            patientId: "patient-1",
+            relatedEntityId: "prescription-4",
+            relatedEntityType: "prescription",
+            uploadedAt: "2026-03-19T11:00:00.000Z",
+            uploadedByUserId: "user-1",
+          },
+          prescription: {
+            createdAt: "2026-03-19T11:00:00.000Z",
+            deletedAt: null,
+            expirationDate: "2026-04-15",
+            id: "prescription-4",
+            issueDate: "2026-03-19",
+            notes: "Request the exam authorization.",
+            patientId: "patient-1",
+            prescriptionType: "exam",
+            subtype: "Blood test",
+            updatedAt: "2026-03-19T11:00:00.000Z",
+          },
+        }),
+        {
+          headers: {
+            "content-type": "application/json",
+          },
+          status: 200,
+        },
+      ),
+    );
+
+    const result = await store.createPrescriptionWithDocument("patient-1", {
+      document: {
+        file,
+        notes: "Original prescription scan.",
+      },
+      prescription: {
+        expirationDate: "2026-04-15",
+        issueDate: "2026-03-19",
+        notes: "Request the exam authorization.",
+        prescriptionType: "exam",
+        subtype: "Blood test",
+      },
+    });
+
+    expect(result.document.id).toBe("document-1");
+    expect(store.prescriptions[0]?.id).toBe("prescription-4");
+
+    const [url, init] = mockFetch.mock.calls[0] ?? [];
+    expect(url).toBe("/api/v1/patients/patient-1/prescriptions/with-document");
+    expect(init?.method).toBe("POST");
+
+    const body = init?.body as FormData;
+    expect(body.get("file")).toBe(file);
+    expect(body.get("prescriptionType")).toBe("exam");
+    expect(body.get("documentNotes")).toBe("Original prescription scan.");
+  });
 });

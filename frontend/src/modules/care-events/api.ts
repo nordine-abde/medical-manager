@@ -1,3 +1,5 @@
+import type { FacilityUpsertPayload } from "../bookings/types";
+import type { DocumentRecord, DocumentType } from "../documents/types";
 import type {
   CareEventListFilters,
   CareEventListResult,
@@ -15,6 +17,11 @@ interface ApiErrorPayload {
 
 interface CareEventPayload {
   careEvent: CareEventRecord;
+}
+
+interface CareEventWithRelatedDataPayload {
+  careEvent: CareEventRecord;
+  document: DocumentRecord | null;
 }
 
 interface CareEventsPayload {
@@ -164,6 +171,55 @@ export const createCareEventRequest = async (
   return response.careEvent;
 };
 
+const buildCareEventRelatedDataFormData = (payload: {
+  attachedDocument?: {
+    documentType: DocumentType;
+    file: File;
+    notes: string | null;
+  } | null;
+  careEvent: Partial<CareEventUpsertPayload>;
+  facilityPayload?: FacilityUpsertPayload | null;
+}): FormData => {
+  const body = new FormData();
+  body.set("careEvent", JSON.stringify(payload.careEvent));
+
+  if (payload.facilityPayload) {
+    body.set("facility", JSON.stringify(payload.facilityPayload));
+  }
+
+  if (payload.attachedDocument) {
+    body.set("file", payload.attachedDocument.file);
+    body.set("documentType", payload.attachedDocument.documentType);
+
+    if (payload.attachedDocument.notes) {
+      body.set("documentNotes", payload.attachedDocument.notes);
+    }
+  }
+
+  return body;
+};
+
+export const createCareEventWithRelatedDataRequest = async (
+  patientId: string,
+  payload: {
+    attachedDocument?: {
+      documentType: DocumentType;
+      file: File;
+      notes: string | null;
+    } | null;
+    careEvent: CareEventUpsertPayload;
+    facilityPayload?: FacilityUpsertPayload | null;
+  },
+): Promise<CareEventWithRelatedDataPayload> =>
+  requestJson<CareEventWithRelatedDataPayload>(
+    `/patients/${patientId}/care-events/with-related-data`,
+    {
+      body: buildCareEventRelatedDataFormData(payload),
+      method: "POST",
+    },
+    "Unable to create the care event.",
+  );
+
 export const getCareEventRequest = async (
   careEventId: string,
 ): Promise<CareEventRecord> => {
@@ -223,3 +279,24 @@ export const updateCareEventRequest = async (
 
   return response.careEvent;
 };
+
+export const updateCareEventWithRelatedDataRequest = async (
+  careEventId: string,
+  payload: {
+    attachedDocument?: {
+      documentType: DocumentType;
+      file: File;
+      notes: string | null;
+    } | null;
+    careEvent: Partial<CareEventUpsertPayload>;
+    facilityPayload?: FacilityUpsertPayload | null;
+  },
+): Promise<CareEventWithRelatedDataPayload> =>
+  requestJson<CareEventWithRelatedDataPayload>(
+    `/care-events/${careEventId}/with-related-data`,
+    {
+      body: buildCareEventRelatedDataFormData(payload),
+      method: "PATCH",
+    },
+    "Unable to update the care event.",
+  );

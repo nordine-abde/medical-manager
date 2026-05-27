@@ -5,6 +5,7 @@ import {
   qualifyTableName,
   quoteIdentifier,
 } from "../../db/schema";
+import type { CreateFacilityInput } from "../facilities/repository";
 
 export const bookingStatuses = [
   "not_booked",
@@ -41,13 +42,14 @@ export type BookingListFilters = {
 export type CreateBookingInput = {
   appointmentAt: string | null;
   bookedAt: string | null;
+  facility?: CreateFacilityInput | null;
   facilityId: string | null;
   notes: string | null;
   prescriptionId: string | null;
   status: BookingStatus;
 };
 
-export type UpdateBookingInput = Partial<Omit<CreateBookingInput, "status">>;
+export type UpdateBookingInput = Partial<CreateBookingInput>;
 
 export type UpdateBookingStatusInput = {
   appointmentAt: string | null;
@@ -99,6 +101,31 @@ export const createBookingsRepository = (
     b.created_at,
     b.updated_at
   `;
+  const insertFacility = async (
+    executor: Pick<Sql, "unsafe">,
+    input: CreateFacilityInput,
+  ): Promise<string> => {
+    const [facility] = await executor.unsafe<Array<{ id: string }>>(
+      `
+        insert into ${qualifiedFacilitiesTable} (
+          name,
+          facility_type,
+          address,
+          city,
+          notes
+        )
+        values ($1, $2, $3, $4, $5)
+        returning id
+      `,
+      [input.name, input.facilityType, input.address, input.city, input.notes],
+    );
+
+    if (!facility) {
+      throw new Error("FACILITY_CREATE_FAILED");
+    }
+
+    return facility.id;
+  };
 
   return {
     async create(
@@ -115,43 +142,51 @@ export const createBookingsRepository = (
       const linksAreValid = await this.hasValidLinks(
         patientId,
         input.prescriptionId,
-        input.facilityId,
+        input.facility ? null : input.facilityId,
       );
 
       if (!linksAreValid) {
         return null;
       }
 
-      const [booking] = await sql.unsafe<Array<{ id: string }>>(
-        `
-          insert into ${qualifiedBookingsTable} (
-            patient_id,
-            prescription_id,
-            facility_id,
-            booking_status,
-            booked_at,
-            appointment_at,
-            notes
-          )
-          values ($1, $2, $3, $4, $5, $6, $7, $8)
-          returning id
-        `,
-        [
-          patientId,
-          input.prescriptionId,
-          input.facilityId,
-          input.status,
-          input.bookedAt,
-          input.appointmentAt,
-          input.notes,
-        ],
-      );
+      const bookingId = await sql.begin(async (transaction) => {
+        const facilityId = input.facility
+          ? await insertFacility(transaction, input.facility)
+          : input.facilityId;
 
-      if (!booking) {
+        const [booking] = await transaction.unsafe<Array<{ id: string }>>(
+          `
+            insert into ${qualifiedBookingsTable} (
+              patient_id,
+              prescription_id,
+              facility_id,
+              booking_status,
+              booked_at,
+              appointment_at,
+              notes
+            )
+            values ($1, $2, $3, $4, $5, $6, $7)
+            returning id
+          `,
+          [
+            patientId,
+            input.prescriptionId,
+            facilityId,
+            input.status,
+            input.bookedAt,
+            input.appointmentAt,
+            input.notes,
+          ],
+        );
+
+        return booking?.id ?? null;
+      });
+
+      if (!bookingId) {
         return null;
       }
 
-      return this.findAccessibleById(userId, booking.id);
+      return this.findAccessibleById(userId, bookingId);
     },
 
     async findAccessibleById(
@@ -298,45 +333,55 @@ export const createBookingsRepository = (
       const linksAreValid = await this.hasValidLinks(
         existingBooking.patient_id,
         prescriptionId,
-        facilityId,
+        input.facility ? null : facilityId,
       );
 
       if (!linksAreValid) {
         return null;
       }
 
-      const [booking] = await sql.unsafe<Array<{ id: string }>>(
-        `
-          update ${qualifiedBookingsTable}
-          set
-            prescription_id = $2,
-            facility_id = $3,
-            booked_at = $4,
-            appointment_at = $5,
-            notes = $6,
-            updated_at = now()
-          where id = $7
-          returning id
-        `,
-        [
-          prescriptionId,
-          facilityId,
-          input.bookedAt === undefined
-            ? existingBooking.booked_at
-            : input.bookedAt,
-          input.appointmentAt === undefined
-            ? existingBooking.appointment_at
-            : input.appointmentAt,
-          input.notes === undefined ? existingBooking.notes : input.notes,
-          bookingId,
-        ],
-      );
+      const updatedBookingId = await sql.begin(async (transaction) => {
+        const resolvedFacilityId = input.facility
+          ? await insertFacility(transaction, input.facility)
+          : facilityId;
 
-      if (!booking) {
+        const [booking] = await transaction.unsafe<Array<{ id: string }>>(
+          `
+            update ${qualifiedBookingsTable}
+            set
+              prescription_id = $1,
+              facility_id = $2,
+              booking_status = $3::${qualifiedBookingStatusType},
+              booked_at = $4,
+              appointment_at = $5,
+              notes = $6,
+              updated_at = now()
+            where id = $7
+            returning id
+          `,
+          [
+            prescriptionId,
+            resolvedFacilityId,
+            input.status ?? existingBooking.booking_status,
+            input.bookedAt === undefined
+              ? existingBooking.booked_at
+              : input.bookedAt,
+            input.appointmentAt === undefined
+              ? existingBooking.appointment_at
+              : input.appointmentAt,
+            input.notes === undefined ? existingBooking.notes : input.notes,
+            bookingId,
+          ],
+        );
+
+        return booking?.id ?? null;
+      });
+
+      if (!updatedBookingId) {
         return null;
       }
 
-      return this.findAccessibleById(userId, booking.id);
+      return this.findAccessibleById(userId, updatedBookingId);
     },
 
     async updateStatusAccessible(

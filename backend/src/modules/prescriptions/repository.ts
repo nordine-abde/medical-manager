@@ -5,6 +5,10 @@ import {
   qualifyTableName,
   quoteIdentifier,
 } from "../../db/schema";
+import type {
+  CreateDocumentInput,
+  DocumentRecord,
+} from "../documents/repository";
 
 export const prescriptionTypes = [
   "exam",
@@ -38,6 +42,14 @@ export type CreatePrescriptionInput = {
 };
 
 export type UpdatePrescriptionInput = Partial<CreatePrescriptionInput>;
+export type CreatePrescriptionDocumentInput = Omit<
+  CreateDocumentInput,
+  "patientId" | "relatedEntityId" | "relatedEntityType"
+>;
+export type PrescriptionWithDocumentRecord = {
+  document: DocumentRecord;
+  prescription: PrescriptionRecord;
+};
 export type PrescriptionListFilters = {
   includeArchived: boolean;
   prescriptionType?: PrescriptionType;
@@ -52,6 +64,9 @@ const patientUsersTable = (schemaName: string): string =>
 const prescriptionsTable = (schemaName: string): string =>
   qualifyTableName(schemaName, "prescriptions");
 
+const documentsTable = (schemaName: string): string =>
+  qualifyTableName(schemaName, "documents");
+
 const qualifyTypeName = (schemaName: string, typeName: string): string =>
   `${quoteIdentifier(schemaName)}.${quoteIdentifier(typeName)}`;
 
@@ -62,10 +77,81 @@ export const createPrescriptionsRepository = (
   const qualifiedPatientsTable = patientsTable(schemaName);
   const qualifiedPatientUsersTable = patientUsersTable(schemaName);
   const qualifiedPrescriptionsTable = prescriptionsTable(schemaName);
+  const qualifiedDocumentsTable = documentsTable(schemaName);
   const qualifiedPrescriptionTypeType = qualifyTypeName(
     schemaName,
     "prescription_type",
   );
+  const qualifiedRelatedEntityType = qualifyTypeName(
+    schemaName,
+    "related_entity_type",
+  );
+  const qualifiedDocumentType = qualifyTypeName(schemaName, "document_type");
+  const documentReturningColumns = `
+    id,
+    patient_id,
+    related_entity_type,
+    related_entity_id,
+    stored_filename,
+    original_filename,
+    mime_type,
+    file_size_bytes,
+    document_type,
+    uploaded_by_user_id,
+    uploaded_at,
+    notes
+  `;
+  const insertDocument = async (
+    executor: Pick<Sql, "unsafe">,
+    patientId: string,
+    relatedEntityId: string,
+    input: CreatePrescriptionDocumentInput,
+  ): Promise<DocumentRecord> => {
+    const [document] = await executor.unsafe<[DocumentRecord]>(
+      `
+        insert into ${qualifiedDocumentsTable} (
+          patient_id,
+          related_entity_type,
+          related_entity_id,
+          stored_filename,
+          original_filename,
+          mime_type,
+          file_size_bytes,
+          document_type,
+          uploaded_by_user_id,
+          notes
+        )
+        values (
+          $1,
+          $2::${qualifiedRelatedEntityType},
+          $3,
+          $4,
+          $5,
+          $6,
+          $7,
+          $8::${qualifiedDocumentType},
+          $9,
+          $10
+        )
+        returning
+          ${documentReturningColumns}
+      `,
+      [
+        patientId,
+        "prescription",
+        relatedEntityId,
+        input.storedFilename,
+        input.originalFilename,
+        input.mimeType,
+        input.fileSizeBytes,
+        input.documentType,
+        input.uploadedByUserId,
+        input.notes,
+      ],
+    );
+
+    return document;
+  };
 
   return {
     async create(
@@ -107,6 +193,81 @@ export const createPrescriptionsRepository = (
       }
 
       return this.findAccessibleById(userId, createdPrescription.id);
+    },
+
+    async createWithDocument(
+      userId: string,
+      patientId: string,
+      input: CreatePrescriptionInput & {
+        document: CreatePrescriptionDocumentInput;
+      },
+    ): Promise<PrescriptionWithDocumentRecord | null> {
+      const hasAccess = await this.hasPatientAccess(userId, patientId);
+
+      if (!hasAccess) {
+        return null;
+      }
+
+      const result = await sql.begin(async (transaction) => {
+        const [createdPrescription] = await transaction.unsafe<
+          Array<{ id: string }>
+        >(
+          `
+            insert into ${qualifiedPrescriptionsTable} (
+              patient_id,
+              prescription_type,
+              subtype,
+              issue_date,
+              expiration_date,
+              notes
+            )
+            values ($1, $2, $3, $4, $5, $6)
+            returning id
+          `,
+          [
+            patientId,
+            input.prescriptionType,
+            input.subtype,
+            input.issueDate,
+            input.expirationDate,
+            input.notes,
+          ],
+        );
+
+        if (!createdPrescription) {
+          return null;
+        }
+
+        const document = await insertDocument(
+          transaction,
+          patientId,
+          createdPrescription.id,
+          input.document,
+        );
+
+        return {
+          document,
+          prescriptionId: createdPrescription.id,
+        };
+      });
+
+      if (!result) {
+        return null;
+      }
+
+      const prescription = await this.findAccessibleById(
+        userId,
+        result.prescriptionId,
+      );
+
+      if (!prescription) {
+        return null;
+      }
+
+      return {
+        document: result.document,
+        prescription,
+      };
     },
 
     async findAccessibleById(
@@ -214,13 +375,13 @@ export const createPrescriptionsRepository = (
         `
           update ${qualifiedPrescriptionsTable}
           set
-            prescription_type = $2,
-            subtype = $3,
-            issue_date = $4,
-            expiration_date = $5,
-            notes = $6,
+            prescription_type = $1,
+            subtype = $2,
+            issue_date = $3,
+            expiration_date = $4,
+            notes = $5,
             updated_at = now()
-          where id = $7
+          where id = $6
           returning id
         `,
         [
@@ -244,6 +405,92 @@ export const createPrescriptionsRepository = (
       }
 
       return this.findAccessibleById(userId, updatedPrescription.id);
+    },
+
+    async updateWithDocument(
+      userId: string,
+      prescriptionId: string,
+      input: UpdatePrescriptionInput & {
+        document: CreatePrescriptionDocumentInput;
+      },
+    ): Promise<PrescriptionWithDocumentRecord | null> {
+      const existingPrescription = await this.findAccessibleById(
+        userId,
+        prescriptionId,
+      );
+
+      if (!existingPrescription) {
+        return null;
+      }
+
+      const result = await sql.begin(async (transaction) => {
+        const [updatedPrescription] = await transaction.unsafe<
+          Array<{ id: string }>
+        >(
+          `
+            update ${qualifiedPrescriptionsTable}
+            set
+              prescription_type = $1,
+              subtype = $2,
+              issue_date = $3,
+              expiration_date = $4,
+              notes = $5,
+              updated_at = now()
+            where id = $6
+            returning id
+          `,
+          [
+            input.prescriptionType ?? existingPrescription.prescription_type,
+            input.subtype === undefined
+              ? existingPrescription.subtype
+              : input.subtype,
+            input.issueDate === undefined
+              ? existingPrescription.issue_date
+              : input.issueDate,
+            input.expirationDate === undefined
+              ? existingPrescription.expiration_date
+              : input.expirationDate,
+            input.notes === undefined
+              ? existingPrescription.notes
+              : input.notes,
+            prescriptionId,
+          ],
+        );
+
+        if (!updatedPrescription) {
+          return null;
+        }
+
+        const document = await insertDocument(
+          transaction,
+          existingPrescription.patient_id,
+          prescriptionId,
+          input.document,
+        );
+
+        return {
+          document,
+          prescriptionId: updatedPrescription.id,
+        };
+      });
+
+      if (!result) {
+        return null;
+      }
+
+      const prescription = await this.findAccessibleById(
+        userId,
+        result.prescriptionId,
+      );
+
+      if (!prescription) {
+        return null;
+      }
+
+      return {
+        document: result.document,
+        prescription,
+      };
     },
   };
 };

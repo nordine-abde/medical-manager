@@ -1,9 +1,11 @@
 import { defineStore } from "pinia";
-
+import type { DocumentRecord } from "../documents/types";
 import {
   createPrescriptionRequest,
+  createPrescriptionWithDocumentRequest,
   listPrescriptionsRequest,
   updatePrescriptionRequest,
+  updatePrescriptionWithDocumentRequest,
 } from "./api";
 import type {
   PrescriptionListFilters,
@@ -122,6 +124,30 @@ export const usePrescriptionsStore = defineStore("prescriptions", {
 
       return prescription;
     },
+    async createPrescriptionWithDocument(
+      patientId: string,
+      payload: {
+        document: {
+          file: File;
+          notes: string | null;
+        };
+        prescription: PrescriptionUpsertPayload;
+      },
+    ): Promise<{ document: DocumentRecord; prescription: PrescriptionRecord }> {
+      const result = await createPrescriptionWithDocumentRequest(
+        patientId,
+        payload,
+      );
+
+      if (matchesFilters(result.prescription, lastListFilters)) {
+        this.prescriptions = upsertPrescription(
+          this.prescriptions,
+          result.prescription,
+        );
+      }
+
+      return result;
+    },
     async updatePrescription(
       prescriptionId: string,
       payload: Partial<PrescriptionUpsertPayload>,
@@ -143,6 +169,34 @@ export const usePrescriptionsStore = defineStore("prescriptions", {
       }
 
       return prescription;
+    },
+    async updatePrescriptionWithDocument(
+      prescriptionId: string,
+      payload: {
+        document: {
+          file: File;
+          notes: string | null;
+        };
+        prescription: Partial<PrescriptionUpsertPayload>;
+      },
+    ): Promise<{ document: DocumentRecord; prescription: PrescriptionRecord }> {
+      const result = await updatePrescriptionWithDocumentRequest(
+        prescriptionId,
+        payload,
+      );
+
+      if (matchesFilters(result.prescription, lastListFilters)) {
+        this.prescriptions = upsertPrescription(
+          this.prescriptions,
+          result.prescription,
+        );
+      } else {
+        this.prescriptions = this.prescriptions.filter(
+          (item) => item.id !== prescriptionId,
+        );
+      }
+
+      return result;
     },
   },
 });

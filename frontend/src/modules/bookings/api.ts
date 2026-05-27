@@ -153,12 +153,20 @@ export const updateBookingRequest = async (
     requestBody.facilityId = payload.facilityId;
   }
 
+  if (payload.facility !== undefined) {
+    requestBody.facility = payload.facility;
+  }
+
   if (payload.notes !== undefined) {
     requestBody.notes = payload.notes;
   }
 
   if (payload.prescriptionId !== undefined) {
     requestBody.prescriptionId = payload.prescriptionId;
+  }
+
+  if (payload.status !== undefined) {
+    requestBody.status = payload.status;
   }
 
   const response = await requestJson<BookingPayload>(

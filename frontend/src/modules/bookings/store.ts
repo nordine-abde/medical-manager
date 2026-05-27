@@ -193,24 +193,22 @@ export const useBookingsStore = defineStore("bookings", {
     ): Promise<BookingRecord> {
       let booking: BookingRecord | null = null;
 
-      if (Object.keys(payload).length > 0) {
-        booking = await updateBookingRequest(bookingId, payload);
+      const requestPayload: Partial<BookingUpsertPayload> = { ...payload };
+
+      if (options.statusPayload) {
+        if (options.statusPayload.appointmentAt !== undefined) {
+          requestPayload.appointmentAt = options.statusPayload.appointmentAt;
+        }
+
+        if (options.statusPayload.bookedAt !== undefined) {
+          requestPayload.bookedAt = options.statusPayload.bookedAt;
+        }
+
+        requestPayload.status = options.statusPayload.status;
       }
 
-      const currentStatus =
-        booking?.status ??
-        this.bookings.find((item) => item.id === bookingId)?.status;
-
-      if (
-        options.statusPayload &&
-        (currentStatus !== options.statusPayload.status ||
-          options.statusPayload.appointmentAt !== undefined ||
-          options.statusPayload.bookedAt !== undefined)
-      ) {
-        booking = await updateBookingStatusRequest(
-          bookingId,
-          options.statusPayload,
-        );
+      if (Object.keys(requestPayload).length > 0) {
+        booking = await updateBookingRequest(bookingId, requestPayload);
       }
 
       if (!booking) {

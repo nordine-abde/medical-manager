@@ -44,7 +44,7 @@ describe("env configuration", () => {
       maxConnections: 10,
       schema: "app",
       ssl: false,
-      url: "postgres://postgres:postgres@localhost:5432/medical_manager",
+      url: "postgres://postgres:postgres@localhost:55432/medical_manager",
     });
   });
 

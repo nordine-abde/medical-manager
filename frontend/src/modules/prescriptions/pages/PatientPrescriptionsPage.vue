@@ -123,41 +123,43 @@ const handlePrescriptionSubmit = async (payload: {
 
   try {
     if (editingPrescription.value) {
-      await prescriptionsStore.updatePrescription(
-        editingPrescription.value.id,
-        {
+      if (payload.document) {
+        const result = await prescriptionsStore.updatePrescriptionWithDocument(
+          editingPrescription.value.id,
+          {
+            document: payload.document,
+            prescription: {
+              expirationDate: payload.prescription.expirationDate,
+              issueDate: payload.prescription.issueDate,
+              notes: payload.prescription.notes,
+              prescriptionType: payload.prescription.prescriptionType,
+              subtype: payload.prescription.subtype,
+            },
+          },
+        );
+        documentsStore.recordDocument(result.document);
+      } else {
+        await prescriptionsStore.updatePrescription(editingPrescription.value.id, {
           expirationDate: payload.prescription.expirationDate,
           issueDate: payload.prescription.issueDate,
           notes: payload.prescription.notes,
           prescriptionType: payload.prescription.prescriptionType,
           subtype: payload.prescription.subtype,
-        },
-      );
-
-      if (payload.document) {
-        await documentsStore.uploadDocument(patientId.value, {
-          documentType: "prescription",
-          file: payload.document.file,
-          notes: payload.document.notes,
-          relatedEntityId: editingPrescription.value.id,
-          relatedEntityType: "prescription",
         });
       }
     } else {
-      const createdPrescription = await prescriptionsStore.createPrescription(
-        patientId.value,
-        {
-          ...payload.prescription,
-        },
-      );
-
       if (payload.document) {
-        await documentsStore.uploadDocument(patientId.value, {
-          documentType: "prescription",
-          file: payload.document.file,
-          notes: payload.document.notes,
-          relatedEntityId: createdPrescription.id,
-          relatedEntityType: "prescription",
+        const result = await prescriptionsStore.createPrescriptionWithDocument(
+          patientId.value,
+          {
+            document: payload.document,
+            prescription: payload.prescription,
+          },
+        );
+        documentsStore.recordDocument(result.document);
+      } else {
+        await prescriptionsStore.createPrescription(patientId.value, {
+          ...payload.prescription,
         });
       }
     }

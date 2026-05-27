@@ -12,9 +12,36 @@ import { createPatientsService } from "../src/modules/patients/service";
 
 const databaseUrl =
   process.env.DATABASE_URL ??
-  "postgres://postgres:postgres@localhost:5432/medical_manager";
+  "postgres://postgres:postgres@localhost:55432/medical_manager";
 
 const migrationDirectory = path.join(import.meta.dir, "../src/db/migrations");
+const currentSchemaMigrations = [
+  "0001_initial_setup.sql",
+  "0002_better_auth_core.sql",
+  "0003_user_profile_language.sql",
+  "0004_patient_access.sql",
+  "0005_conditions.sql",
+  "0007_tasks.sql",
+  "0008_task_dependencies.sql",
+  "0009_prescriptions.sql",
+  "0010_bookings.sql",
+  "0011_medications.sql",
+  "0012_medication_archiving.sql",
+  "0013_task_medication_links.sql",
+  "0014_documents.sql",
+  "0015_care_events.sql",
+  "0016_notifications.sql",
+  "0017_notification_delivery_tracking.sql",
+  "0018_prescription_subtypes.sql",
+  "0019_prescription_subtype_data.sql",
+  "0020_care_event_subtypes.sql",
+  "0021_drop_notifications.sql",
+  "0022_drop_tasks.sql",
+  "0023_drop_medical_instructions.sql",
+  "0024_drop_conditions.sql",
+  "0025_drop_medications.sql",
+  "0026_simplify_prescriptions.sql",
+] as const;
 
 type TestContext = {
   app: {
@@ -55,20 +82,12 @@ type PatientUserListPayload = {
 
 type PatientOverviewPayload = {
   overview: {
-    activeConditions: Array<{
-      id: string;
-      name: string;
-      notes: string | null;
-    }>;
-    overdueTaskCount: number;
     pendingPrescriptions: Array<{
       expirationDate: string | null;
       id: string;
       issueDate: string | null;
       notes: string | null;
       prescriptionType: string;
-      status: string;
-      taskId: string | null;
     }>;
     upcomingAppointments: Array<{
       appointmentAt: string;
@@ -76,7 +95,6 @@ type PatientOverviewPayload = {
       id: string;
       prescriptionId: string | null;
       status: string;
-      taskId: string;
     }>;
   };
 };
@@ -159,14 +177,10 @@ beforeEach(async () => {
     ssl: false,
   });
 
-  await applyMigration(sql, schemaName, "0001_initial_setup.sql");
-  await applyMigration(sql, schemaName, "0002_better_auth_core.sql");
-  await applyMigration(sql, schemaName, "0004_patient_access.sql");
-  await applyMigration(sql, schemaName, "0007_tasks.sql");
-  await applyMigration(sql, schemaName, "0009_prescriptions.sql");
-  await applyMigration(sql, schemaName, "0010_bookings.sql");
-  await applyMigration(sql, schemaName, "0014_documents.sql");
-  await applyMigration(sql, schemaName, "0015_care_events.sql");
+  for (const migration of currentSchemaMigrations) {
+    await applyMigration(sql, schemaName, migration);
+  }
+
   await insertTestUser(sql, schemaName, "user-1");
   await insertTestUser(sql, schemaName, "user-2");
   await insertTestUser(sql, schemaName, "user-3");
@@ -369,8 +383,6 @@ describe("patients module", () => {
     );
     const createPayload = (await createResponse.json()) as PatientPayload;
     const patientId = createPayload.patient.id;
-    const taskId = randomUUID();
-    const completedTaskId = randomUUID();
     const bookingId = randomUUID();
     const ignoredPastBookingId = randomUUID();
     const activePrescriptionId = randomUUID();
@@ -378,46 +390,20 @@ describe("patients module", () => {
 
     await getTestContext().sql.unsafe(
       `
-        insert into "${getTestContext().schemaName}"."tasks" (
-          id,
-          patient_id,
-          title,
-          description,
-          task_type,
-          status,
-          due_date,
-          scheduled_at,
-          auto_recurrence_enabled,
-          recurrence_rule,
-          completed_at
-        )
-        values
-          ($1, $2, 'Blood test', null, 'exam', 'pending', current_date - interval '2 day', null, false, null, null),
-          ($3, $2, 'Completed task', null, 'visit', 'completed', current_date - interval '1 day', null, false, null, now())
-      `,
-      [taskId, patientId, completedTaskId],
-    );
-
-    await getTestContext().sql.unsafe(
-      `
         insert into "${getTestContext().schemaName}"."prescriptions" (
           id,
           patient_id,
-          task_id,
           prescription_type,
-          requested_at,
-          received_at,
-          collected_at,
           issue_date,
           expiration_date,
-          status,
-          notes
+          notes,
+          created_at
         )
         values
-          ($1, $2, $3, 'exam', now() - interval '1 day', null, null, current_date, current_date + interval '30 day', 'requested', 'Waiting on GP reply'),
-          ($4, $2, null, 'exam', now() - interval '5 day', now() - interval '4 day', now() - interval '3 day', current_date - interval '5 day', current_date + interval '20 day', 'collected', 'Already handled')
+          ($1, $2, 'exam', current_date, current_date + interval '30 day', 'Waiting on GP reply', now() - interval '2 day'),
+          ($3, $2, 'exam', current_date - interval '5 day', current_date + interval '20 day', 'Already handled', now() - interval '1 day')
       `,
-      [activePrescriptionId, patientId, taskId, completedPrescriptionId],
+      [activePrescriptionId, patientId, completedPrescriptionId],
     );
 
     await getTestContext().sql.unsafe(
@@ -425,7 +411,6 @@ describe("patients module", () => {
         insert into "${getTestContext().schemaName}"."bookings" (
           id,
           patient_id,
-          task_id,
           prescription_id,
           facility_id,
           booking_status,
@@ -434,16 +419,10 @@ describe("patients module", () => {
           notes
         )
         values
-          ($1, $2, $3, $4, null, 'booked', now(), now() + interval '3 day', 'Upcoming exam'),
-          ($5, $2, $3, null, null, 'completed', now() - interval '7 day', now() - interval '2 day', 'Completed visit')
+          ($1, $2, $3, null, 'booked', now(), now() + interval '3 day', 'Upcoming exam'),
+          ($4, $2, null, null, 'completed', now() - interval '7 day', now() - interval '2 day', 'Completed visit')
       `,
-      [
-        bookingId,
-        patientId,
-        taskId,
-        activePrescriptionId,
-        ignoredPastBookingId,
-      ],
+      [bookingId, patientId, activePrescriptionId, ignoredPastBookingId],
     );
 
     const overviewResponse = await getTestContext().app.handle(
@@ -457,7 +436,6 @@ describe("patients module", () => {
       (await overviewResponse.json()) as PatientOverviewPayload;
 
     expect(overviewResponse.status).toBe(200);
-    expect(overviewPayload.overview.overdueTaskCount).toBe(1);
     expect(overviewPayload.overview.pendingPrescriptions).toEqual([
       {
         expirationDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)
@@ -467,8 +445,17 @@ describe("patients module", () => {
         issueDate: new Date().toISOString().slice(0, 10),
         notes: "Waiting on GP reply",
         prescriptionType: "exam",
-        status: "requested",
-        taskId,
+      },
+      {
+        expirationDate: new Date(Date.now() + 20 * 24 * 60 * 60 * 1000)
+          .toISOString()
+          .slice(0, 10),
+        id: completedPrescriptionId,
+        issueDate: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000)
+          .toISOString()
+          .slice(0, 10),
+        notes: "Already handled",
+        prescriptionType: "exam",
       },
     ]);
     expect(overviewPayload.overview.upcomingAppointments).toHaveLength(1);
@@ -477,7 +464,6 @@ describe("patients module", () => {
       id: bookingId,
       prescriptionId: activePrescriptionId,
       status: "booked",
-      taskId,
     });
 
     const unauthorizedOverviewResponse = await getTestContext().app.handle(

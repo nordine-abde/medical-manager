@@ -58,6 +58,7 @@ export interface BookingStatusPayload {
 export interface BookingUpsertPayload {
   appointmentAt: string | null;
   bookedAt: string | null;
+  facility?: FacilityUpsertPayload | null;
   facilityId: string | null;
   notes: string | null;
   prescriptionId: string | null;

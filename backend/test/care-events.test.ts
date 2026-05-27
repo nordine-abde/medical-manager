@@ -12,9 +12,36 @@ import { createCareEventsService } from "../src/modules/care-events/service";
 
 const databaseUrl =
   process.env.DATABASE_URL ??
-  "postgres://postgres:postgres@localhost:5432/medical_manager";
+  "postgres://postgres:postgres@localhost:55432/medical_manager";
 
 const migrationDirectory = path.join(import.meta.dir, "../src/db/migrations");
+const currentSchemaMigrations = [
+  "0001_initial_setup.sql",
+  "0002_better_auth_core.sql",
+  "0003_user_profile_language.sql",
+  "0004_patient_access.sql",
+  "0005_conditions.sql",
+  "0007_tasks.sql",
+  "0008_task_dependencies.sql",
+  "0009_prescriptions.sql",
+  "0010_bookings.sql",
+  "0011_medications.sql",
+  "0012_medication_archiving.sql",
+  "0013_task_medication_links.sql",
+  "0014_documents.sql",
+  "0015_care_events.sql",
+  "0016_notifications.sql",
+  "0017_notification_delivery_tracking.sql",
+  "0018_prescription_subtypes.sql",
+  "0019_prescription_subtype_data.sql",
+  "0020_care_event_subtypes.sql",
+  "0021_drop_notifications.sql",
+  "0022_drop_tasks.sql",
+  "0023_drop_medical_instructions.sql",
+  "0024_drop_conditions.sql",
+  "0025_drop_medications.sql",
+  "0026_simplify_prescriptions.sql",
+] as const;
 
 type TestContext = {
   app: {
@@ -36,7 +63,6 @@ type CareEventPayload = {
     patientId: string;
     providerName: string | null;
     subtype: string | null;
-    taskId: string | null;
     updatedAt: string | null;
   };
 };
@@ -160,27 +186,6 @@ const insertPatient = async (
   );
 };
 
-const insertTask = async (
-  sql: postgres.Sql,
-  schemaName: string,
-  patientId: string,
-  taskId: string,
-): Promise<void> => {
-  await sql.unsafe(
-    `
-      insert into "${schemaName}"."tasks" (
-        id,
-        patient_id,
-        title,
-        task_type,
-        status
-      )
-      values ($1, $2, $3, $4, 'completed')
-    `,
-    [taskId, patientId, "Completed exam", "follow_up"],
-  );
-};
-
 const insertFacility = async (
   sql: postgres.Sql,
   schemaName: string,
@@ -204,7 +209,6 @@ const insertBooking = async (
   schemaName: string,
   patientId: string,
   bookingId: string,
-  taskId: string,
   facilityId: string | null = null,
 ): Promise<void> => {
   await sql.unsafe(
@@ -212,16 +216,15 @@ const insertBooking = async (
       insert into "${schemaName}"."bookings" (
         id,
         patient_id,
-        task_id,
         facility_id,
         booking_status,
         booked_at,
         appointment_at,
         notes
       )
-      values ($1, $2, $3, $4, 'completed', now(), now(), $5)
+      values ($1, $2, $3, 'completed', now(), now(), $4)
     `,
-    [bookingId, patientId, taskId, facilityId, "Completed booking"],
+    [bookingId, patientId, facilityId, "Completed booking"],
   );
 };
 
@@ -275,15 +278,9 @@ beforeEach(async () => {
     ssl: false,
   });
 
-  await applyMigration(sql, schemaName, "0001_initial_setup.sql");
-  await applyMigration(sql, schemaName, "0002_better_auth_core.sql");
-  await applyMigration(sql, schemaName, "0004_patient_access.sql");
-  await applyMigration(sql, schemaName, "0007_tasks.sql");
-  await applyMigration(sql, schemaName, "0009_prescriptions.sql");
-  await applyMigration(sql, schemaName, "0010_bookings.sql");
-  await applyMigration(sql, schemaName, "0014_documents.sql");
-  await applyMigration(sql, schemaName, "0015_care_events.sql");
-  await applyMigration(sql, schemaName, "0020_care_event_subtypes.sql");
+  for (const migration of currentSchemaMigrations) {
+    await applyMigration(sql, schemaName, migration);
+  }
 
   await insertTestUser(sql, schemaName, "user-1");
   await insertTestUser(sql, schemaName, "user-2");
@@ -332,21 +329,12 @@ describe("care events module", () => {
   it("creates, lists, gets, and updates patient-scoped care events", async () => {
     const { app, schemaName, sql } = getTestContext();
     const patientId = "11111111-1111-4111-8111-111111111111";
-    const taskId = "22222222-2222-4222-8222-222222222222";
     const bookingId = "33333333-3333-4333-8333-333333333333";
     const facilityId = "44444444-4444-4444-8444-444444444444";
 
     await insertPatient(sql, schemaName, patientId, "user-1");
-    await insertTask(sql, schemaName, patientId, taskId);
     await insertFacility(sql, schemaName, facilityId);
-    await insertBooking(
-      sql,
-      schemaName,
-      patientId,
-      bookingId,
-      taskId,
-      facilityId,
-    );
+    await insertBooking(sql, schemaName, patientId, bookingId, facilityId);
 
     const createResponse = await app.handle(
       new Request(`http://localhost/api/v1/patients/${patientId}/care-events`, {
@@ -357,7 +345,6 @@ describe("care events module", () => {
           facilityId,
           outcomeNotes: "  Exam completed, waiting for report.  ",
           providerName: "  Dr. Bianchi  ",
-          taskId,
         }),
         headers: {
           "content-type": "application/json",
@@ -377,7 +364,6 @@ describe("care events module", () => {
       outcomeNotes: "Exam completed, waiting for report.",
       patientId,
       providerName: "Dr. Bianchi",
-      taskId,
     });
 
     const careEventId = createPayload.careEvent.id;
@@ -436,7 +422,6 @@ describe("care events module", () => {
       eventType: "specialist_visit",
       outcomeNotes: "Specialist follow-up completed.",
       providerName: null,
-      taskId,
     });
   });
 
@@ -590,33 +575,17 @@ describe("care events module", () => {
     });
   });
 
-  it("rejects cross-patient task and booking references during create and update", async () => {
+  it("rejects cross-patient booking references during create and update", async () => {
     const { app, schemaName, sql } = getTestContext();
     const patientId = "11111111-1111-4111-8111-111111111111";
     const otherPatientId = "22222222-2222-4222-8222-222222222222";
-    const patientTaskId = "33333333-3333-4333-8333-333333333333";
-    const otherTaskId = "44444444-4444-4444-8444-444444444444";
     const patientBookingId = "55555555-5555-4555-8555-555555555555";
     const otherBookingId = "66666666-6666-4666-8666-666666666666";
 
     await insertPatient(sql, schemaName, patientId, "user-1");
     await insertPatient(sql, schemaName, otherPatientId, "user-2");
-    await insertTask(sql, schemaName, patientId, patientTaskId);
-    await insertTask(sql, schemaName, otherPatientId, otherTaskId);
-    await insertBooking(
-      sql,
-      schemaName,
-      patientId,
-      patientBookingId,
-      patientTaskId,
-    );
-    await insertBooking(
-      sql,
-      schemaName,
-      otherPatientId,
-      otherBookingId,
-      otherTaskId,
-    );
+    await insertBooking(sql, schemaName, patientId, patientBookingId);
+    await insertBooking(sql, schemaName, otherPatientId, otherBookingId);
 
     const createResponse = await app.handle(
       new Request(`http://localhost/api/v1/patients/${patientId}/care-events`, {
@@ -624,7 +593,6 @@ describe("care events module", () => {
           bookingId: otherBookingId,
           completedAt: "2026-04-22T08:20:00.000Z",
           eventType: "exam",
-          taskId: otherTaskId,
         }),
         headers: {
           "content-type": "application/json",
@@ -647,7 +615,6 @@ describe("care events module", () => {
           bookingId: patientBookingId,
           completedAt: "2026-04-22T08:20:00.000Z",
           eventType: "treatment",
-          taskId: patientTaskId,
         }),
         headers: {
           "content-type": "application/json",
@@ -667,7 +634,6 @@ describe("care events module", () => {
         {
           body: JSON.stringify({
             bookingId: otherBookingId,
-            taskId: otherTaskId,
           }),
           headers: {
             "content-type": "application/json",
@@ -689,12 +655,10 @@ describe("care events module", () => {
   it("rejects inaccessible care-event reads", async () => {
     const { app, schemaName, sql } = getTestContext();
     const patientId = "11111111-1111-4111-8111-111111111111";
-    const taskId = "22222222-2222-4222-8222-222222222222";
     const bookingId = "33333333-3333-4333-8333-333333333333";
 
     await insertPatient(sql, schemaName, patientId, "user-1");
-    await insertTask(sql, schemaName, patientId, taskId);
-    await insertBooking(sql, schemaName, patientId, bookingId, taskId);
+    await insertBooking(sql, schemaName, patientId, bookingId);
 
     const createResponse = await app.handle(
       new Request(`http://localhost/api/v1/patients/${patientId}/care-events`, {
@@ -702,7 +666,6 @@ describe("care events module", () => {
           bookingId,
           completedAt: "2026-04-22T08:20:00.000Z",
           eventType: "exam",
-          taskId,
         }),
         headers: {
           "content-type": "application/json",

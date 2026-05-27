@@ -69,5 +69,8 @@ export const useDocumentsStore = defineStore("documents", {
       this.documents = upsertDocument(this.documents, document);
       return document;
     },
+    recordDocument(document: DocumentRecord) {
+      this.documents = upsertDocument(this.documents, document);
+    },
   },
 });

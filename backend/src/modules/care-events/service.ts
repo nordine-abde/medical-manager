@@ -1,11 +1,18 @@
 import { createSqlClient } from "../../db/client";
 import { databaseSchemaName } from "../../db/schema";
 import {
+  createDocumentStorageService,
+  type DocumentStorageService,
+} from "../documents/storage";
+import type { CreateFacilityInput } from "../facilities/repository";
+import {
   type CareEventListFilters,
   type CareEventListResult,
   type CareEventRecord,
   type CareEventSubtypeOption,
   type CareEventsRepository,
+  type CareEventWithDocumentRecord,
+  type CreateCareEventDocumentInput,
   type CreateCareEventInput,
   createCareEventsRepository,
   type UpdateCareEventInput,
@@ -27,9 +34,19 @@ const defaultCareEventsRepository = createCareEventsRepository(
   createSqlClient(),
   databaseSchemaName,
 );
+const defaultDocumentStorageService = createDocumentStorageService();
+
+type CareEventDocumentRequest = Omit<
+  CreateCareEventDocumentInput,
+  "fileSizeBytes" | "mimeType" | "storedFilename"
+> & {
+  fileBytes: ArrayBuffer | Uint8Array;
+  mimeType: string;
+};
 
 export const createCareEventsService = (
   repository: CareEventsRepository = defaultCareEventsRepository,
+  storage: DocumentStorageService = defaultDocumentStorageService,
 ) => ({
   async createCareEvent(
     userId: string,
@@ -43,6 +60,52 @@ export const createCareEventsService = (
     }
 
     return careEvent;
+  },
+
+  async createCareEventWithRelatedData(
+    userId: string,
+    patientId: string,
+    input: CreateCareEventInput & {
+      document?: CareEventDocumentRequest | null;
+      facility?: CreateFacilityInput | null;
+    },
+  ): Promise<CareEventWithDocumentRecord> {
+    const storedDocument = input.document
+      ? await storage.storeDocument({
+          bytes: input.document.fileBytes,
+          mimeType: input.document.mimeType,
+        })
+      : null;
+
+    try {
+      const result = await repository.createWithRelatedData(userId, patientId, {
+        ...input,
+        document:
+          input.document && storedDocument
+            ? {
+                documentType: input.document.documentType,
+                fileSizeBytes: storedDocument.fileSizeBytes,
+                mimeType: storedDocument.mimeType,
+                notes: input.document.notes,
+                originalFilename: input.document.originalFilename,
+                storedFilename: storedDocument.storagePath,
+                uploadedByUserId: userId,
+              }
+            : null,
+      });
+
+      if (!result) {
+        throw new PatientCareEventAccessError();
+      }
+
+      return result;
+    } catch (error) {
+      if (storedDocument) {
+        await storage.deleteDocument(storedDocument.storagePath);
+      }
+
+      throw error;
+    }
   },
 
   async getCareEvent(
@@ -105,6 +168,56 @@ export const createCareEventsService = (
     }
 
     return careEvent;
+  },
+
+  async updateCareEventWithRelatedData(
+    userId: string,
+    careEventId: string,
+    input: UpdateCareEventInput & {
+      document?: CareEventDocumentRequest | null;
+      facility?: CreateFacilityInput | null;
+    },
+  ): Promise<CareEventWithDocumentRecord> {
+    const storedDocument = input.document
+      ? await storage.storeDocument({
+          bytes: input.document.fileBytes,
+          mimeType: input.document.mimeType,
+        })
+      : null;
+
+    try {
+      const result = await repository.updateWithRelatedData(
+        userId,
+        careEventId,
+        {
+          ...input,
+          document:
+            input.document && storedDocument
+              ? {
+                  documentType: input.document.documentType,
+                  fileSizeBytes: storedDocument.fileSizeBytes,
+                  mimeType: storedDocument.mimeType,
+                  notes: input.document.notes,
+                  originalFilename: input.document.originalFilename,
+                  storedFilename: storedDocument.storagePath,
+                  uploadedByUserId: userId,
+                }
+              : null,
+        },
+      );
+
+      if (!result) {
+        throw new CareEventAccessError();
+      }
+
+      return result;
+    } catch (error) {
+      if (storedDocument) {
+        await storage.deleteDocument(storedDocument.storagePath);
+      }
+
+      throw error;
+    }
   },
 });
 

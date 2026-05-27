@@ -32,7 +32,7 @@ Start a local database from `backend/`:
 docker compose up -d
 ```
 
-This starts PostgreSQL on `localhost:5432` with credentials that match `.env.example`.
+This starts PostgreSQL on `localhost:55432` with credentials that match `.env.example`.
 
 ## Container Image
 

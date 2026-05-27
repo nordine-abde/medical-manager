@@ -448,6 +448,10 @@ export const it = {
       completed: "Completata",
       cancelled: "Annullata",
     },
+    labels: {
+      appointment: "Appuntamento {date}",
+      booked: "Prenotata {date}",
+    },
   },
   tasks: {
     eyebrow: "Attivita di cura",

@@ -12,9 +12,36 @@ import { createPrescriptionsService } from "../src/modules/prescriptions/service
 
 const databaseUrl =
   process.env.DATABASE_URL ??
-  "postgres://postgres:postgres@localhost:5432/medical_manager";
+  "postgres://postgres:postgres@localhost:55432/medical_manager";
 
 const migrationDirectory = path.join(import.meta.dir, "../src/db/migrations");
+const currentSchemaMigrations = [
+  "0001_initial_setup.sql",
+  "0002_better_auth_core.sql",
+  "0003_user_profile_language.sql",
+  "0004_patient_access.sql",
+  "0005_conditions.sql",
+  "0007_tasks.sql",
+  "0008_task_dependencies.sql",
+  "0009_prescriptions.sql",
+  "0010_bookings.sql",
+  "0011_medications.sql",
+  "0012_medication_archiving.sql",
+  "0013_task_medication_links.sql",
+  "0014_documents.sql",
+  "0015_care_events.sql",
+  "0016_notifications.sql",
+  "0017_notification_delivery_tracking.sql",
+  "0018_prescription_subtypes.sql",
+  "0019_prescription_subtype_data.sql",
+  "0020_care_event_subtypes.sql",
+  "0021_drop_notifications.sql",
+  "0022_drop_tasks.sql",
+  "0023_drop_medical_instructions.sql",
+  "0024_drop_conditions.sql",
+  "0025_drop_medications.sql",
+  "0026_simplify_prescriptions.sql",
+] as const;
 
 type TestContext = {
   app: {
@@ -26,7 +53,6 @@ type TestContext = {
 
 type PrescriptionPayload = {
   prescription: {
-    collectedAt: string | null;
     deletedAt: string | null;
     expirationDate: string | null;
     id: string;
@@ -34,11 +60,7 @@ type PrescriptionPayload = {
     notes: string | null;
     patientId: string;
     prescriptionType: string;
-    receivedAt: string | null;
-    requestedAt: string | null;
-    status: string;
     subtype: string | null;
-    taskId: string | null;
   };
 };
 
@@ -148,27 +170,6 @@ const insertPatient = async (
   );
 };
 
-const insertTask = async (
-  sql: postgres.Sql,
-  schemaName: string,
-  patientId: string,
-  taskId: string,
-): Promise<void> => {
-  await sql.unsafe(
-    `
-      insert into "${schemaName}"."tasks" (
-        id,
-        patient_id,
-        title,
-        task_type,
-        status
-      )
-      values ($1, $2, $3, $4, 'pending')
-    `,
-    [taskId, patientId, "Seeded task", "prescription_request"],
-  );
-};
-
 beforeEach(async () => {
   const schemaName = `test_prescriptions_${randomUUID().replaceAll("-", "")}`;
   const sql = postgres(databaseUrl, {
@@ -177,13 +178,10 @@ beforeEach(async () => {
     ssl: false,
   });
 
-  await applyMigration(sql, schemaName, "0001_initial_setup.sql");
-  await applyMigration(sql, schemaName, "0002_better_auth_core.sql");
-  await applyMigration(sql, schemaName, "0004_patient_access.sql");
-  await applyMigration(sql, schemaName, "0007_tasks.sql");
-  await applyMigration(sql, schemaName, "0009_prescriptions.sql");
-  await applyMigration(sql, schemaName, "0018_prescription_subtypes.sql");
-  await applyMigration(sql, schemaName, "0019_prescription_subtype_data.sql");
+  for (const migration of currentSchemaMigrations) {
+    await applyMigration(sql, schemaName, migration);
+  }
+
   await insertTestUser(sql, schemaName, "user-1");
   await insertTestUser(sql, schemaName, "user-2");
   await insertPatient(
@@ -198,19 +196,6 @@ beforeEach(async () => {
     "22222222-2222-4222-8222-222222222222",
     "user-2",
   );
-  await insertTask(
-    sql,
-    schemaName,
-    "11111111-1111-4111-8111-111111111111",
-    "33333333-3333-4333-8333-333333333333",
-  );
-  await insertTask(
-    sql,
-    schemaName,
-    "22222222-2222-4222-8222-222222222222",
-    "44444444-4444-4444-8444-444444444444",
-  );
-
   const repository = createPrescriptionsRepository(sql, schemaName);
   const service = createPrescriptionsService(repository);
   const app = new Elysia().group("/api/v1", (api) =>
@@ -252,9 +237,8 @@ describe("prescriptions module", () => {
     });
   });
 
-  it("creates, lists, gets, updates, and changes prescription status", async () => {
+  it("creates, lists, gets, and updates prescriptions", async () => {
     const patientId = "11111111-1111-4111-8111-111111111111";
-    const taskId = "33333333-3333-4333-8333-333333333333";
 
     const createResponse = await getTestContext().app.handle(
       new Request(
@@ -265,7 +249,6 @@ describe("prescriptions module", () => {
             notes: "  Needed for annual blood tests  ",
             prescriptionType: "exam",
             subtype: "Blood tests",
-            taskId,
           }),
           headers: {
             "content-type": "application/json",
@@ -284,10 +267,7 @@ describe("prescriptions module", () => {
       notes: "Needed for annual blood tests",
       patientId,
       prescriptionType: "exam",
-      requestedAt: null,
-      status: "needed",
       subtype: "Blood tests",
-      taskId,
     });
 
     const listResponse = await getTestContext().app.handle(
@@ -316,7 +296,7 @@ describe("prescriptions module", () => {
     const getPayload = (await getResponse.json()) as PrescriptionPayload;
 
     expect(getResponse.status).toBe(200);
-    expect(getPayload.prescription.taskId).toBe(taskId);
+    expect(getPayload.prescription.id).toBe(prescriptionId);
 
     const updateResponse = await getTestContext().app.handle(
       new Request(`http://localhost/api/v1/prescriptions/${prescriptionId}`, {
@@ -324,9 +304,7 @@ describe("prescriptions module", () => {
           expirationDate: "2026-05-01",
           notes: " Ready to request from GP ",
           prescriptionType: "exam",
-          requestedAt: "2026-03-22T09:00:00.000Z",
           subtype: "Tachipirina",
-          taskId: null,
         }),
         headers: {
           "content-type": "application/json",
@@ -342,88 +320,12 @@ describe("prescriptions module", () => {
       expirationDate: "2026-05-01",
       notes: "Ready to request from GP",
       prescriptionType: "exam",
-      requestedAt: "2026-03-22T09:00:00.000Z",
       subtype: "Tachipirina",
-      taskId: null,
-    });
-
-    const requestedResponse = await getTestContext().app.handle(
-      new Request(
-        `http://localhost/api/v1/prescriptions/${prescriptionId}/status`,
-        {
-          body: JSON.stringify({
-            status: "requested",
-          }),
-          headers: {
-            "content-type": "application/json",
-            "x-test-user-id": "user-1",
-          },
-          method: "PATCH",
-        },
-      ),
-    );
-    const requestedPayload =
-      (await requestedResponse.json()) as PrescriptionPayload;
-
-    expect(requestedResponse.status).toBe(200);
-    expect(requestedPayload.prescription.status).toBe("requested");
-    expect(requestedPayload.prescription.requestedAt).not.toBeNull();
-    expect(requestedPayload.prescription.receivedAt).toBeNull();
-
-    const availableResponse = await getTestContext().app.handle(
-      new Request(
-        `http://localhost/api/v1/prescriptions/${prescriptionId}/status`,
-        {
-          body: JSON.stringify({
-            receivedAt: "2026-03-24T11:30:00.000Z",
-            status: "available",
-          }),
-          headers: {
-            "content-type": "application/json",
-            "x-test-user-id": "user-1",
-          },
-          method: "PATCH",
-        },
-      ),
-    );
-    const availablePayload =
-      (await availableResponse.json()) as PrescriptionPayload;
-
-    expect(availableResponse.status).toBe(200);
-    expect(availablePayload.prescription).toMatchObject({
-      receivedAt: "2026-03-24T11:30:00.000Z",
-      status: "available",
-    });
-
-    const collectedResponse = await getTestContext().app.handle(
-      new Request(
-        `http://localhost/api/v1/prescriptions/${prescriptionId}/status`,
-        {
-          body: JSON.stringify({
-            collectedAt: "2026-03-25T15:00:00.000Z",
-            status: "collected",
-          }),
-          headers: {
-            "content-type": "application/json",
-            "x-test-user-id": "user-1",
-          },
-          method: "PATCH",
-        },
-      ),
-    );
-    const collectedPayload =
-      (await collectedResponse.json()) as PrescriptionPayload;
-
-    expect(collectedResponse.status).toBe(200);
-    expect(collectedPayload.prescription).toMatchObject({
-      collectedAt: "2026-03-25T15:00:00.000Z",
-      receivedAt: "2026-03-24T11:30:00.000Z",
-      status: "collected",
     });
 
     const filteredListResponse = await getTestContext().app.handle(
       new Request(
-        `http://localhost/api/v1/patients/${patientId}/prescriptions?status=collected&prescriptionType=exam`,
+        `http://localhost/api/v1/patients/${patientId}/prescriptions?prescriptionType=exam`,
         {
           headers: {
             "x-test-user-id": "user-1",
@@ -437,48 +339,6 @@ describe("prescriptions module", () => {
     expect(filteredListResponse.status).toBe(200);
     expect(filteredListPayload.prescriptions).toHaveLength(1);
     expect(filteredListPayload.prescriptions[0]?.id).toBe(prescriptionId);
-  });
-
-  it("rejects invalid prescription status transitions", async () => {
-    const patientId = "11111111-1111-4111-8111-111111111111";
-    const createResponse = await getTestContext().app.handle(
-      new Request(
-        `http://localhost/api/v1/patients/${patientId}/prescriptions`,
-        {
-          body: JSON.stringify({
-            prescriptionType: "exam",
-          }),
-          headers: {
-            "content-type": "application/json",
-            "x-test-user-id": "user-1",
-          },
-          method: "POST",
-        },
-      ),
-    );
-    const createPayload = (await createResponse.json()) as PrescriptionPayload;
-
-    const response = await getTestContext().app.handle(
-      new Request(
-        `http://localhost/api/v1/prescriptions/${createPayload.prescription.id}/status`,
-        {
-          body: JSON.stringify({
-            status: "collected",
-          }),
-          headers: {
-            "content-type": "application/json",
-            "x-test-user-id": "user-1",
-          },
-          method: "PATCH",
-        },
-      ),
-    );
-
-    expect(response.status).toBe(409);
-    expect(await response.json()).toEqual({
-      error: "invalid_prescription_status_transition",
-      message: "Prescription status transition is not allowed.",
-    });
   });
 
   it("accepts every supported prescription type and normalizes the legacy alias", async () => {
@@ -531,7 +391,7 @@ describe("prescriptions module", () => {
     }
   });
 
-  it("rejects cross-patient task links and inaccessible prescriptions", async () => {
+  it("rejects inaccessible patient and prescription access", async () => {
     const patientId = "11111111-1111-4111-8111-111111111111";
 
     const createResponse = await getTestContext().app.handle(
@@ -540,11 +400,10 @@ describe("prescriptions module", () => {
         {
           body: JSON.stringify({
             prescriptionType: "exam",
-            taskId: "44444444-4444-4444-8444-444444444444",
           }),
           headers: {
             "content-type": "application/json",
-            "x-test-user-id": "user-1",
+            "x-test-user-id": "user-2",
           },
           method: "POST",
         },

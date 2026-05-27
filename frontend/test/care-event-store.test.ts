@@ -230,6 +230,148 @@ describe("useCareEventsStore", () => {
     expect(store.subtypesByType.treatment).toEqual(["Physical therapy"]);
   });
 
+  it("creates a care event with related data through the composite endpoint", async () => {
+    const store = useCareEventsStore();
+    const file = new File(["report"], "visit-report.pdf", {
+      type: "application/pdf",
+    });
+
+    mockFetch
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            careEvent: {
+              bookingId: null,
+              completedAt: "2026-03-20T09:00:00.000Z",
+              createdAt: "2026-03-20T09:01:00.000Z",
+              eventType: "specialist_visit",
+              facilityId: "facility-9",
+              id: "care-event-9",
+              outcomeNotes: "Specialist visit completed.",
+              patientId: "patient-1",
+              providerName: "Dr. Neri",
+              subtype: "Cardiology",
+              updatedAt: "2026-03-20T09:01:00.000Z",
+            },
+            document: {
+              documentType: "visit_report",
+              downloadUrl: "/api/v1/documents/document-9/download",
+              fileSizeBytes: 6,
+              id: "document-9",
+              mimeType: "application/pdf",
+              notes: "Visit report.",
+              originalFilename: "visit-report.pdf",
+              patientId: "patient-1",
+              relatedEntityId: "care-event-9",
+              relatedEntityType: "care_event",
+              uploadedAt: "2026-03-20T09:02:00.000Z",
+              uploadedByUserId: "user-1",
+            },
+          }),
+          {
+            headers: {
+              "content-type": "application/json",
+            },
+            status: 200,
+          },
+        ),
+      )
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            careEvents: [
+              {
+                bookingId: null,
+                completedAt: "2026-03-20T09:00:00.000Z",
+                createdAt: "2026-03-20T09:01:00.000Z",
+                eventType: "specialist_visit",
+                facilityId: "facility-9",
+                id: "care-event-9",
+                outcomeNotes: "Specialist visit completed.",
+                patientId: "patient-1",
+                providerName: "Dr. Neri",
+                subtype: "Cardiology",
+                updatedAt: "2026-03-20T09:01:00.000Z",
+              },
+            ],
+            pagination: {
+              page: 1,
+              pageSize: 20,
+              total: 1,
+              totalPages: 1,
+            },
+          }),
+          {
+            headers: {
+              "content-type": "application/json",
+            },
+            status: 200,
+          },
+        ),
+      )
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            subtypesByType: {
+              exam: [],
+              specialist_visit: ["Cardiology"],
+              treatment: [],
+            },
+          }),
+          {
+            headers: {
+              "content-type": "application/json",
+            },
+            status: 200,
+          },
+        ),
+      );
+
+    const result = await store.createCareEventWithRelatedData("patient-1", {
+      attachedDocument: {
+        documentType: "visit_report",
+        file,
+        notes: "Visit report.",
+      },
+      careEvent: {
+        bookingId: null,
+        completedAt: "2026-03-20T09:00:00.000Z",
+        eventType: "specialist_visit",
+        facilityId: null,
+        outcomeNotes: "Specialist visit completed.",
+        providerName: "Dr. Neri",
+        subtype: "Cardiology",
+      },
+      facilityPayload: {
+        address: "Via Milano 2",
+        city: "Milan",
+        facilityType: "Clinic",
+        name: "Cardio Clinic",
+        notes: null,
+      },
+    });
+
+    expect(result.document?.id).toBe("document-9");
+    expect(store.careEvents[0]?.id).toBe("care-event-9");
+
+    const [url, init] = mockFetch.mock.calls[0] ?? [];
+    expect(url).toBe(
+      "/api/v1/patients/patient-1/care-events/with-related-data",
+    );
+    expect(init?.method).toBe("POST");
+
+    const body = init?.body as FormData;
+    expect(body.get("file")).toBe(file);
+    expect(body.get("documentType")).toBe("visit_report");
+    expect(JSON.parse(String(body.get("careEvent")))).toMatchObject({
+      eventType: "specialist_visit",
+      providerName: "Dr. Neri",
+    });
+    expect(JSON.parse(String(body.get("facility")))).toMatchObject({
+      name: "Cardio Clinic",
+    });
+  });
+
   it("loads care event subtype suggestions separately from filtered events", async () => {
     const store = useCareEventsStore();
 

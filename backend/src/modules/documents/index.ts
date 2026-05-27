@@ -2,6 +2,7 @@ import { Elysia, t } from "elysia";
 
 import type { auth } from "../../auth";
 import { requireRequestSession } from "../../auth/session";
+import { mapDocument } from "./dto";
 import {
   type DocumentType,
   documentTypes,
@@ -61,35 +62,6 @@ const invalidMultipartPayload = {
 
 const isAuthenticationRequiredError = (error: unknown): boolean =>
   error instanceof Error && error.message === "AUTHENTICATION_REQUIRED";
-
-const formatDateTime = (value: Date): string => value.toISOString();
-
-const mapDocument = (document: {
-  document_type: DocumentType;
-  file_size_bytes: number;
-  id: string;
-  mime_type: string;
-  notes: string | null;
-  original_filename: string;
-  patient_id: string;
-  related_entity_id: string;
-  related_entity_type: RelatedEntityType;
-  uploaded_at: Date;
-  uploaded_by_user_id: string;
-}) => ({
-  documentType: document.document_type,
-  downloadUrl: `/api/v1/documents/${document.id}/download`,
-  fileSizeBytes: document.file_size_bytes,
-  id: document.id,
-  mimeType: document.mime_type,
-  notes: document.notes,
-  originalFilename: document.original_filename,
-  patientId: document.patient_id,
-  relatedEntityId: document.related_entity_id,
-  relatedEntityType: document.related_entity_type,
-  uploadedAt: formatDateTime(document.uploaded_at),
-  uploadedByUserId: document.uploaded_by_user_id,
-});
 
 const isUuid = (value: string): boolean =>
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(

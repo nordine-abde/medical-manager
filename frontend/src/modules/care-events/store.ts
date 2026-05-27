@@ -1,10 +1,13 @@
 import { defineStore } from "pinia";
-
+import type { FacilityUpsertPayload } from "../bookings/types";
+import type { DocumentRecord, DocumentType } from "../documents/types";
 import {
   createCareEventRequest,
+  createCareEventWithRelatedDataRequest,
   listCareEventSubtypesRequest,
   listCareEventsRequest,
   updateCareEventRequest,
+  updateCareEventWithRelatedDataRequest,
 } from "./api";
 import type {
   CareEventListFilters,
@@ -132,6 +135,32 @@ export const useCareEventsStore = defineStore("care-events", {
       ]);
       return careEvent;
     },
+    async createCareEventWithRelatedData(
+      patientId: string,
+      payload: {
+        attachedDocument?: {
+          documentType: DocumentType;
+          file: File;
+          notes: string | null;
+        } | null;
+        careEvent: CareEventUpsertPayload;
+        facilityPayload?: FacilityUpsertPayload | null;
+      },
+    ): Promise<{
+      careEvent: CareEventRecord;
+      document: DocumentRecord | null;
+    }> {
+      const result = await createCareEventWithRelatedDataRequest(
+        patientId,
+        payload,
+      );
+      lastPatientId = patientId;
+      await Promise.all([
+        this.refreshCareEvents(),
+        this.refreshCareEventSubtypes(),
+      ]);
+      return result;
+    },
     async updateCareEvent(
       careEventId: string,
       payload: Partial<CareEventUpsertPayload>,
@@ -148,6 +177,37 @@ export const useCareEventsStore = defineStore("care-events", {
       }
 
       return careEvent;
+    },
+    async updateCareEventWithRelatedData(
+      careEventId: string,
+      payload: {
+        attachedDocument?: {
+          documentType: DocumentType;
+          file: File;
+          notes: string | null;
+        } | null;
+        careEvent: Partial<CareEventUpsertPayload>;
+        facilityPayload?: FacilityUpsertPayload | null;
+      },
+    ): Promise<{
+      careEvent: CareEventRecord;
+      document: DocumentRecord | null;
+    }> {
+      const result = await updateCareEventWithRelatedDataRequest(
+        careEventId,
+        payload,
+      );
+
+      if (lastPatientId) {
+        await Promise.all([
+          this.refreshCareEvents(),
+          this.refreshCareEventSubtypes(),
+        ]);
+      } else {
+        this.careEvents = upsertCareEvent(this.careEvents, result.careEvent);
+      }
+
+      return result;
     },
   },
 });

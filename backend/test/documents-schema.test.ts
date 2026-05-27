@@ -7,7 +7,7 @@ import postgres from "postgres";
 
 const databaseUrl =
   process.env.DATABASE_URL ??
-  "postgres://postgres:postgres@localhost:5432/medical_manager";
+  "postgres://postgres:postgres@localhost:55432/medical_manager";
 
 const migrationDirectory = path.join(import.meta.dir, "../src/db/migrations");
 
@@ -105,6 +105,7 @@ beforeEach(async () => {
   await applyMigration(sql, schemaName, "0001_initial_setup.sql");
   await applyMigration(sql, schemaName, "0002_better_auth_core.sql");
   await applyMigration(sql, schemaName, "0004_patient_access.sql");
+  await applyMigration(sql, schemaName, "0005_conditions.sql");
   await applyMigration(sql, schemaName, "0007_tasks.sql");
   await applyMigration(sql, schemaName, "0009_prescriptions.sql");
   await applyMigration(sql, schemaName, "0010_bookings.sql");

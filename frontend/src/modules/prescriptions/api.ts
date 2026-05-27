@@ -1,3 +1,4 @@
+import type { DocumentRecord } from "../documents/types";
 import type {
   PrescriptionListFilters,
   PrescriptionRecord,
@@ -12,6 +13,11 @@ interface ApiErrorPayload {
 }
 
 interface PrescriptionPayload {
+  prescription: PrescriptionRecord;
+}
+
+interface PrescriptionWithDocumentPayload {
+  document: DocumentRecord;
   prescription: PrescriptionRecord;
 }
 
@@ -112,6 +118,71 @@ export const createPrescriptionRequest = async (
   return response.prescription;
 };
 
+const appendNullableFormField = (
+  body: FormData,
+  key: string,
+  value: string | null | undefined,
+) => {
+  if (value !== undefined) {
+    body.set(key, value ?? "");
+  }
+};
+
+const buildPrescriptionDocumentFormData = (
+  payload: {
+    document: {
+      file: File;
+      notes: string | null;
+    };
+    prescription: Partial<PrescriptionUpsertPayload>;
+  },
+  includeRequiredFields: boolean,
+): FormData => {
+  const body = new FormData();
+  body.set("file", payload.document.file);
+
+  if (payload.document.notes) {
+    body.set("documentNotes", payload.document.notes);
+  }
+
+  if (
+    includeRequiredFields ||
+    payload.prescription.prescriptionType !== undefined
+  ) {
+    body.set("prescriptionType", payload.prescription.prescriptionType ?? "");
+  }
+
+  appendNullableFormField(
+    body,
+    "expirationDate",
+    payload.prescription.expirationDate,
+  );
+  appendNullableFormField(body, "issueDate", payload.prescription.issueDate);
+  appendNullableFormField(body, "notes", payload.prescription.notes);
+  appendNullableFormField(body, "subtype", payload.prescription.subtype);
+
+  return body;
+};
+
+export const createPrescriptionWithDocumentRequest = async (
+  patientId: string,
+  payload: {
+    document: {
+      file: File;
+      notes: string | null;
+    };
+    prescription: PrescriptionUpsertPayload;
+  },
+): Promise<PrescriptionWithDocumentPayload> =>
+  requestJson<PrescriptionWithDocumentPayload>(
+    `/patients/${patientId}/prescriptions/with-document`,
+    {
+      body: buildPrescriptionDocumentFormData(payload, true),
+      method: "POST",
+    },
+    "Unable to create the prescription.",
+  );
+
 export const updatePrescriptionRequest = async (
   prescriptionId: string,
   payload: Partial<PrescriptionUpsertPayload>,
@@ -149,3 +220,22 @@ export const updatePrescriptionRequest = async (
 
   return response.prescription;
 };
+
+export const updatePrescriptionWithDocumentRequest = async (
+  prescriptionId: string,
+  payload: {
+    document: {
+      file: File;
+      notes: string | null;
+    };
+    prescription: Partial<PrescriptionUpsertPayload>;
+  },
+): Promise<PrescriptionWithDocumentPayload> =>
+  requestJson<PrescriptionWithDocumentPayload>(
+    `/prescriptions/${prescriptionId}/with-document`,
+    {
+      body: buildPrescriptionDocumentFormData(payload, false),
+      method: "PATCH",
+    },
+    "Unable to update the prescription.",
+  );

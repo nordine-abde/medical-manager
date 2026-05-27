@@ -4,6 +4,7 @@ import { useRoute, useRouter } from "vue-router";
 import { useI18n } from "vue-i18n";
 
 import { useBookingsStore } from "../../bookings/store";
+import { formatBookingDisplayLabel } from "../../bookings/utils";
 import { useDocumentsStore } from "../../documents/store";
 import type { DocumentRecord, DocumentType } from "../../documents/types";
 import { usePatientsStore } from "../../patients/store";
@@ -55,10 +56,11 @@ const careEventSubtypeOptionsByType = computed(
 );
 const bookingOptions = computed(() =>
   bookings.value.map((booking) => ({
-    label: [
-      "" /* booking task label removed */,
-      formatDateTime(booking.appointmentAt ?? booking.bookedAt),
-    ].join(" · "),
+    label: formatBookingDisplayLabel(booking, {
+      d,
+      facilities: facilities.value,
+      t,
+    }),
     value: booking.id,
   })),
 );
@@ -269,10 +271,11 @@ const resolveBookingLabel = (bookingId: string | null) => {
     return t("careEvents.missingBooking");
   }
 
-  return [
-    "" /* booking task label removed */,
-    formatDateTime(booking.appointmentAt ?? booking.bookedAt),
-  ].join(" · ");
+  return formatBookingDisplayLabel(booking, {
+    d,
+    facilities: facilities.value,
+    t,
+  });
 };
 
 const resolveDocumentsList = (careEventId: string): DocumentRecord[] =>
@@ -326,48 +329,56 @@ const handleSubmit = async (payload: {
   errorMessage.value = "";
 
   try {
-    let facilityId = payload.careEvent.facilityId;
-
-    if (payload.facilityPayload) {
-      const createdFacility = await bookingsStore.createFacility(
-        payload.facilityPayload,
-      );
-      facilityId = createdFacility.id;
-    }
+    const careEventPayload: CareEventUpsertPayload = {
+      ...payload.careEvent,
+      facilityId: payload.facilityPayload ? null : payload.careEvent.facilityId,
+    };
+    const shouldUseCompositeEndpoint = Boolean(
+      payload.facilityPayload || payload.attachedDocument,
+    );
 
     if (editingCareEvent.value) {
-      await careEventsStore.updateCareEvent(editingCareEvent.value.id, {
-        ...payload.careEvent,
-        facilityId,
-      });
+      if (shouldUseCompositeEndpoint) {
+        const result = await careEventsStore.updateCareEventWithRelatedData(
+          editingCareEvent.value.id,
+          {
+            attachedDocument: payload.attachedDocument,
+            careEvent: careEventPayload,
+            facilityPayload: payload.facilityPayload,
+          },
+        );
 
-      if (payload.attachedDocument) {
-        await documentsStore.uploadDocument(patientId.value, {
-          documentType: payload.attachedDocument.documentType,
-          file: payload.attachedDocument.file,
-          notes: payload.attachedDocument.notes,
-          relatedEntityId: editingCareEvent.value.id,
-          relatedEntityType: "care_event",
+        if (result.document) {
+          documentsStore.recordDocument(result.document);
+        }
+      } else {
+        await careEventsStore.updateCareEvent(editingCareEvent.value.id, {
+          ...careEventPayload,
         });
       }
     } else {
-      const createdCareEvent = await careEventsStore.createCareEvent(
-        patientId.value,
-        {
-          ...payload.careEvent,
-          facilityId,
-        },
-      );
+      if (shouldUseCompositeEndpoint) {
+        const result = await careEventsStore.createCareEventWithRelatedData(
+          patientId.value,
+          {
+            attachedDocument: payload.attachedDocument,
+            careEvent: careEventPayload,
+            facilityPayload: payload.facilityPayload,
+          },
+        );
 
-      if (payload.attachedDocument) {
-        await documentsStore.uploadDocument(patientId.value, {
-          documentType: payload.attachedDocument.documentType,
-          file: payload.attachedDocument.file,
-          notes: payload.attachedDocument.notes,
-          relatedEntityId: createdCareEvent.id,
-          relatedEntityType: "care_event",
+        if (result.document) {
+          documentsStore.recordDocument(result.document);
+        }
+      } else {
+        await careEventsStore.createCareEvent(patientId.value, {
+          ...careEventPayload,
         });
       }
+    }
+
+    if (payload.facilityPayload) {
+      await bookingsStore.loadFacilities();
     }
 
     isFormOpen.value = false;

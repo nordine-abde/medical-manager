@@ -33,6 +33,17 @@ const bookingIdParamsSchema = t.Object({
 const bookingBodySchema = t.Object({
   appointmentAt: t.Optional(t.Nullable(dateTimeSchema)),
   bookedAt: t.Optional(t.Nullable(dateTimeSchema)),
+  facility: t.Optional(
+    t.Nullable(
+      t.Object({
+        address: t.Optional(t.Nullable(t.String())),
+        city: t.Optional(t.Nullable(t.String())),
+        facilityType: t.Optional(t.Nullable(t.String())),
+        name: t.String(),
+        notes: t.Optional(t.Nullable(t.String())),
+      }),
+    ),
+  ),
   facilityId: t.Optional(
     t.Nullable(
       t.String({
@@ -54,6 +65,17 @@ const bookingBodySchema = t.Object({
 const bookingUpdateBodySchema = t.Object({
   appointmentAt: t.Optional(t.Nullable(dateTimeSchema)),
   bookedAt: t.Optional(t.Nullable(dateTimeSchema)),
+  facility: t.Optional(
+    t.Nullable(
+      t.Object({
+        address: t.Optional(t.Nullable(t.String())),
+        city: t.Optional(t.Nullable(t.String())),
+        facilityType: t.Optional(t.Nullable(t.String())),
+        name: t.String(),
+        notes: t.Optional(t.Nullable(t.String())),
+      }),
+    ),
+  ),
   facilityId: t.Optional(
     t.Nullable(
       t.String({
@@ -69,6 +91,7 @@ const bookingUpdateBodySchema = t.Object({
       }),
     ),
   ),
+  status: t.Optional(bookingStatusSchema),
 });
 
 const bookingStatusBodySchema = t.Object({
@@ -121,6 +144,8 @@ const normalizeOptionalText = (
 
   return value?.trim() || null;
 };
+
+const normalizeRequiredText = (value: string): string => value.trim();
 
 const mapBooking = (booking: {
   appointment_at: Date | null;
@@ -202,6 +227,17 @@ export const createBookingsModule = (
             {
               appointmentAt: body.appointmentAt ?? null,
               bookedAt: body.bookedAt ?? null,
+              facility: body.facility
+                ? {
+                    address:
+                      normalizeOptionalText(body.facility.address) ?? null,
+                    city: normalizeOptionalText(body.facility.city) ?? null,
+                    facilityType:
+                      normalizeOptionalText(body.facility.facilityType) ?? null,
+                    name: normalizeRequiredText(body.facility.name),
+                    notes: normalizeOptionalText(body.facility.notes) ?? null,
+                  }
+                : null,
               facilityId: body.facilityId ?? null,
               notes: normalizeOptionalText(body.notes) ?? null,
               prescriptionId: body.prescriptionId ?? null,
@@ -258,9 +294,17 @@ export const createBookingsModule = (
           const input: {
             appointmentAt?: string | null;
             bookedAt?: string | null;
+            facility?: {
+              address: string | null;
+              city: string | null;
+              facilityType: string | null;
+              name: string;
+              notes: string | null;
+            } | null;
             facilityId?: string | null;
             notes?: string | null;
             prescriptionId?: string | null;
+            status?: BookingStatus;
           } = {};
 
           if (body.appointmentAt !== undefined) {
@@ -275,12 +319,29 @@ export const createBookingsModule = (
             input.facilityId = body.facilityId;
           }
 
+          if (body.facility !== undefined) {
+            input.facility = body.facility
+              ? {
+                  address: normalizeOptionalText(body.facility.address) ?? null,
+                  city: normalizeOptionalText(body.facility.city) ?? null,
+                  facilityType:
+                    normalizeOptionalText(body.facility.facilityType) ?? null,
+                  name: normalizeRequiredText(body.facility.name),
+                  notes: normalizeOptionalText(body.facility.notes) ?? null,
+                }
+              : null;
+          }
+
           if (body.notes !== undefined) {
             input.notes = normalizeOptionalText(body.notes) ?? null;
           }
 
           if (body.prescriptionId !== undefined) {
             input.prescriptionId = body.prescriptionId;
+          }
+
+          if (body.status !== undefined) {
+            input.status = body.status;
           }
 
           const booking = await service.updateBooking(

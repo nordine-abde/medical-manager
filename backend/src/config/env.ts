@@ -6,7 +6,7 @@ const DEFAULT_APP_NAME = "medical-manager-backend";
 const DEFAULT_API_PREFIX = "/api/v1";
 const DEFAULT_LOG_LEVEL = "info";
 const DEFAULT_DATABASE_URL =
-  "postgres://postgres:postgres@localhost:5432/medical_manager";
+  "postgres://postgres:postgres@localhost:55432/medical_manager";
 const DEFAULT_DATABASE_SCHEMA = "app";
 const DEFAULT_DATABASE_MAX_CONNECTIONS = 10;
 const DEFAULT_BETTER_AUTH_SECRET =
@@ -117,7 +117,9 @@ export const buildBetterAuthConfig = (env: EnvSource) =>
 
 export const buildDocumentsStorageConfig = (env: EnvSource) =>
   ({
-    rootDirectory: env.DOCUMENTS_STORAGE_ROOT ?? DEFAULT_DOCUMENTS_STORAGE_ROOT,
+    rootDirectory: env.DOCUMENTS_STORAGE_ROOT
+      ? path.resolve(env.DOCUMENTS_STORAGE_ROOT)
+      : DEFAULT_DOCUMENTS_STORAGE_ROOT,
   }) as const;
 
 export const appConfig = buildAppConfig(runtimeEnv);

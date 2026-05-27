@@ -2,6 +2,8 @@ import { Elysia, t } from "elysia";
 
 import type { auth } from "../../auth";
 import { requireRequestSession } from "../../auth/session";
+import { mapDocument } from "../documents/dto";
+import { UnsupportedDocumentMimeTypeError } from "../documents/storage";
 import {
   legacyPrescriptionTypeAlias,
   type PrescriptionType,
@@ -90,6 +92,16 @@ const prescriptionNotFoundPayload = {
   message: "Prescription not found.",
 } as const;
 
+const invalidMultipartPayload = {
+  error: "validation_error",
+  message: "A multipart form with prescription fields and file is required.",
+} as const;
+
+const unsupportedDocumentTypePayload = {
+  error: "unsupported_document_type",
+  message: "Uploaded file type is not supported.",
+} as const;
+
 const formatDateOnly = (value: Date | string | null): string | null => {
   if (!value) {
     return null;
@@ -114,6 +126,18 @@ const normalizeOptionalText = (
 
   return value?.trim() || null;
 };
+
+const normalizeOptionalFormText = (
+  value: File | string | null,
+): string | null =>
+  typeof value === "string" ? (normalizeOptionalText(value) ?? null) : null;
+
+const isAcceptedPrescriptionType = (
+  value: string,
+): value is (typeof acceptedPrescriptionTypes)[number] =>
+  acceptedPrescriptionTypes.includes(
+    value as (typeof acceptedPrescriptionTypes)[number],
+  );
 
 const mapPrescription = (prescription: {
   created_at: Date;
@@ -148,6 +172,94 @@ const normalizePrescriptionType = (
   prescriptionType === legacyPrescriptionTypeAlias
     ? "visit"
     : (prescriptionType as PrescriptionType);
+
+const parseCreatePrescriptionDocumentFormData = async (request: Request) => {
+  const formData = await request.formData();
+  const fileEntry = formData.get("file");
+  const prescriptionTypeEntry = formData.get("prescriptionType");
+
+  if (
+    !(fileEntry instanceof File) ||
+    typeof prescriptionTypeEntry !== "string" ||
+    !isAcceptedPrescriptionType(prescriptionTypeEntry)
+  ) {
+    return null;
+  }
+
+  return {
+    document: {
+      file: fileEntry,
+      notes: normalizeOptionalFormText(formData.get("documentNotes")),
+    },
+    prescription: {
+      expirationDate: normalizeOptionalFormText(formData.get("expirationDate")),
+      issueDate: normalizeOptionalFormText(formData.get("issueDate")),
+      notes: normalizeOptionalFormText(formData.get("notes")),
+      prescriptionType: normalizePrescriptionType(prescriptionTypeEntry),
+      subtype: normalizeOptionalFormText(formData.get("subtype")),
+    },
+  };
+};
+
+const parseUpdatePrescriptionDocumentFormData = async (request: Request) => {
+  const formData = await request.formData();
+  const fileEntry = formData.get("file");
+
+  if (!(fileEntry instanceof File)) {
+    return null;
+  }
+
+  const prescription: {
+    expirationDate?: string | null;
+    issueDate?: string | null;
+    notes?: string | null;
+    prescriptionType?: PrescriptionType;
+    subtype?: string | null;
+  } = {};
+
+  if (formData.has("expirationDate")) {
+    prescription.expirationDate = normalizeOptionalFormText(
+      formData.get("expirationDate"),
+    );
+  }
+
+  if (formData.has("issueDate")) {
+    prescription.issueDate = normalizeOptionalFormText(
+      formData.get("issueDate"),
+    );
+  }
+
+  if (formData.has("notes")) {
+    prescription.notes = normalizeOptionalFormText(formData.get("notes"));
+  }
+
+  if (formData.has("prescriptionType")) {
+    const prescriptionTypeEntry = formData.get("prescriptionType");
+
+    if (
+      typeof prescriptionTypeEntry !== "string" ||
+      !isAcceptedPrescriptionType(prescriptionTypeEntry)
+    ) {
+      return null;
+    }
+
+    prescription.prescriptionType = normalizePrescriptionType(
+      prescriptionTypeEntry,
+    );
+  }
+
+  if (formData.has("subtype")) {
+    prescription.subtype = normalizeOptionalFormText(formData.get("subtype"));
+  }
+
+  return {
+    document: {
+      file: fileEntry,
+      notes: normalizeOptionalFormText(formData.get("documentNotes")),
+    },
+    prescription,
+  };
+};
 
 export const createPrescriptionsModule = (
   authInstance: typeof auth,
@@ -225,6 +337,62 @@ export const createPrescriptionsModule = (
         params: patientIdParamsSchema,
       },
     )
+    .post(
+      "/patients/:patientId/prescriptions/with-document",
+      async ({ params, request, status }) => {
+        let parsedFormData: Awaited<
+          ReturnType<typeof parseCreatePrescriptionDocumentFormData>
+        >;
+
+        try {
+          parsedFormData =
+            await parseCreatePrescriptionDocumentFormData(request);
+        } catch {
+          return status(400, invalidMultipartPayload);
+        }
+
+        if (!parsedFormData) {
+          return status(400, invalidMultipartPayload);
+        }
+
+        try {
+          const session = await requireRequestSession(authInstance, request);
+          const result = await service.createPrescriptionWithDocument(
+            session.user.id,
+            params.patientId,
+            {
+              ...parsedFormData.prescription,
+              document: {
+                fileBytes: await parsedFormData.document.file.arrayBuffer(),
+                mimeType: parsedFormData.document.file.type,
+                notes: parsedFormData.document.notes,
+                originalFilename:
+                  parsedFormData.document.file.name || "document",
+                uploadedByUserId: session.user.id,
+              },
+            },
+          );
+
+          return {
+            document: mapDocument(result.document),
+            prescription: mapPrescription(result.prescription),
+          };
+        } catch (error) {
+          if (error instanceof PatientPrescriptionAccessError) {
+            return status(404, patientNotFoundPayload);
+          }
+
+          if (error instanceof UnsupportedDocumentMimeTypeError) {
+            return status(400, unsupportedDocumentTypePayload);
+          }
+
+          return status(401, unauthorizedPayload);
+        }
+      },
+      {
+        params: patientIdParamsSchema,
+      },
+    )
     .get(
       "/prescriptions/:prescriptionId",
       async ({ params, request, status }) => {
@@ -295,6 +463,62 @@ export const createPrescriptionsModule = (
       },
       {
         body: prescriptionUpdateBodySchema,
+        params: prescriptionIdParamsSchema,
+      },
+    )
+    .patch(
+      "/prescriptions/:prescriptionId/with-document",
+      async ({ params, request, status }) => {
+        let parsedFormData: Awaited<
+          ReturnType<typeof parseUpdatePrescriptionDocumentFormData>
+        >;
+
+        try {
+          parsedFormData =
+            await parseUpdatePrescriptionDocumentFormData(request);
+        } catch {
+          return status(400, invalidMultipartPayload);
+        }
+
+        if (!parsedFormData) {
+          return status(400, invalidMultipartPayload);
+        }
+
+        try {
+          const session = await requireRequestSession(authInstance, request);
+          const result = await service.updatePrescriptionWithDocument(
+            session.user.id,
+            params.prescriptionId,
+            {
+              ...parsedFormData.prescription,
+              document: {
+                fileBytes: await parsedFormData.document.file.arrayBuffer(),
+                mimeType: parsedFormData.document.file.type,
+                notes: parsedFormData.document.notes,
+                originalFilename:
+                  parsedFormData.document.file.name || "document",
+                uploadedByUserId: session.user.id,
+              },
+            },
+          );
+
+          return {
+            document: mapDocument(result.document),
+            prescription: mapPrescription(result.prescription),
+          };
+        } catch (error) {
+          if (error instanceof PrescriptionAccessError) {
+            return status(404, prescriptionNotFoundPayload);
+          }
+
+          if (error instanceof UnsupportedDocumentMimeTypeError) {
+            return status(400, unsupportedDocumentTypePayload);
+          }
+
+          return status(401, unauthorizedPayload);
+        }
+      },
+      {
         params: prescriptionIdParamsSchema,
       },
     );

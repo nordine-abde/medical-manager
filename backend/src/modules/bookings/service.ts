@@ -130,6 +130,37 @@ export const createBookingsService = (
     bookingId: string,
     input: UpdateBookingInput,
   ): Promise<BookingRecord> {
+    if (input.status !== undefined) {
+      const existingBooking = await repository.findAccessibleById(
+        userId,
+        bookingId,
+      );
+
+      if (!existingBooking || existingBooking.deleted_at) {
+        throw new BookingAccessError();
+      }
+
+      assertTransitionAllowed(existingBooking.booking_status, input.status);
+
+      const normalizedFields = normalizeStatusFields(
+        existingBooking,
+        input.status,
+        input,
+      );
+
+      const booking = await repository.updateAccessible(userId, bookingId, {
+        ...input,
+        appointmentAt: normalizedFields.appointmentAt,
+        bookedAt: normalizedFields.bookedAt,
+      });
+
+      if (!booking) {
+        throw new BookingAccessError();
+      }
+
+      return booking;
+    }
+
     const booking = await repository.updateAccessible(userId, bookingId, input);
 
     if (!booking) {

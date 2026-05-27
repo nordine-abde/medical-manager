@@ -5,6 +5,11 @@ import {
   qualifyTableName,
   quoteIdentifier,
 } from "../../db/schema";
+import type {
+  CreateDocumentInput,
+  DocumentRecord,
+} from "../documents/repository";
+import type { CreateFacilityInput } from "../facilities/repository";
 
 export const careEventTypes = [
   "exam",
@@ -39,6 +44,14 @@ export type CreateCareEventInput = {
 };
 
 export type UpdateCareEventInput = Partial<CreateCareEventInput>;
+export type CreateCareEventDocumentInput = Omit<
+  CreateDocumentInput,
+  "patientId" | "relatedEntityId" | "relatedEntityType"
+>;
+export type CareEventWithDocumentRecord = {
+  careEvent: CareEventRecord;
+  document: DocumentRecord | null;
+};
 
 export type CareEventListFilters = {
   bookingId?: string;
@@ -80,6 +93,9 @@ const facilitiesTable = (schemaName: string): string =>
 const careEventsTable = (schemaName: string): string =>
   qualifyTableName(schemaName, "care_events");
 
+const documentsTable = (schemaName: string): string =>
+  qualifyTableName(schemaName, "documents");
+
 const qualifyTypeName = (schemaName: string, typeName: string): string =>
   `${quoteIdentifier(schemaName)}.${quoteIdentifier(typeName)}`;
 
@@ -92,7 +108,13 @@ export const createCareEventsRepository = (
   const qualifiedBookingsTable = bookingsTable(schemaName);
   const qualifiedFacilitiesTable = facilitiesTable(schemaName);
   const qualifiedCareEventsTable = careEventsTable(schemaName);
+  const qualifiedDocumentsTable = documentsTable(schemaName);
   const qualifiedCareEventType = qualifyTypeName(schemaName, "care_event_type");
+  const qualifiedRelatedEntityType = qualifyTypeName(
+    schemaName,
+    "related_entity_type",
+  );
+  const qualifiedDocumentType = qualifyTypeName(schemaName, "document_type");
   const careEventColumns = `
     ce.id,
     ce.patient_id,
@@ -106,6 +128,96 @@ export const createCareEventsRepository = (
     ce.created_at,
     ce.updated_at
   `;
+  const documentReturningColumns = `
+    id,
+    patient_id,
+    related_entity_type,
+    related_entity_id,
+    stored_filename,
+    original_filename,
+    mime_type,
+    file_size_bytes,
+    document_type,
+    uploaded_by_user_id,
+    uploaded_at,
+    notes
+  `;
+  const insertFacility = async (
+    executor: Pick<Sql, "unsafe">,
+    input: CreateFacilityInput,
+  ): Promise<string> => {
+    const [facility] = await executor.unsafe<Array<{ id: string }>>(
+      `
+        insert into ${qualifiedFacilitiesTable} (
+          name,
+          facility_type,
+          address,
+          city,
+          notes
+        )
+        values ($1, $2, $3, $4, $5)
+        returning id
+      `,
+      [input.name, input.facilityType, input.address, input.city, input.notes],
+    );
+
+    if (!facility) {
+      throw new Error("FACILITY_CREATE_FAILED");
+    }
+
+    return facility.id;
+  };
+  const insertDocument = async (
+    executor: Pick<Sql, "unsafe">,
+    patientId: string,
+    relatedEntityId: string,
+    input: CreateCareEventDocumentInput,
+  ): Promise<DocumentRecord> => {
+    const [document] = await executor.unsafe<[DocumentRecord]>(
+      `
+        insert into ${qualifiedDocumentsTable} (
+          patient_id,
+          related_entity_type,
+          related_entity_id,
+          stored_filename,
+          original_filename,
+          mime_type,
+          file_size_bytes,
+          document_type,
+          uploaded_by_user_id,
+          notes
+        )
+        values (
+          $1,
+          $2::${qualifiedRelatedEntityType},
+          $3,
+          $4,
+          $5,
+          $6,
+          $7,
+          $8::${qualifiedDocumentType},
+          $9,
+          $10
+        )
+        returning
+          ${documentReturningColumns}
+      `,
+      [
+        patientId,
+        "care_event",
+        relatedEntityId,
+        input.storedFilename,
+        input.originalFilename,
+        input.mimeType,
+        input.fileSizeBytes,
+        input.documentType,
+        input.uploadedByUserId,
+        input.notes,
+      ],
+    );
+
+    return document;
+  };
 
   return {
     async create(
@@ -161,6 +273,101 @@ export const createCareEventsRepository = (
       }
 
       return this.findAccessibleById(userId, createdCareEvent.id);
+    },
+
+    async createWithRelatedData(
+      userId: string,
+      patientId: string,
+      input: CreateCareEventInput & {
+        document?: CreateCareEventDocumentInput | null;
+        facility?: CreateFacilityInput | null;
+      },
+    ): Promise<CareEventWithDocumentRecord | null> {
+      const hasAccess = await this.hasPatientAccess(userId, patientId);
+
+      if (!hasAccess) {
+        return null;
+      }
+
+      const linksAreValid = await this.hasValidLinks(
+        patientId,
+        input.bookingId,
+        input.facility ? null : input.facilityId,
+      );
+
+      if (!linksAreValid) {
+        return null;
+      }
+
+      const result = await sql.begin(async (transaction) => {
+        const facilityId = input.facility
+          ? await insertFacility(transaction, input.facility)
+          : input.facilityId;
+        const [createdCareEvent] = await transaction.unsafe<
+          Array<{ id: string }>
+        >(
+          `
+            insert into ${qualifiedCareEventsTable} (
+              patient_id,
+              booking_id,
+              facility_id,
+              provider_name,
+              event_type,
+              subtype,
+              completed_at,
+              outcome_notes
+            )
+            values ($1, $2, $3, $4, $5, $6, $7, $8)
+            returning id
+          `,
+          [
+            patientId,
+            input.bookingId,
+            facilityId,
+            input.providerName,
+            input.eventType,
+            input.subtype,
+            input.completedAt,
+            input.outcomeNotes,
+          ],
+        );
+
+        if (!createdCareEvent) {
+          return null;
+        }
+
+        const document = input.document
+          ? await insertDocument(
+              transaction,
+              patientId,
+              createdCareEvent.id,
+              input.document,
+            )
+          : null;
+
+        return {
+          careEventId: createdCareEvent.id,
+          document,
+        };
+      });
+
+      if (!result) {
+        return null;
+      }
+
+      const careEvent = await this.findAccessibleById(
+        userId,
+        result.careEventId,
+      );
+
+      if (!careEvent) {
+        return null;
+      }
+
+      return {
+        careEvent,
+        document: result.document,
+      };
     },
 
     async findAccessibleById(
@@ -430,6 +637,131 @@ export const createCareEventsRepository = (
       }
 
       return this.findAccessibleById(userId, updatedCareEvent.id);
+    },
+
+    async updateWithRelatedData(
+      userId: string,
+      careEventId: string,
+      input: UpdateCareEventInput & {
+        document?: CreateCareEventDocumentInput | null;
+        facility?: CreateFacilityInput | null;
+      },
+    ): Promise<CareEventWithDocumentRecord | null> {
+      const existingCareEvent = await this.findAccessibleById(
+        userId,
+        careEventId,
+      );
+
+      if (!existingCareEvent) {
+        return null;
+      }
+
+      const bookingId =
+        input.bookingId === undefined
+          ? existingCareEvent.booking_id
+          : input.bookingId;
+      const facilityId =
+        input.facilityId === undefined
+          ? existingCareEvent.facility_id
+          : input.facilityId;
+      const providerName =
+        input.providerName === undefined
+          ? existingCareEvent.provider_name
+          : input.providerName;
+      const eventType =
+        input.eventType === undefined
+          ? existingCareEvent.event_type
+          : input.eventType;
+      const subtype =
+        input.subtype === undefined ? existingCareEvent.subtype : input.subtype;
+      const completedAt =
+        input.completedAt === undefined
+          ? existingCareEvent.completed_at.toISOString()
+          : input.completedAt;
+      const outcomeNotes =
+        input.outcomeNotes === undefined
+          ? existingCareEvent.outcome_notes
+          : input.outcomeNotes;
+
+      const linksAreValid = await this.hasValidLinks(
+        existingCareEvent.patient_id,
+        bookingId,
+        input.facility ? null : facilityId,
+      );
+
+      if (!linksAreValid) {
+        return null;
+      }
+
+      const result = await sql.begin(async (transaction) => {
+        const resolvedFacilityId = input.facility
+          ? await insertFacility(transaction, input.facility)
+          : facilityId;
+        const [updatedCareEvent] = await transaction.unsafe<
+          Array<{ id: string }>
+        >(
+          `
+            update ${qualifiedCareEventsTable}
+            set
+              booking_id = $2,
+              facility_id = $3,
+              provider_name = $4,
+              event_type = $5::${qualifiedCareEventType},
+              subtype = $6,
+              completed_at = $7,
+              outcome_notes = $8,
+              updated_at = now()
+            where id = $1
+            returning id
+          `,
+          [
+            careEventId,
+            bookingId,
+            resolvedFacilityId,
+            providerName,
+            eventType,
+            subtype,
+            completedAt,
+            outcomeNotes,
+          ],
+        );
+
+        if (!updatedCareEvent) {
+          return null;
+        }
+
+        const document = input.document
+          ? await insertDocument(
+              transaction,
+              existingCareEvent.patient_id,
+              careEventId,
+              input.document,
+            )
+          : null;
+
+        return {
+          careEventId: updatedCareEvent.id,
+          document,
+        };
+      });
+
+      if (!result) {
+        return null;
+      }
+
+      const careEvent = await this.findAccessibleById(
+        userId,
+        result.careEventId,
+      );
+
+      if (!careEvent) {
+        return null;
+      }
+
+      return {
+        careEvent,
+        document: result.document,
+      };
     },
   };
 };

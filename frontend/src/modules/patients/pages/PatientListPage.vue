@@ -117,7 +117,7 @@ const handleSubmit = async (payload: PatientUpsertPayload) => {
 
 const promptArchiveConfirm = (patient: PatientRecord) => {
   if (patient.archived) {
-    void handleArchiveToggle(patient);
+    void handleRestorePatient(patient);
     return;
   }
 

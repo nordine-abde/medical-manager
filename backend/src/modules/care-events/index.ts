@@ -2,7 +2,14 @@ import { Elysia, t } from "elysia";
 
 import type { auth } from "../../auth";
 import { requireRequestSession } from "../../auth/session";
-import { type CareEventListFilters, careEventTypes } from "./repository";
+import { mapDocument } from "../documents/dto";
+import { type DocumentType, documentTypes } from "../documents/repository";
+import { UnsupportedDocumentMimeTypeError } from "../documents/storage";
+import {
+  type CareEventListFilters,
+  type CareEventType,
+  careEventTypes,
+} from "./repository";
 import {
   CareEventAccessError,
   createCareEventsService,
@@ -120,6 +127,16 @@ const careEventNotFoundPayload = {
   message: "Care event not found.",
 } as const;
 
+const invalidMultipartPayload = {
+  error: "validation_error",
+  message: "A multipart form with a careEvent payload is required.",
+} as const;
+
+const unsupportedDocumentTypePayload = {
+  error: "unsupported_document_type",
+  message: "Uploaded file type is not supported.",
+} as const;
+
 const formatDateTime = (value: Date | null): string | null =>
   value?.toISOString() ?? null;
 
@@ -132,6 +149,8 @@ const normalizeOptionalText = (
 
   return value?.trim() || null;
 };
+
+const normalizeRequiredText = (value: string): string => value.trim();
 
 const normalizeOptionalQueryText = (value?: string): string | undefined => {
   const normalized = value?.trim();
@@ -255,6 +274,227 @@ const mapCareEventSubtypesByType = (
   return subtypeMap;
 };
 
+type RequestFormData = Awaited<ReturnType<Request["formData"]>>;
+
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === "object" && value !== null && !Array.isArray(value);
+
+const isCareEventType = (value: string): value is CareEventType =>
+  careEventTypes.includes(value as CareEventType);
+
+const isDocumentType = (value: string): value is DocumentType =>
+  documentTypes.includes(value as DocumentType);
+
+const parseJsonFormRecord = (
+  formData: RequestFormData,
+  key: string,
+): Record<string, unknown> | null => {
+  const entry = formData.get(key);
+
+  if (typeof entry !== "string" || !entry.trim()) {
+    return null;
+  }
+
+  const parsed = JSON.parse(entry) as unknown;
+
+  return isRecord(parsed) ? parsed : null;
+};
+
+const readOptionalText = (
+  record: Record<string, unknown>,
+  key: string,
+): string | null =>
+  typeof record[key] === "string"
+    ? (normalizeOptionalText(record[key]) ?? null)
+    : null;
+
+const readOptionalId = (
+  record: Record<string, unknown>,
+  key: string,
+): string | null => (typeof record[key] === "string" ? record[key] : null);
+
+const parseFacilityPayload = (record: Record<string, unknown>) => {
+  if (typeof record.name !== "string") {
+    return null;
+  }
+
+  return {
+    address: readOptionalText(record, "address"),
+    city: readOptionalText(record, "city"),
+    facilityType: readOptionalText(record, "facilityType"),
+    name: normalizeRequiredText(record.name),
+    notes: readOptionalText(record, "notes"),
+  };
+};
+
+const parseCreateCareEventPayload = (record: Record<string, unknown>) => {
+  if (
+    typeof record.completedAt !== "string" ||
+    typeof record.eventType !== "string" ||
+    !isCareEventType(record.eventType)
+  ) {
+    return null;
+  }
+
+  return {
+    bookingId: readOptionalId(record, "bookingId"),
+    completedAt: record.completedAt,
+    eventType: record.eventType,
+    facilityId: readOptionalId(record, "facilityId"),
+    outcomeNotes: readOptionalText(record, "outcomeNotes"),
+    providerName: readOptionalText(record, "providerName"),
+    subtype: readOptionalText(record, "subtype"),
+  };
+};
+
+const parseUpdateCareEventPayload = (record: Record<string, unknown>) => {
+  const careEvent: {
+    bookingId?: string | null;
+    completedAt?: string;
+    eventType?: CareEventType;
+    facilityId?: string | null;
+    outcomeNotes?: string | null;
+    providerName?: string | null;
+    subtype?: string | null;
+  } = {};
+
+  if ("bookingId" in record) {
+    careEvent.bookingId = readOptionalId(record, "bookingId");
+  }
+
+  if ("completedAt" in record) {
+    if (typeof record.completedAt !== "string") {
+      return null;
+    }
+
+    careEvent.completedAt = record.completedAt;
+  }
+
+  if ("eventType" in record) {
+    if (
+      typeof record.eventType !== "string" ||
+      !isCareEventType(record.eventType)
+    ) {
+      return null;
+    }
+
+    careEvent.eventType = record.eventType;
+  }
+
+  if ("facilityId" in record) {
+    careEvent.facilityId = readOptionalId(record, "facilityId");
+  }
+
+  if ("outcomeNotes" in record) {
+    careEvent.outcomeNotes = readOptionalText(record, "outcomeNotes");
+  }
+
+  if ("providerName" in record) {
+    careEvent.providerName = readOptionalText(record, "providerName");
+  }
+
+  if ("subtype" in record) {
+    careEvent.subtype = readOptionalText(record, "subtype");
+  }
+
+  return careEvent;
+};
+
+const parseCompositeDocumentPayload = (formData: RequestFormData) => {
+  const fileEntry = formData.get("file");
+
+  if (fileEntry === null) {
+    return null;
+  }
+
+  const documentTypeEntry = formData.get("documentType");
+
+  if (
+    !(fileEntry instanceof File) ||
+    typeof documentTypeEntry !== "string" ||
+    !isDocumentType(documentTypeEntry)
+  ) {
+    return undefined;
+  }
+
+  const documentNotesEntry = formData.get("documentNotes");
+
+  return {
+    documentType: documentTypeEntry,
+    file: fileEntry,
+    notes:
+      typeof documentNotesEntry === "string"
+        ? (normalizeOptionalText(documentNotesEntry) ?? null)
+        : null,
+  };
+};
+
+const parseCreateCompositeFormData = async (request: Request) => {
+  const formData = await request.formData();
+  const careEventRecord = parseJsonFormRecord(formData, "careEvent");
+
+  if (!careEventRecord) {
+    return null;
+  }
+
+  const careEvent = parseCreateCareEventPayload(careEventRecord);
+
+  if (!careEvent) {
+    return null;
+  }
+
+  const facilityRecord = parseJsonFormRecord(formData, "facility");
+  const facility = facilityRecord ? parseFacilityPayload(facilityRecord) : null;
+  const document = parseCompositeDocumentPayload(formData);
+
+  if (facilityRecord && !facility) {
+    return null;
+  }
+
+  if (document === undefined) {
+    return null;
+  }
+
+  return {
+    careEvent,
+    document,
+    facility,
+  };
+};
+
+const parseUpdateCompositeFormData = async (request: Request) => {
+  const formData = await request.formData();
+  const careEventRecord = parseJsonFormRecord(formData, "careEvent");
+
+  if (!careEventRecord) {
+    return null;
+  }
+
+  const careEvent = parseUpdateCareEventPayload(careEventRecord);
+
+  if (!careEvent) {
+    return null;
+  }
+
+  const facilityRecord = parseJsonFormRecord(formData, "facility");
+  const facility = facilityRecord ? parseFacilityPayload(facilityRecord) : null;
+  const document = parseCompositeDocumentPayload(formData);
+
+  if (facilityRecord && !facility) {
+    return null;
+  }
+
+  if (document === undefined) {
+    return null;
+  }
+
+  return {
+    careEvent,
+    document,
+    facility,
+  };
+};
+
 export const createCareEventsModule = (
   authInstance: typeof auth,
   service = createCareEventsService(),
@@ -353,6 +593,65 @@ export const createCareEventsModule = (
         params: patientIdParamsSchema,
       },
     )
+    .post(
+      "/patients/:patientId/care-events/with-related-data",
+      async ({ params, request, status }) => {
+        let parsedFormData: Awaited<
+          ReturnType<typeof parseCreateCompositeFormData>
+        >;
+
+        try {
+          parsedFormData = await parseCreateCompositeFormData(request);
+        } catch {
+          return status(400, invalidMultipartPayload);
+        }
+
+        if (!parsedFormData) {
+          return status(400, invalidMultipartPayload);
+        }
+
+        try {
+          const session = await requireRequestSession(authInstance, request);
+          const result = await service.createCareEventWithRelatedData(
+            session.user.id,
+            params.patientId,
+            {
+              ...parsedFormData.careEvent,
+              document: parsedFormData.document
+                ? {
+                    documentType: parsedFormData.document.documentType,
+                    fileBytes: await parsedFormData.document.file.arrayBuffer(),
+                    mimeType: parsedFormData.document.file.type,
+                    notes: parsedFormData.document.notes,
+                    originalFilename:
+                      parsedFormData.document.file.name || "document",
+                    uploadedByUserId: session.user.id,
+                  }
+                : null,
+              facility: parsedFormData.facility,
+            },
+          );
+
+          return {
+            careEvent: mapCareEvent(result.careEvent),
+            document: result.document ? mapDocument(result.document) : null,
+          };
+        } catch (error) {
+          if (error instanceof PatientCareEventAccessError) {
+            return status(404, patientNotFoundPayload);
+          }
+
+          if (error instanceof UnsupportedDocumentMimeTypeError) {
+            return status(400, unsupportedDocumentTypePayload);
+          }
+
+          return status(401, unauthorizedPayload);
+        }
+      },
+      {
+        params: patientIdParamsSchema,
+      },
+    )
     .get(
       "/care-events/:careEventId",
       async ({ params, request, status }) => {
@@ -432,6 +731,65 @@ export const createCareEventsModule = (
       },
       {
         body: careEventUpdateBodySchema,
+        params: careEventIdParamsSchema,
+      },
+    )
+    .patch(
+      "/care-events/:careEventId/with-related-data",
+      async ({ params, request, status }) => {
+        let parsedFormData: Awaited<
+          ReturnType<typeof parseUpdateCompositeFormData>
+        >;
+
+        try {
+          parsedFormData = await parseUpdateCompositeFormData(request);
+        } catch {
+          return status(400, invalidMultipartPayload);
+        }
+
+        if (!parsedFormData) {
+          return status(400, invalidMultipartPayload);
+        }
+
+        try {
+          const session = await requireRequestSession(authInstance, request);
+          const result = await service.updateCareEventWithRelatedData(
+            session.user.id,
+            params.careEventId,
+            {
+              ...parsedFormData.careEvent,
+              document: parsedFormData.document
+                ? {
+                    documentType: parsedFormData.document.documentType,
+                    fileBytes: await parsedFormData.document.file.arrayBuffer(),
+                    mimeType: parsedFormData.document.file.type,
+                    notes: parsedFormData.document.notes,
+                    originalFilename:
+                      parsedFormData.document.file.name || "document",
+                    uploadedByUserId: session.user.id,
+                  }
+                : null,
+              facility: parsedFormData.facility,
+            },
+          );
+
+          return {
+            careEvent: mapCareEvent(result.careEvent),
+            document: result.document ? mapDocument(result.document) : null,
+          };
+        } catch (error) {
+          if (error instanceof CareEventAccessError) {
+            return status(404, careEventNotFoundPayload);
+          }
+
+          if (error instanceof UnsupportedDocumentMimeTypeError) {
+            return status(400, unsupportedDocumentTypePayload);
+          }
+
+          return status(401, unauthorizedPayload);
+        }
+      },
+      {
         params: careEventIdParamsSchema,
       },
     );
