@@ -24,7 +24,6 @@ export const formatBookingDisplayLabel = (
     : booking.facilityId
       ? t("bookings.missingFacility")
       : null;
-  const statusLabel = t(`bookings.statuses.${booking.status}`);
 
-  return [dateLabel, facilityLabel, statusLabel].filter(Boolean).join(" — ");
+  return [booking.title, dateLabel, facilityLabel].filter(Boolean).join(" - ");
 };

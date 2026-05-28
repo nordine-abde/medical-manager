@@ -148,6 +148,26 @@ describe("migration helpers", () => {
     expect(migrationSql).toContain("deleted_at timestamptz");
   });
 
+  it("adds booking titles and removes booking status workflow fields", async () => {
+    const migrationPath = path.join(
+      migrationDirectory,
+      "0027_booking_title_and_status_removal.sql",
+    );
+    const migrationSql = await readFile(migrationPath, "utf8");
+
+    expect(migrationSql).toContain(
+      "alter table bookings add column title text",
+    );
+    expect(migrationSql).toContain(
+      "alter table bookings alter column title set not null",
+    );
+    expect(migrationSql).toContain(
+      "alter table bookings drop column booking_status",
+    );
+    expect(migrationSql).toContain("drop type if exists booking_status");
+    expect(migrationSql).toContain("bookings_patient_id_title_idx");
+  });
+
   it("defines the documents table in the migration set", async () => {
     const migrationPath = path.join(migrationDirectory, "0014_documents.sql");
     const migrationSql = await readFile(migrationPath, "utf8");

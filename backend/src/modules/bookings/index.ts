@@ -2,16 +2,27 @@ import { Elysia, t } from "elysia";
 
 import type { auth } from "../../auth";
 import { requireRequestSession } from "../../auth/session";
-import { type BookingStatus, bookingStatuses } from "./repository";
+import {
+  legacyPrescriptionTypeAlias,
+  type PrescriptionType,
+  prescriptionTypes,
+} from "../prescriptions/repository";
+import type { BookingListFilters } from "./repository";
 import {
   BookingAccessError,
   createBookingsService,
-  InvalidBookingStatusTransitionError,
   PatientBookingAccessError,
 } from "./service";
 
-const bookingStatusSchema = t.Union(
-  bookingStatuses.map((status) => t.Literal(status)),
+const acceptedPrescriptionTypes = [
+  ...prescriptionTypes,
+  legacyPrescriptionTypeAlias,
+] as const;
+
+const prescriptionTypeSchema = t.Union(
+  acceptedPrescriptionTypes.map((prescriptionType) =>
+    t.Literal(prescriptionType),
+  ),
 );
 
 const dateTimeSchema = t.String({
@@ -59,7 +70,7 @@ const bookingBodySchema = t.Object({
       }),
     ),
   ),
-  status: t.Optional(bookingStatusSchema),
+  title: t.Optional(t.String()),
 });
 
 const bookingUpdateBodySchema = t.Object({
@@ -91,13 +102,7 @@ const bookingUpdateBodySchema = t.Object({
       }),
     ),
   ),
-  status: t.Optional(bookingStatusSchema),
-});
-
-const bookingStatusBodySchema = t.Object({
-  appointmentAt: t.Optional(t.Nullable(dateTimeSchema)),
-  bookedAt: t.Optional(t.Nullable(dateTimeSchema)),
-  status: bookingStatusSchema,
+  title: t.Optional(t.String()),
 });
 
 const bookingListQuerySchema = t.Object({
@@ -108,7 +113,16 @@ const bookingListQuerySchema = t.Object({
   ),
   from: t.Optional(dateTimeSchema),
   includeArchived: t.Optional(t.Union([t.Literal("true"), t.Literal("false")])),
-  status: t.Optional(bookingStatusSchema),
+  page: t.Optional(t.String()),
+  pageSize: t.Optional(t.String()),
+  prescriptionId: t.Optional(
+    t.String({
+      format: "uuid",
+    }),
+  ),
+  prescriptionType: t.Optional(prescriptionTypeSchema),
+  search: t.Optional(t.String()),
+  subtype: t.Optional(t.String()),
   to: t.Optional(dateTimeSchema),
 });
 
@@ -125,11 +139,6 @@ const patientNotFoundPayload = {
 const bookingNotFoundPayload = {
   error: "booking_not_found",
   message: "Booking not found.",
-} as const;
-
-const invalidBookingStatusTransitionPayload = {
-  error: "invalid_booking_status_transition",
-  message: "Booking status transition is not allowed.",
 } as const;
 
 const formatDateTime = (value: Date | null): string | null =>
@@ -150,7 +159,6 @@ const normalizeRequiredText = (value: string): string => value.trim();
 const mapBooking = (booking: {
   appointment_at: Date | null;
   booked_at: Date | null;
-  booking_status: BookingStatus;
   created_at: Date;
   deleted_at: Date | null;
   facility_id: string | null;
@@ -158,6 +166,7 @@ const mapBooking = (booking: {
   notes: string | null;
   patient_id: string;
   prescription_id: string | null;
+  title: string;
   updated_at: Date;
 }) => ({
   appointmentAt: formatDateTime(booking.appointment_at),
@@ -169,12 +178,102 @@ const mapBooking = (booking: {
   notes: booking.notes,
   patientId: booking.patient_id,
   prescriptionId: booking.prescription_id,
-  status: booking.booking_status,
+  title: booking.title,
   updatedAt: booking.updated_at.toISOString(),
 });
 
 const parseIncludeArchived = (value?: "true" | "false"): boolean =>
   value === "true";
+
+const normalizeOptionalQueryText = (value?: string): string | undefined => {
+  const normalized = value?.trim();
+  return normalized ? normalized : undefined;
+};
+
+const parsePositiveInteger = (
+  value: string | undefined,
+  fallback: number,
+): number => {
+  const parsed = Number.parseInt(value ?? "", 10);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
+};
+
+const buildPagination = (query: {
+  page?: string;
+  pageSize?: string;
+}): {
+  page: number;
+  pageSize: number;
+} => {
+  const page = parsePositiveInteger(query.page, 1);
+  const pageSize = Math.min(parsePositiveInteger(query.pageSize, 20), 100);
+
+  return {
+    page,
+    pageSize,
+  };
+};
+
+const normalizePrescriptionType = (
+  prescriptionType: string,
+): PrescriptionType =>
+  prescriptionType === legacyPrescriptionTypeAlias
+    ? "visit"
+    : (prescriptionType as PrescriptionType);
+
+const buildBookingListFilters = (query: {
+  facilityId?: string;
+  from?: string;
+  includeArchived?: "true" | "false";
+  page?: string;
+  pageSize?: string;
+  prescriptionId?: string;
+  prescriptionType?: (typeof acceptedPrescriptionTypes)[number];
+  search?: string;
+  subtype?: string;
+  to?: string;
+}): BookingListFilters => {
+  const filters: BookingListFilters = {
+    ...buildPagination(query),
+    includeArchived: parseIncludeArchived(query.includeArchived),
+  };
+  const from = normalizeOptionalQueryText(query.from);
+  const search = normalizeOptionalQueryText(query.search);
+  const subtype = normalizeOptionalQueryText(query.subtype);
+  const to = normalizeOptionalQueryText(query.to);
+
+  if (query.facilityId) {
+    filters.facilityId = query.facilityId;
+  }
+
+  if (from) {
+    filters.from = from;
+  }
+
+  if (query.prescriptionId) {
+    filters.prescriptionId = query.prescriptionId;
+  }
+
+  if (query.prescriptionType) {
+    filters.prescriptionType = normalizePrescriptionType(
+      query.prescriptionType,
+    );
+  }
+
+  if (search) {
+    filters.search = search;
+  }
+
+  if (subtype) {
+    filters.subtype = subtype;
+  }
+
+  if (to) {
+    filters.to = to;
+  }
+
+  return filters;
+};
 
 export const createBookingsModule = (
   authInstance: typeof auth,
@@ -186,22 +285,20 @@ export const createBookingsModule = (
       async ({ params, query, request, status }) => {
         try {
           const session = await requireRequestSession(authInstance, request);
-          const bookings = await service.listBookings(
+          const result = await service.listBookings(
             session.user.id,
             params.patientId,
-            {
-              ...(query.facilityId === undefined
-                ? {}
-                : { facilityId: query.facilityId }),
-              ...(query.from === undefined ? {} : { from: query.from }),
-              includeArchived: parseIncludeArchived(query.includeArchived),
-              ...(query.status === undefined ? {} : { status: query.status }),
-              ...(query.to === undefined ? {} : { to: query.to }),
-            },
+            buildBookingListFilters(query),
           );
 
           return {
-            bookings: bookings.map(mapBooking),
+            bookings: result.items.map(mapBooking),
+            pagination: {
+              page: result.page,
+              pageSize: result.pageSize,
+              total: result.total,
+              totalPages: result.totalPages,
+            },
           };
         } catch (error) {
           if (error instanceof PatientBookingAccessError) {
@@ -241,7 +338,7 @@ export const createBookingsModule = (
               facilityId: body.facilityId ?? null,
               notes: normalizeOptionalText(body.notes) ?? null,
               prescriptionId: body.prescriptionId ?? null,
-              status: body.status ?? "not_booked",
+              title: normalizeOptionalText(body.title) ?? null,
             },
           );
 
@@ -329,7 +426,7 @@ export const createBookingsModule = (
             facilityId?: string | null;
             notes?: string | null;
             prescriptionId?: string | null;
-            status?: BookingStatus;
+            title?: string | null;
           } = {};
 
           if (body.appointmentAt !== undefined) {
@@ -365,8 +462,8 @@ export const createBookingsModule = (
             input.prescriptionId = body.prescriptionId;
           }
 
-          if (body.status !== undefined) {
-            input.status = body.status;
+          if (body.title !== undefined) {
+            input.title = normalizeOptionalText(body.title) ?? null;
           }
 
           const booking = await service.updateBooking(
@@ -388,45 +485,6 @@ export const createBookingsModule = (
       },
       {
         body: bookingUpdateBodySchema,
-        params: bookingIdParamsSchema,
-      },
-    )
-    .post(
-      "/bookings/:bookingId/status",
-      async ({ body, params, request, status }) => {
-        try {
-          const session = await requireRequestSession(authInstance, request);
-          const booking = await service.changeBookingStatus(
-            session.user.id,
-            params.bookingId,
-            {
-              ...(body.appointmentAt === undefined
-                ? {}
-                : { appointmentAt: body.appointmentAt }),
-              ...(body.bookedAt === undefined
-                ? {}
-                : { bookedAt: body.bookedAt }),
-              status: body.status,
-            },
-          );
-
-          return {
-            booking: mapBooking(booking),
-          };
-        } catch (error) {
-          if (error instanceof InvalidBookingStatusTransitionError) {
-            return status(409, invalidBookingStatusTransitionPayload);
-          }
-
-          if (error instanceof BookingAccessError) {
-            return status(404, bookingNotFoundPayload);
-          }
-
-          return status(401, unauthorizedPayload);
-        }
-      },
-      {
-        body: bookingStatusBodySchema,
         params: bookingIdParamsSchema,
       },
     );

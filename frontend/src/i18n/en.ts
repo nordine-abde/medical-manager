@@ -442,14 +442,18 @@ export const en = {
     save: "Save booking",
     cancel: "Cancel",
     closeForm: "Close booking form",
-    advanceAction: "Move to {status}",
+    archivedBadge: "Archived",
     createFacilityOption: "Create new facility",
+    summaryCount: "{count} recorded bookings",
     upcomingCount:
       "{count} upcoming appointment visible | {count} upcoming appointments visible",
     emptyEyebrow: "Booking list",
     emptyTitle: "No bookings yet",
     emptyDescription:
       "Add the first booking to keep facility coordination, call-backs, and upcoming appointments visible.",
+    emptyFilteredTitle: "No bookings match these filters",
+    emptyFilteredDescription:
+      "Adjust the search, prescription type, facility, or date range to widen the list.",
     emptyDate: "Not scheduled",
     emptyNotes: "No notes added for this booking.",
     genericError: "Something went wrong while loading bookings.",
@@ -469,8 +473,8 @@ export const en = {
       facility: "Facility",
       notes: "Notes",
       prescription: "Linked prescription",
-      status: "Status",
       task: "Task link",
+      title: "Title",
     },
     facilityFields: {
       address: "Address",
@@ -481,16 +485,23 @@ export const en = {
     },
     validation: {
       facilityNameRequired: "Enter the facility name.",
-      minimumRequired:
-        "Add a booking date, appointment time, facility, or linked prescription.",
       taskRequired: "Select the related task.",
+      titleRequired: "Enter the booking title.",
     },
-    statuses: {
-      not_booked: "Not booked",
-      booking_in_progress: "Booking in progress",
-      booked: "Booked",
-      completed: "Completed",
-      cancelled: "Cancelled",
+    filters: {
+      allFacilities: "All facilities",
+      allPrescriptionTypes: "All prescription types",
+      apply: "Apply filters",
+      dateRangeError: "Start date must be before end date.",
+      endDateLabel: "To",
+      facilityLabel: "Facility",
+      includeArchived: "Show archived",
+      prescriptionTypeLabel: "Prescription type",
+      reset: "Reset",
+      searchLabel: "Search",
+      searchPlaceholder: "Search title, notes, facility, or prescription",
+      startDateLabel: "From",
+      subtypeLabel: "Subtype",
     },
     labels: {
       appointment: "Appointment {date}",

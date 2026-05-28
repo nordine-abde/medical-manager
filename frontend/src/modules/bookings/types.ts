@@ -1,12 +1,4 @@
-export const bookingStatuses = [
-  "not_booked",
-  "booking_in_progress",
-  "booked",
-  "completed",
-  "cancelled",
-] as const;
-
-export type BookingStatus = (typeof bookingStatuses)[number];
+import type { PrescriptionType } from "../prescriptions/types";
 
 export interface FacilityRecord {
   address: string | null;
@@ -37,7 +29,7 @@ export interface BookingRecord {
   notes: string | null;
   patientId: string;
   prescriptionId: string | null;
-  status: BookingStatus;
+  title: string;
   updatedAt: string;
 }
 
@@ -45,14 +37,25 @@ export interface BookingListFilters {
   facilityId?: string;
   from?: string;
   includeArchived?: boolean;
-  status?: BookingStatus;
+  page?: number;
+  pageSize?: number;
+  prescriptionId?: string;
+  prescriptionType?: PrescriptionType;
+  search?: string;
+  subtype?: string;
   to?: string;
 }
 
-export interface BookingStatusPayload {
-  appointmentAt?: string | null;
-  bookedAt?: string | null;
-  status: BookingStatus;
+export interface BookingPagination {
+  page: number;
+  pageSize: number;
+  total: number;
+  totalPages: number;
+}
+
+export interface BookingListResult {
+  bookings: BookingRecord[];
+  pagination: BookingPagination;
 }
 
 export interface BookingUpsertPayload {
@@ -62,5 +65,5 @@ export interface BookingUpsertPayload {
   facilityId: string | null;
   notes: string | null;
   prescriptionId: string | null;
-  status: BookingStatus;
+  title: string;
 }

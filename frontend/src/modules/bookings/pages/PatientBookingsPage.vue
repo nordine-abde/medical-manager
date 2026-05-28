@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from "vue";
+import { computed, onMounted, reactive, ref, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { useI18n } from "vue-i18n";
 
@@ -8,11 +8,16 @@ import { filterDocumentsByRelatedEntity } from "../../documents/utils";
 import RelatedDocumentsPanel from "../../documents/components/RelatedDocumentsPanel.vue";
 import { usePrescriptionsStore } from "../../prescriptions/store";
 import { formatPrescriptionDisplayLabel } from "../../prescriptions/utils";
+import {
+  prescriptionTypes,
+  type PrescriptionRecord,
+  type PrescriptionType,
+} from "../../prescriptions/types";
 import BookingFormDialog from "../components/BookingFormDialog.vue";
 import { useBookingsStore } from "../store";
 import type {
+  BookingListFilters,
   BookingRecord,
-  BookingStatus,
   BookingUpsertPayload,
   FacilityUpsertPayload,
 } from "../types";
@@ -30,34 +35,57 @@ const isBookingSaving = ref(false);
 const isBookingDeleting = ref(false);
 const isBookingFormOpen = ref(false);
 const editingBooking = ref<BookingRecord | null>(null);
+const dateFilterError = ref("");
+const filters = reactive({
+  facilityId: null as string | null,
+  from: "",
+  includeArchived: false,
+  page: 1,
+  pageSize: 20,
+  prescriptionType: null as PrescriptionType | null,
+  search: "",
+  subtype: "",
+  to: "",
+});
 
 const patientId = computed(() => route.params.patientId as string);
-const bookings = computed(() => bookingsStore.activeBookings);
+const bookings = computed(() => bookingsStore.bookings);
+const pagination = computed(() => bookingsStore.pagination);
 const prescriptions = computed(() => prescriptionsStore.prescriptions);
 const facilities = computed(() => bookingsStore.facilities);
 const documents = computed(() => documentsStore.documents);
 const nowDateTime = computed(() => new Date().toISOString());
 
 const upcomingBookings = computed(() =>
-  bookings.value.filter((booking) => {
-    if (booking.status === "completed" || booking.status === "cancelled") {
-      return false;
-    }
-
-    if (booking.appointmentAt) {
-      return booking.appointmentAt >= nowDateTime.value;
-    }
-
-    return true;
-  }),
+  bookings.value.filter(
+    (booking) =>
+      booking.deletedAt === null &&
+      booking.appointmentAt !== null &&
+      booking.appointmentAt >= nowDateTime.value,
+  ),
 );
+
+const resolvePrescriptionDefaultBookingTitle = (
+  prescription: PrescriptionRecord,
+): string => {
+  const titleParts = [t(`prescriptions.types.${prescription.prescriptionType}`)];
+  const subtype = prescription.subtype?.trim();
+
+  if (subtype) {
+    titleParts.push(subtype);
+  }
+
+  return titleParts.join(" - ");
+};
 
 const bookingPrescriptionOptions = computed(() => [
   {
+    defaultTitle: null,
     label: t("bookings.unlinkedPrescription"),
     value: null,
   },
   ...prescriptions.value.map((prescription) => ({
+    defaultTitle: resolvePrescriptionDefaultBookingTitle(prescription),
     label: formatPrescriptionDisplayLabel(prescription, { d, t }),
     value: prescription.id,
   })),
@@ -70,24 +98,162 @@ const facilityOptions = computed(() =>
   })),
 );
 
+const facilityFilterOptions = computed(() => [
+  {
+    label: t("bookings.filters.allFacilities"),
+    value: null,
+  },
+  ...facilityOptions.value,
+]);
+
+const prescriptionTypeFilterOptions = computed(() => [
+  {
+    label: t("bookings.filters.allPrescriptionTypes"),
+    value: null,
+  },
+  ...prescriptionTypes.map((prescriptionType) => ({
+    label: t(`prescriptions.types.${prescriptionType}`),
+    value: prescriptionType,
+  })),
+]);
+
+const hasActiveFilters = computed(
+  () =>
+    Boolean(filters.search.trim()) ||
+    Boolean(filters.prescriptionType) ||
+    Boolean(filters.subtype.trim()) ||
+    Boolean(filters.from) ||
+    Boolean(filters.to) ||
+    Boolean(filters.facilityId) ||
+    filters.includeArchived,
+);
+
+const toFilterStartDateTime = (value: string): string | undefined => {
+  if (!value) {
+    return undefined;
+  }
+
+  return new Date(`${value}T00:00:00`).toISOString();
+};
+
+const toFilterEndDateTime = (value: string): string | undefined => {
+  if (!value) {
+    return undefined;
+  }
+
+  return new Date(`${value}T23:59:59.999`).toISOString();
+};
+
+const buildBookingFilters = (): BookingListFilters => {
+  const bookingFilters: BookingListFilters = {
+    includeArchived: filters.includeArchived,
+    page: filters.page,
+    pageSize: filters.pageSize,
+  };
+  const from = toFilterStartDateTime(filters.from);
+  const search = filters.search.trim();
+  const subtype = filters.subtype.trim();
+  const to = toFilterEndDateTime(filters.to);
+
+  if (filters.facilityId) {
+    bookingFilters.facilityId = filters.facilityId;
+  }
+
+  if (from) {
+    bookingFilters.from = from;
+  }
+
+  if (filters.prescriptionType) {
+    bookingFilters.prescriptionType = filters.prescriptionType;
+  }
+
+  if (search) {
+    bookingFilters.search = search;
+  }
+
+  if (subtype) {
+    bookingFilters.subtype = subtype;
+  }
+
+  if (to) {
+    bookingFilters.to = to;
+  }
+
+  return bookingFilters;
+};
+
+const loadBookings = async () => {
+  await bookingsStore.loadBookings(patientId.value, buildBookingFilters());
+};
+
 const loadPage = async () => {
   isLoading.value = true;
+  errorMessage.value = "";
 
   try {
     await Promise.all([
-      bookingsStore.loadBookings(patientId.value),
+      loadBookings(),
       bookingsStore.loadFacilities(),
       prescriptionsStore.loadPrescriptions(patientId.value, { pageSize: 100 }),
       documentsStore.loadDocuments(patientId.value),
     ]);
+  } catch (error) {
+    errorMessage.value =
+      error instanceof Error ? error.message : t("bookings.genericError");
   } finally {
     isLoading.value = false;
   }
 };
 
-watch(patientId, loadPage);
+const applyFilters = async () => {
+  dateFilterError.value = "";
 
-onMounted(loadPage);
+  if (filters.from && filters.to && filters.from > filters.to) {
+    dateFilterError.value = t("bookings.filters.dateRangeError");
+    return;
+  }
+
+  filters.page = 1;
+
+  try {
+    await loadBookings();
+  } catch (error) {
+    errorMessage.value =
+      error instanceof Error ? error.message : t("bookings.genericError");
+  }
+};
+
+const resetFilters = async () => {
+  filters.facilityId = null;
+  filters.from = "";
+  filters.includeArchived = false;
+  filters.page = 1;
+  filters.prescriptionType = null;
+  filters.search = "";
+  filters.subtype = "";
+  filters.to = "";
+  dateFilterError.value = "";
+  await applyFilters();
+};
+
+const handlePageChange = async (page: number) => {
+  filters.page = page;
+
+  try {
+    await loadBookings();
+  } catch (error) {
+    errorMessage.value =
+      error instanceof Error ? error.message : t("bookings.genericError");
+  }
+};
+
+watch(patientId, async () => {
+  await loadPage();
+});
+
+onMounted(async () => {
+  await loadPage();
+});
 
 const formatBookingDateTime = (value: string | null) => {
   if (!value) {
@@ -128,40 +294,7 @@ const resolveBookingPrescriptionLabel = (prescriptionId: string | null) => {
 };
 
 const resolveBookingTitle = (booking: BookingRecord): string => {
-  const dateLabel = formatBookingDateTime(
-    booking.appointmentAt ?? booking.bookedAt,
-  );
-  const facilityLabel = resolveBookingFacilityLabel(booking.facilityId);
-  const statusLabel = t(`bookings.statuses.${booking.status}`);
-
-  const parts: string[] = [];
-  if (dateLabel && dateLabel !== t("bookings.emptyDate")) {
-    parts.push(dateLabel);
-  }
-  if (facilityLabel && facilityLabel !== t("bookings.unlinkedFacility")) {
-    parts.push(facilityLabel);
-  }
-  if (parts.length === 0) {
-    parts.push(t("bookings.title"));
-  }
-  parts.push(`(${statusLabel})`);
-
-  return parts.join(" - ");
-};
-
-const nextBookingStatus = (
-  status: BookingStatus,
-): BookingStatus | null => {
-  switch (status) {
-    case "not_booked":
-      return "booking_in_progress";
-    case "booking_in_progress":
-      return "booked";
-    case "booked":
-      return "completed";
-    default:
-      return null;
-  }
+  return booking.title;
 };
 
 const getBookingDocuments = (bookingId: string) =>
@@ -203,11 +336,6 @@ const handleDeleteBooking = async (booking: BookingRecord) => {
 
 const handleBookingSubmit = async (
   payload: BookingUpsertPayload,
-  statusPayload: {
-    appointmentAt?: string | null;
-    bookedAt?: string | null;
-    status: BookingStatus;
-  },
   facilityPayload: FacilityUpsertPayload | null,
 ) => {
   isBookingSaving.value = true;
@@ -231,9 +359,7 @@ const handleBookingSubmit = async (
           facilityId: bookingPayload.facilityId,
           notes: bookingPayload.notes,
           prescriptionId: bookingPayload.prescriptionId,
-        },
-        {
-          statusPayload,
+          title: bookingPayload.title,
         },
       );
     } else {
@@ -262,18 +388,6 @@ const handleBookingDialogModelChange = (value: boolean) => {
   }
 };
 
-const handleAdvanceBookingStatus = async (
-  bookingId: string,
-  status: BookingStatus,
-) => {
-  isBookingSaving.value = true;
-
-  try {
-    await bookingsStore.changeBookingStatus(bookingId, status);
-  } finally {
-    isBookingSaving.value = false;
-  }
-};
 </script>
 
 <template>
@@ -341,23 +455,115 @@ const handleAdvanceBookingStatus = async (
           {{ $t("bookings.description") }}
         </p>
 
+        <div class="patient-bookings-page__summary">
+          <q-chip square color="white" text-color="primary" icon="event">
+            {{
+              $t("bookings.summaryCount", {
+                count: pagination.total,
+              })
+            }}
+          </q-chip>
+          <q-chip square color="white" text-color="primary" icon="schedule">
+            {{
+              $t("bookings.upcomingCount", {
+                count: upcomingBookings.length,
+              })
+            }}
+          </q-chip>
+        </div>
+
+        <q-card flat class="patient-bookings-page__filters">
+          <div class="patient-bookings-page__filter-grid">
+            <q-input
+              v-model="filters.search"
+              outlined
+              dense
+              clearable
+              :label="$t('bookings.filters.searchLabel')"
+              :placeholder="$t('bookings.filters.searchPlaceholder')"
+              @keyup.enter="applyFilters"
+            />
+            <q-select
+              v-model="filters.prescriptionType"
+              outlined
+              dense
+              emit-value
+              map-options
+              :label="$t('bookings.filters.prescriptionTypeLabel')"
+              :options="prescriptionTypeFilterOptions"
+            />
+            <q-input
+              v-model="filters.subtype"
+              outlined
+              dense
+              clearable
+              :label="$t('bookings.filters.subtypeLabel')"
+              @keyup.enter="applyFilters"
+            />
+            <q-select
+              v-model="filters.facilityId"
+              outlined
+              dense
+              emit-value
+              map-options
+              :label="$t('bookings.filters.facilityLabel')"
+              :options="facilityFilterOptions"
+            />
+            <q-input
+              v-model="filters.from"
+              outlined
+              dense
+              type="date"
+              :label="$t('bookings.filters.startDateLabel')"
+            />
+            <q-input
+              v-model="filters.to"
+              outlined
+              dense
+              type="date"
+              :label="$t('bookings.filters.endDateLabel')"
+            />
+            <q-toggle
+              v-model="filters.includeArchived"
+              color="primary"
+              :label="$t('bookings.filters.includeArchived')"
+            />
+          </div>
+
+          <q-banner
+            v-if="dateFilterError"
+            dense
+            rounded
+            class="bg-warning text-white"
+          >
+            {{ dateFilterError }}
+          </q-banner>
+
+          <div class="patient-bookings-page__filter-actions">
+            <q-btn
+              color="primary"
+              unelevated
+              no-caps
+              icon="search"
+              :label="$t('bookings.filters.apply')"
+              @click="applyFilters"
+            />
+            <q-btn
+              flat
+              no-caps
+              color="primary"
+              icon="restart_alt"
+              :disable="!hasActiveFilters"
+              :label="$t('bookings.filters.reset')"
+              @click="resetFilters"
+            />
+          </div>
+        </q-card>
+
         <div
           v-if="bookings.length"
           class="patient-bookings-page__booking-list"
         >
-          <div class="patient-bookings-page__booking-summary-row">
-            <q-badge
-              rounded
-              color="primary"
-              text-color="white"
-              :label="
-                $t('bookings.upcomingCount', {
-                  count: upcomingBookings.length,
-                })
-              "
-            />
-          </div>
-
           <q-card
             v-for="booking in bookings"
             :key="booking.id"
@@ -376,10 +582,11 @@ const handleAdvanceBookingStatus = async (
                     {{ resolveBookingTitle(booking) }}
                   </h3>
                   <q-badge
+                    v-if="booking.deletedAt"
                     rounded
-                    color="accent"
+                    color="grey-7"
                     text-color="white"
-                    :label="$t(`bookings.statuses.${booking.status}`)"
+                    :label="$t('bookings.archivedBadge')"
                   />
                 </div>
                 <p class="patient-bookings-page__booking-copy">
@@ -415,28 +622,6 @@ const handleAdvanceBookingStatus = async (
 
               <div class="patient-bookings-page__booking-actions">
                 <q-btn
-                  :key="`advance-booking-${booking.id}-${booking.status}`"
-                  v-if="nextBookingStatus(booking.status)"
-                  flat
-                  color="accent"
-                  icon="event_available"
-                  no-caps
-                  :loading="isBookingSaving"
-                  :label="
-                    $t('bookings.advanceAction', {
-                      status: $t(
-                        `bookings.statuses.${nextBookingStatus(booking.status)}`,
-                      ),
-                    })
-                  "
-                  @click="
-                    handleAdvanceBookingStatus(
-                      booking.id,
-                      nextBookingStatus(booking.status) as BookingStatus,
-                    )
-                  "
-                />
-                <q-btn
                   :key="`edit-booking-${booking.id}`"
                   flat
                   color="primary"
@@ -451,6 +636,7 @@ const handleAdvanceBookingStatus = async (
                   color="negative"
                   icon="delete"
                   no-caps
+                  :disable="Boolean(booking.deletedAt)"
                   :loading="isBookingDeleting"
                   :label="$t('bookings.deleteAction')"
                   @click="handleDeleteBooking(booking)"
@@ -458,6 +644,20 @@ const handleAdvanceBookingStatus = async (
               </div>
             </div>
           </q-card>
+
+          <div
+            v-if="pagination.totalPages > 1"
+            class="patient-bookings-page__pagination"
+          >
+            <q-pagination
+              :model-value="pagination.page"
+              :max="pagination.totalPages"
+              :max-pages="7"
+              boundary-numbers
+              direction-links
+              @update:model-value="handlePageChange"
+            />
+          </div>
         </div>
 
         <q-card
@@ -469,10 +669,18 @@ const handleAdvanceBookingStatus = async (
             {{ $t("bookings.emptyEyebrow") }}
           </p>
           <h3 class="patient-bookings-page__booking-empty-title">
-            {{ $t("bookings.emptyTitle") }}
+            {{
+              hasActiveFilters
+                ? $t("bookings.emptyFilteredTitle")
+                : $t("bookings.emptyTitle")
+            }}
           </h3>
           <p class="patient-bookings-page__summary-copy">
-            {{ $t("bookings.emptyDescription") }}
+            {{
+              hasActiveFilters
+                ? $t("bookings.emptyFilteredDescription")
+                : $t("bookings.emptyDescription")
+            }}
           </p>
         </q-card>
       </q-card-section>
@@ -552,14 +760,41 @@ const handleAdvanceBookingStatus = async (
   line-height: 1.6;
 }
 
+.patient-bookings-page__summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+}
+
+.patient-bookings-page__filters {
+  display: grid;
+  gap: 1rem;
+  padding: 1rem;
+  margin-bottom: 1rem;
+  border: 1px solid rgba(20, 50, 63, 0.08);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.9);
+}
+
+.patient-bookings-page__filter-grid {
+  display: grid;
+  align-items: center;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.85rem;
+}
+
+.patient-bookings-page__filter-actions,
+.patient-bookings-page__pagination {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.75rem;
+}
+
 .patient-bookings-page__booking-list {
   display: grid;
   gap: 0.9rem;
-}
-
-.patient-bookings-page__booking-summary-row {
-  display: flex;
-  justify-content: flex-start;
 }
 
 .patient-bookings-page__booking-card {
@@ -658,8 +893,24 @@ const handleAdvanceBookingStatus = async (
     justify-content: start;
   }
 
+  .patient-bookings-page__filter-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
   .patient-bookings-page__booking-meta-grid {
     grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 560px) {
+  .patient-bookings-page__filter-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .patient-bookings-page__filter-actions,
+  .patient-bookings-page__pagination {
+    justify-content: flex-start;
+    flex-wrap: wrap;
   }
 }
 </style>

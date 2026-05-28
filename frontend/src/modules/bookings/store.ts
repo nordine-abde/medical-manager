@@ -7,25 +7,20 @@ import {
   listBookingsRequest,
   listFacilitiesRequest,
   updateBookingRequest,
-  updateBookingStatusRequest,
 } from "./api";
 import type {
   BookingListFilters,
+  BookingPagination,
   BookingRecord,
-  BookingStatus,
-  BookingStatusPayload,
   BookingUpsertPayload,
   FacilityRecord,
   FacilityUpsertPayload,
 } from "./types";
 
-interface UpdateBookingOptions {
-  statusPayload?: BookingStatusPayload;
-}
-
 interface BookingsState {
   bookings: BookingRecord[];
   facilities: FacilityRecord[];
+  pagination: BookingPagination;
   status: "idle" | "loading" | "ready";
 }
 
@@ -55,7 +50,7 @@ const sortBookings = (bookings: BookingRecord[]): BookingRecord[] =>
       return dateOrder;
     }
 
-    return left.createdAt.localeCompare(right.createdAt);
+    return left.title.localeCompare(right.title);
   });
 
 const upsertBooking = (
@@ -100,10 +95,6 @@ const matchesFilters = (
     return false;
   }
 
-  if (filters.status && booking.status !== filters.status) {
-    return false;
-  }
-
   if (filters.from) {
     const bookingDate = booking.appointmentAt ?? booking.bookedAt;
 
@@ -120,16 +111,44 @@ const matchesFilters = (
     }
   }
 
+  if (
+    filters.prescriptionId &&
+    booking.prescriptionId !== filters.prescriptionId
+  ) {
+    return false;
+  }
+
+  if (filters.search?.trim()) {
+    const search = filters.search.trim().toLowerCase();
+    const searchableText = [booking.title, booking.notes ?? ""]
+      .join(" ")
+      .toLowerCase();
+
+    if (!searchableText.includes(search)) {
+      return false;
+    }
+  }
+
   return true;
 };
 
 let lastPatientId = "";
-let lastListFilters: BookingListFilters = {};
+let lastListFilters: BookingListFilters = {
+  includeArchived: false,
+  page: 1,
+  pageSize: 20,
+};
 
 export const useBookingsStore = defineStore("bookings", {
   state: (): BookingsState => ({
     bookings: [],
     facilities: [],
+    pagination: {
+      page: 1,
+      pageSize: 20,
+      total: 0,
+      totalPages: 0,
+    },
     status: "idle",
   }),
   getters: {
@@ -142,16 +161,25 @@ export const useBookingsStore = defineStore("bookings", {
       lastPatientId = patientId;
       lastListFilters = {
         includeArchived: filters.includeArchived ?? false,
+        page: filters.page ?? 1,
+        pageSize: filters.pageSize ?? this.pagination.pageSize,
         ...(filters.facilityId ? { facilityId: filters.facilityId } : {}),
         ...(filters.from ? { from: filters.from } : {}),
-        ...(filters.status ? { status: filters.status } : {}),
+        ...(filters.prescriptionId
+          ? { prescriptionId: filters.prescriptionId }
+          : {}),
+        ...(filters.prescriptionType
+          ? { prescriptionType: filters.prescriptionType }
+          : {}),
+        ...(filters.search?.trim() ? { search: filters.search.trim() } : {}),
+        ...(filters.subtype?.trim() ? { subtype: filters.subtype.trim() } : {}),
         ...(filters.to ? { to: filters.to } : {}),
       };
 
       try {
-        this.bookings = sortBookings(
-          await listBookingsRequest(patientId, lastListFilters),
-        );
+        const result = await listBookingsRequest(patientId, lastListFilters);
+        this.bookings = sortBookings(result.bookings);
+        this.pagination = result.pagination;
         this.status = "ready";
       } catch (error) {
         this.status = "ready";
@@ -180,17 +208,25 @@ export const useBookingsStore = defineStore("bookings", {
       payload: BookingUpsertPayload,
     ): Promise<BookingRecord> {
       const booking = await createBookingRequest(patientId, payload);
-
-      if (matchesFilters(booking, lastListFilters)) {
-        this.bookings = upsertBooking(this.bookings, booking);
+      if (!lastPatientId || lastPatientId !== patientId) {
+        lastListFilters = {
+          includeArchived: false,
+          page: 1,
+          pageSize: this.pagination.pageSize,
+        };
       }
+      lastPatientId = patientId;
+
+      await this.refreshBookings();
 
       return booking;
     },
     async deleteBooking(bookingId: string): Promise<BookingRecord> {
       const booking = await deleteBookingRequest(bookingId);
 
-      if (matchesFilters(booking, lastListFilters)) {
+      if (lastPatientId) {
+        await this.refreshBookings();
+      } else if (matchesFilters(booking, lastListFilters)) {
         this.bookings = upsertBooking(this.bookings, booking);
       } else {
         this.bookings = this.bookings.filter((item) => item.id !== bookingId);
@@ -201,23 +237,10 @@ export const useBookingsStore = defineStore("bookings", {
     async updateBooking(
       bookingId: string,
       payload: Partial<BookingUpsertPayload>,
-      options: UpdateBookingOptions = {},
     ): Promise<BookingRecord> {
       let booking: BookingRecord | null = null;
 
       const requestPayload: Partial<BookingUpsertPayload> = { ...payload };
-
-      if (options.statusPayload) {
-        if (options.statusPayload.appointmentAt !== undefined) {
-          requestPayload.appointmentAt = options.statusPayload.appointmentAt;
-        }
-
-        if (options.statusPayload.bookedAt !== undefined) {
-          requestPayload.bookedAt = options.statusPayload.bookedAt;
-        }
-
-        requestPayload.status = options.statusPayload.status;
-      }
 
       if (Object.keys(requestPayload).length > 0) {
         booking = await updateBookingRequest(bookingId, requestPayload);
@@ -227,21 +250,9 @@ export const useBookingsStore = defineStore("bookings", {
         throw new Error("No booking changes were submitted.");
       }
 
-      if (matchesFilters(booking, lastListFilters)) {
-        this.bookings = upsertBooking(this.bookings, booking);
-      } else {
-        this.bookings = this.bookings.filter((item) => item.id !== bookingId);
-      }
-
-      return booking;
-    },
-    async changeBookingStatus(
-      bookingId: string,
-      status: BookingStatus,
-    ): Promise<BookingRecord> {
-      const booking = await updateBookingStatusRequest(bookingId, { status });
-
-      if (matchesFilters(booking, lastListFilters)) {
+      if (lastPatientId) {
+        await this.refreshBookings();
+      } else if (matchesFilters(booking, lastListFilters)) {
         this.bookings = upsertBooking(this.bookings, booking);
       } else {
         this.bookings = this.bookings.filter((item) => item.id !== bookingId);

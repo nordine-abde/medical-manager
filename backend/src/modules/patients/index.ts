@@ -145,9 +145,9 @@ const mapPatientOverview = (overview: {
   upcoming_appointments: Array<{
     appointment_at: Date;
     booking_id: string;
-    booking_status: string;
     facility_id: string | null;
     prescription_id: string | null;
+    title: string;
   }>;
 }) => ({
   pendingPrescriptions: overview.pending_prescriptions.map((prescription) => ({
@@ -162,7 +162,7 @@ const mapPatientOverview = (overview: {
     facilityId: appointment.facility_id,
     id: appointment.booking_id,
     prescriptionId: appointment.prescription_id,
-    status: appointment.booking_status,
+    title: appointment.title,
   })),
 });
 

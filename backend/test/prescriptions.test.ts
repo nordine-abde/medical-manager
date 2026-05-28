@@ -41,6 +41,7 @@ const currentSchemaMigrations = [
   "0024_drop_conditions.sql",
   "0025_drop_medications.sql",
   "0026_simplify_prescriptions.sql",
+  "0027_booking_title_and_status_removal.sql",
 ] as const;
 
 type TestContext = {

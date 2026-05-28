@@ -437,14 +437,18 @@ export const it = {
     save: "Salva prenotazione",
     cancel: "Annulla",
     closeForm: "Chiudi il modulo prenotazione",
-    advanceAction: "Passa a {status}",
+    archivedBadge: "Archiviata",
     createFacilityOption: "Crea nuova struttura",
+    summaryCount: "{count} prenotazioni registrate",
     upcomingCount:
       "{count} appuntamento imminente visibile | {count} appuntamenti imminenti visibili",
     emptyEyebrow: "Elenco prenotazioni",
     emptyTitle: "Nessuna prenotazione ancora",
     emptyDescription:
       "Aggiungi la prima prenotazione per mantenere visibili coordinamento con le strutture, richiamate e appuntamenti imminenti.",
+    emptyFilteredTitle: "Nessuna prenotazione corrisponde ai filtri",
+    emptyFilteredDescription:
+      "Modifica ricerca, tipo prescrizione, struttura o intervallo date per ampliare l'elenco.",
     emptyDate: "Non pianificata",
     emptyNotes: "Nessuna nota per questa prenotazione.",
     genericError:
@@ -465,8 +469,8 @@ export const it = {
       facility: "Struttura",
       notes: "Note",
       prescription: "Collegamento prescrizione",
-      status: "Stato",
       task: "Collegamento attivita",
+      title: "Titolo",
     },
     facilityFields: {
       address: "Indirizzo",
@@ -478,13 +482,22 @@ export const it = {
     validation: {
       facilityNameRequired: "Inserisci il nome della struttura.",
       taskRequired: "Seleziona l'attivita collegata.",
+      titleRequired: "Inserisci il titolo della prenotazione.",
     },
-    statuses: {
-      not_booked: "Non prenotata",
-      booking_in_progress: "Prenotazione in corso",
-      booked: "Prenotata",
-      completed: "Completata",
-      cancelled: "Annullata",
+    filters: {
+      allFacilities: "Tutte le strutture",
+      allPrescriptionTypes: "Tutti i tipi prescrizione",
+      apply: "Applica filtri",
+      dateRangeError: "La data iniziale deve precedere quella finale.",
+      endDateLabel: "A",
+      facilityLabel: "Struttura",
+      includeArchived: "Mostra archiviate",
+      prescriptionTypeLabel: "Tipo prescrizione",
+      reset: "Reimposta",
+      searchLabel: "Cerca",
+      searchPlaceholder: "Cerca titolo, note, struttura o prescrizione",
+      startDateLabel: "Da",
+      subtypeLabel: "Sottotipo",
     },
     labels: {
       appointment: "Appuntamento {date}",

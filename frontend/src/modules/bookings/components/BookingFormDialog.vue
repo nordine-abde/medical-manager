@@ -3,9 +3,7 @@ import { computed, reactive, ref, watch } from "vue";
 import { useI18n } from "vue-i18n";
 
 import {
-  bookingStatuses,
   type BookingRecord,
-  type BookingStatus,
   type BookingUpsertPayload,
   type FacilityUpsertPayload,
 } from "../types";
@@ -15,12 +13,16 @@ interface SelectOption {
   value: string | null;
 }
 
+interface PrescriptionSelectOption extends SelectOption {
+  defaultTitle: string | null;
+}
+
 const props = defineProps<{
   facilityOptions: SelectOption[];
   loading: boolean;
   modelValue: boolean;
   booking?: BookingRecord | null;
-  prescriptionOptions: SelectOption[];
+  prescriptionOptions: PrescriptionSelectOption[];
   submitLabel: string;
   title: string;
 }>();
@@ -28,11 +30,6 @@ const props = defineProps<{
 const emit = defineEmits<{
   submit: [
     payload: BookingUpsertPayload,
-    statusPayload: {
-      appointmentAt?: string | null;
-      bookedAt?: string | null;
-      status: BookingStatus;
-    },
     facilityPayload: FacilityUpsertPayload | null,
   ];
   "update:modelValue": [value: boolean];
@@ -40,7 +37,6 @@ const emit = defineEmits<{
 
 const { t } = useI18n();
 
-const formRef = ref<any>(null);
 const formError = ref("");
 
 const form = reactive({
@@ -49,7 +45,7 @@ const form = reactive({
   facilityId: null as string | null,
   notes: "",
   prescriptionId: null as string | null,
-  status: "not_booked" as BookingStatus,
+  title: "",
 });
 
 const facilityForm = reactive({
@@ -69,13 +65,6 @@ const createNewFacility = computed({
 
 const isEditing = computed(() => Boolean(props.booking));
 
-const statusOptions = computed(() =>
-  bookingStatuses.map((status) => ({
-    label: t(`bookings.statuses.${status}`),
-    value: status,
-  })),
-);
-
 const normalizedFacilityOptions = computed(() => [
   {
     label: t("bookings.unlinkedFacility"),
@@ -87,6 +76,18 @@ const normalizedFacilityOptions = computed(() => [
     value: "__create__",
   },
 ]);
+
+const selectedPrescriptionDefaultTitle = computed(() => {
+  if (!form.prescriptionId) {
+    return null;
+  }
+
+  return (
+    props.prescriptionOptions.find(
+      (option) => option.value === form.prescriptionId,
+    )?.defaultTitle ?? null
+  );
+});
 
 const toInputDateTime = (value: string | null): string => {
   if (!value) {
@@ -115,13 +116,16 @@ const resetFacilityForm = () => {
   facilityForm.notes = "";
 };
 
+const lastAutoTitle = ref("");
+
 const syncForm = () => {
   form.appointmentAt = toInputDateTime(props.booking?.appointmentAt ?? null);
   form.bookedAt = toInputDateTime(props.booking?.bookedAt ?? null);
   form.facilityId = props.booking?.facilityId ?? null;
   form.notes = props.booking?.notes ?? "";
   form.prescriptionId = props.booking?.prescriptionId ?? null;
-  form.status = props.booking?.status ?? "not_booked";
+  form.title = props.booking?.title ?? "";
+  lastAutoTitle.value = "";
   resetFacilityForm();
 };
 
@@ -143,6 +147,25 @@ watch(
   },
 );
 
+watch(
+  () => form.prescriptionId,
+  () => {
+    const defaultTitle = selectedPrescriptionDefaultTitle.value;
+
+    if (!defaultTitle) {
+      return;
+    }
+
+    const titleCanBeAutofilled =
+      !form.title.trim() || form.title === lastAutoTitle.value;
+
+    if (titleCanBeAutofilled) {
+      form.title = defaultTitle;
+      lastAutoTitle.value = defaultTitle;
+    }
+  },
+);
+
 const closeDialog = () => {
   emit("update:modelValue", false);
   formError.value = "";
@@ -151,8 +174,8 @@ const closeDialog = () => {
 const handleSubmit = async () => {
   formError.value = "";
 
-  if (!form.prescriptionId && !form.facilityId && !form.appointmentAt && !form.bookedAt) {
-    formError.value = t("bookings.validation.minimumRequired");
+  if (!form.title.trim()) {
+    formError.value = t("bookings.validation.titleRequired");
     return;
   }
 
@@ -164,12 +187,7 @@ const handleSubmit = async () => {
       facilityId: createNewFacility.value ? null : form.facilityId,
       notes: form.notes.trim() || null,
       prescriptionId: form.prescriptionId,
-      status: form.status,
-    },
-    {
-      appointmentAt: toIsoDateTime(form.appointmentAt),
-      bookedAt: toIsoDateTime(form.bookedAt),
-      status: form.status,
+      title: form.title.trim(),
     },
     createNewFacility.value
       ? {
@@ -213,6 +231,18 @@ const handleSubmit = async () => {
           @submit.prevent="handleSubmit"
         >
           <div class="booking-form-dialog__grid">
+            <q-input
+              v-model="form.title"
+              outlined
+              autocomplete="off"
+              :disable="loading"
+              :label="$t('bookings.fields.title')"
+              :rules="[
+                (value) =>
+                  Boolean(String(value).trim()) ||
+                  t('bookings.validation.titleRequired'),
+              ]"
+            />
 
             <q-select
               v-model="form.prescriptionId"
@@ -233,15 +263,6 @@ const handleSubmit = async () => {
               :disable="loading"
               :label="$t('bookings.fields.facility')"
               :options="normalizedFacilityOptions"
-            />
-            <q-select
-              v-model="form.status"
-              outlined
-              emit-value
-              map-options
-              :disable="loading"
-              :label="$t('bookings.fields.status')"
-              :options="statusOptions"
             />
             <q-input
               v-model="form.bookedAt"
@@ -405,17 +426,17 @@ const handleSubmit = async () => {
   gap: 0.75rem;
 }
 
+.booking-form-dialog__error {
+  margin-bottom: 0.5rem;
+}
+
 @media (max-width: 720px) {
   .booking-form-dialog__grid,
   .booking-form-dialog__facility-grid {
     grid-template-columns: 1fr;
   }
 
-.booking-form-dialog__error {
-  margin-bottom: 0.5rem;
-}
-
-.booking-form-dialog__actions {
+  .booking-form-dialog__actions {
     justify-content: stretch;
   }
 }

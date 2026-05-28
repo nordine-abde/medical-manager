@@ -41,6 +41,7 @@ const currentSchemaMigrations = [
   "0024_drop_conditions.sql",
   "0025_drop_medications.sql",
   "0026_simplify_prescriptions.sql",
+  "0027_booking_title_and_status_removal.sql",
 ] as const;
 
 type TestContext = {
@@ -217,14 +218,20 @@ const insertBooking = async (
         id,
         patient_id,
         facility_id,
-        booking_status,
+        title,
         booked_at,
         appointment_at,
         notes
       )
-      values ($1, $2, $3, 'completed', now(), now(), $4)
+      values ($1, $2, $3, $4, now(), now(), $5)
     `,
-    [bookingId, patientId, facilityId, "Completed booking"],
+    [
+      bookingId,
+      patientId,
+      facilityId,
+      "Completed booking",
+      "Completed booking",
+    ],
   );
 };
 

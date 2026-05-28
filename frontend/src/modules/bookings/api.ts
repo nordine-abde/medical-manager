@@ -1,7 +1,7 @@
 import type {
   BookingListFilters,
+  BookingListResult,
   BookingRecord,
-  BookingStatusPayload,
   BookingUpsertPayload,
   FacilityRecord,
   FacilityUpsertPayload,
@@ -20,6 +20,7 @@ interface BookingPayload {
 
 interface BookingsPayload {
   bookings: BookingRecord[];
+  pagination: BookingListResult["pagination"];
 }
 
 interface FacilitiesPayload {
@@ -91,8 +92,28 @@ const toQueryString = (filters: BookingListFilters): string => {
     searchParams.set("includeArchived", "true");
   }
 
-  if (filters.status) {
-    searchParams.set("status", filters.status);
+  if (filters.page) {
+    searchParams.set("page", String(filters.page));
+  }
+
+  if (filters.pageSize) {
+    searchParams.set("pageSize", String(filters.pageSize));
+  }
+
+  if (filters.prescriptionId) {
+    searchParams.set("prescriptionId", filters.prescriptionId);
+  }
+
+  if (filters.prescriptionType) {
+    searchParams.set("prescriptionType", filters.prescriptionType);
+  }
+
+  if (filters.search?.trim()) {
+    searchParams.set("search", filters.search.trim());
+  }
+
+  if (filters.subtype?.trim()) {
+    searchParams.set("subtype", filters.subtype.trim());
   }
 
   if (filters.to) {
@@ -107,7 +128,7 @@ const toQueryString = (filters: BookingListFilters): string => {
 export const listBookingsRequest = async (
   patientId: string,
   filters: BookingListFilters = {},
-): Promise<BookingRecord[]> => {
+): Promise<BookingListResult> => {
   const payload = await requestJson<BookingsPayload>(
     `/patients/${patientId}/bookings${toQueryString(filters)}`,
     {
@@ -116,7 +137,10 @@ export const listBookingsRequest = async (
     "Unable to load bookings.",
   );
 
-  return payload.bookings;
+  return {
+    bookings: payload.bookings,
+    pagination: payload.pagination,
+  };
 };
 
 export const createBookingRequest = async (
@@ -179,8 +203,8 @@ export const updateBookingRequest = async (
     requestBody.prescriptionId = payload.prescriptionId;
   }
 
-  if (payload.status !== undefined) {
-    requestBody.status = payload.status;
+  if (payload.title !== undefined) {
+    requestBody.title = payload.title;
   }
 
   const response = await requestJson<BookingPayload>(
@@ -190,22 +214,6 @@ export const updateBookingRequest = async (
       method: "PATCH",
     },
     "Unable to update the booking.",
-  );
-
-  return response.booking;
-};
-
-export const updateBookingStatusRequest = async (
-  bookingId: string,
-  payload: BookingStatusPayload,
-): Promise<BookingRecord> => {
-  const response = await requestJson<BookingPayload>(
-    `/bookings/${bookingId}/status`,
-    {
-      body: JSON.stringify(payload),
-      method: "POST",
-    },
-    "Unable to update the booking status.",
   );
 
   return response.booking;

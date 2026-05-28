@@ -6,21 +6,11 @@ import {
   quoteIdentifier,
 } from "../../db/schema";
 import type { CreateFacilityInput } from "../facilities/repository";
-
-export const bookingStatuses = [
-  "not_booked",
-  "booking_in_progress",
-  "booked",
-  "completed",
-  "cancelled",
-] as const;
-
-export type BookingStatus = (typeof bookingStatuses)[number];
+import type { PrescriptionType } from "../prescriptions/repository";
 
 export type BookingRecord = {
   appointment_at: Date | null;
   booked_at: Date | null;
-  booking_status: BookingStatus;
   created_at: Date;
   deleted_at: Date | null;
   facility_id: string | null;
@@ -28,6 +18,7 @@ export type BookingRecord = {
   notes: string | null;
   patient_id: string;
   prescription_id: string | null;
+  title: string;
   updated_at: Date;
 };
 
@@ -35,8 +26,21 @@ export type BookingListFilters = {
   facilityId?: string;
   from?: string;
   includeArchived: boolean;
-  status?: BookingStatus;
+  page: number;
+  pageSize: number;
+  prescriptionId?: string;
+  prescriptionType?: PrescriptionType;
+  search?: string;
+  subtype?: string;
   to?: string;
+};
+
+export type BookingListResult = {
+  items: BookingRecord[];
+  page: number;
+  pageSize: number;
+  total: number;
+  totalPages: number;
 };
 
 export type CreateBookingInput = {
@@ -46,16 +50,10 @@ export type CreateBookingInput = {
   facilityId: string | null;
   notes: string | null;
   prescriptionId: string | null;
-  status: BookingStatus;
+  title: string | null;
 };
 
 export type UpdateBookingInput = Partial<CreateBookingInput>;
-
-export type UpdateBookingStatusInput = {
-  appointmentAt: string | null;
-  bookedAt: string | null;
-  status: BookingStatus;
-};
 
 const patientsTable = (schemaName: string): string =>
   qualifyTableName(schemaName, "patients");
@@ -84,16 +82,16 @@ export const createBookingsRepository = (
   const qualifiedPrescriptionsTable = prescriptionsTable(schemaName);
   const qualifiedFacilitiesTable = facilitiesTable(schemaName);
   const qualifiedBookingsTable = bookingsTable(schemaName);
-  const qualifiedBookingStatusType = qualifyTypeName(
+  const qualifiedPrescriptionType = qualifyTypeName(
     schemaName,
-    "booking_status",
+    "prescription_type",
   );
   const bookingColumns = `
     b.id,
     b.patient_id,
     b.prescription_id,
     b.facility_id,
-    b.booking_status,
+    b.title,
     b.booked_at,
     b.appointment_at,
     b.notes,
@@ -160,19 +158,40 @@ export const createBookingsRepository = (
               patient_id,
               prescription_id,
               facility_id,
-              booking_status,
+              title,
               booked_at,
               appointment_at,
               notes
             )
-            values ($1, $2, $3, $4, $5, $6, $7)
+            values (
+              $1,
+              $2,
+              $3,
+              coalesce(
+                $4,
+                (
+                  select concat_ws(
+                    ' - ',
+                    p.prescription_type::text,
+                    nullif(btrim(p.subtype), '')
+                  )
+                  from ${qualifiedPrescriptionsTable} as p
+                  where p.id = $2
+                    and p.patient_id = $1
+                ),
+                'Booking'
+              ),
+              $5,
+              $6,
+              $7
+            )
             returning id
           `,
           [
             patientId,
             input.prescriptionId,
             facilityId,
-            input.status,
+            input.title,
             input.bookedAt,
             input.appointmentAt,
             input.notes,
@@ -304,39 +323,91 @@ export const createBookingsRepository = (
       userId: string,
       patientId: string,
       filters: BookingListFilters,
-    ): Promise<BookingRecord[] | null> {
+    ): Promise<BookingListResult | null> {
       const hasAccess = await this.hasPatientAccess(userId, patientId);
 
       if (!hasAccess) {
         return null;
       }
 
-      return sql.unsafe<BookingRecord[]>(
+      const search = filters.search?.trim().toLowerCase() ?? null;
+      const subtype = filters.subtype?.trim().toLowerCase() ?? null;
+      const offset = (filters.page - 1) * filters.pageSize;
+      const filterParams = [
+        patientId,
+        filters.includeArchived,
+        filters.facilityId ?? null,
+        filters.prescriptionId ?? null,
+        filters.prescriptionType ?? null,
+        search,
+        subtype,
+        filters.from ?? null,
+        filters.to ?? null,
+      ];
+      const fromClause = `
+        from ${qualifiedBookingsTable} as b
+        left join ${qualifiedPrescriptionsTable} as p
+          on p.id = b.prescription_id
+        left join ${qualifiedFacilitiesTable} as f
+          on f.id = b.facility_id
+      `;
+      const whereClause = `
+        b.patient_id = $1
+        and ($2 or b.deleted_at is null)
+        and ($3::uuid is null or b.facility_id = $3::uuid)
+        and ($4::uuid is null or b.prescription_id = $4::uuid)
+        and ($5::${qualifiedPrescriptionType} is null or p.prescription_type = $5::${qualifiedPrescriptionType})
+        and (
+          $6::text is null
+          or lower(coalesce(b.title, '')) like '%' || $6 || '%'
+          or lower(coalesce(b.notes, '')) like '%' || $6 || '%'
+          or lower(coalesce(f.name, '')) like '%' || $6 || '%'
+          or lower(coalesce(f.city, '')) like '%' || $6 || '%'
+          or lower(coalesce(p.subtype, '')) like '%' || $6 || '%'
+          or p.prescription_type::text like '%' || $6 || '%'
+        )
+        and ($7::text is null or lower(coalesce(p.subtype, '')) = $7)
+        and ($8::timestamptz is null or coalesce(b.appointment_at, b.booked_at) >= $8::timestamptz)
+        and ($9::timestamptz is null or coalesce(b.appointment_at, b.booked_at) <= $9::timestamptz)
+      `;
+
+      const [countResult] = await sql.unsafe<Array<{ total: string }>>(
+        `
+          select count(*)::text as total
+          ${fromClause}
+          where ${whereClause}
+        `,
+        filterParams,
+      );
+
+      const items = await sql.unsafe<BookingRecord[]>(
         `
           select
             ${bookingColumns}
-          from ${qualifiedBookingsTable} as b
-          where b.patient_id = $1
-            and ($2 or b.deleted_at is null)
-            and ($3::${qualifiedBookingStatusType} is null or b.booking_status = $3::${qualifiedBookingStatusType})
-            and ($4::timestamptz is null or b.appointment_at >= $4::timestamptz)
-            and ($5::timestamptz is null or b.appointment_at <= $5::timestamptz)
-            and ($6::uuid is null or b.facility_id = $6::uuid)
+          ${fromClause}
+          where ${whereClause}
           order by
             b.deleted_at asc nulls first,
             b.appointment_at asc nulls last,
             b.booked_at asc nulls last,
-            b.created_at asc
+            lower(b.title) asc,
+            b.created_at asc,
+            b.id asc
+          limit $10
+          offset $11
         `,
-        [
-          patientId,
-          filters.includeArchived,
-          filters.status ?? null,
-          filters.from ?? null,
-          filters.to ?? null,
-          filters.facilityId ?? null,
-        ],
+        [...filterParams, filters.pageSize, offset],
       );
+
+      const total = Number.parseInt(countResult?.total ?? "0", 10);
+
+      return {
+        items,
+        page: filters.page,
+        pageSize: filters.pageSize,
+        total,
+        totalPages: Math.ceil(total / filters.pageSize),
+      };
     },
 
     async updateAccessible(
@@ -358,6 +429,8 @@ export const createBookingsRepository = (
         input.facilityId === undefined
           ? existingBooking.facility_id
           : input.facilityId;
+      const title =
+        input.title === undefined ? existingBooking.title : input.title;
 
       const linksAreValid = await this.hasValidLinks(
         existingBooking.patient_id,
@@ -380,7 +453,7 @@ export const createBookingsRepository = (
             set
               prescription_id = $1,
               facility_id = $2,
-              booking_status = $3::${qualifiedBookingStatusType},
+              title = coalesce($3, title),
               booked_at = $4,
               appointment_at = $5,
               notes = $6,
@@ -391,7 +464,7 @@ export const createBookingsRepository = (
           [
             prescriptionId,
             resolvedFacilityId,
-            input.status ?? existingBooking.booking_status,
+            title,
             input.bookedAt === undefined
               ? existingBooking.booked_at
               : input.bookedAt,
@@ -411,38 +484,6 @@ export const createBookingsRepository = (
       }
 
       return this.findAccessibleById(userId, updatedBookingId);
-    },
-
-    async updateStatusAccessible(
-      userId: string,
-      bookingId: string,
-      input: UpdateBookingStatusInput,
-    ): Promise<BookingRecord | null> {
-      const existingBooking = await this.findAccessibleById(userId, bookingId);
-
-      if (!existingBooking || existingBooking.deleted_at) {
-        return null;
-      }
-
-      const [booking] = await sql.unsafe<Array<{ id: string }>>(
-        `
-          update ${qualifiedBookingsTable}
-          set
-            booking_status = $1,
-            booked_at = $2,
-            appointment_at = $3,
-            updated_at = now()
-          where id = $4
-          returning id
-        `,
-        [input.status, input.bookedAt, input.appointmentAt, bookingId],
-      );
-
-      if (!booking) {
-        return null;
-      }
-
-      return this.findAccessibleById(userId, booking.id);
     },
   };
 };

@@ -41,6 +41,7 @@ const currentSchemaMigrations = [
   "0024_drop_conditions.sql",
   "0025_drop_medications.sql",
   "0026_simplify_prescriptions.sql",
+  "0027_booking_title_and_status_removal.sql",
 ] as const;
 
 type TestContext = {
@@ -94,7 +95,7 @@ type PatientOverviewPayload = {
       facilityId: string | null;
       id: string;
       prescriptionId: string | null;
-      status: string;
+      title: string;
     }>;
   };
 };
@@ -413,14 +414,14 @@ describe("patients module", () => {
           patient_id,
           prescription_id,
           facility_id,
-          booking_status,
+          title,
           booked_at,
           appointment_at,
           notes
         )
         values
-          ($1, $2, $3, null, 'booked', now(), now() + interval '3 day', 'Upcoming exam'),
-          ($4, $2, null, null, 'completed', now() - interval '7 day', now() - interval '2 day', 'Completed visit')
+          ($1, $2, $3, null, 'Upcoming exam', now(), now() + interval '3 day', 'Upcoming exam'),
+          ($4, $2, null, null, 'Completed visit', now() - interval '7 day', now() - interval '2 day', 'Completed visit')
       `,
       [bookingId, patientId, activePrescriptionId, ignoredPastBookingId],
     );
@@ -463,7 +464,7 @@ describe("patients module", () => {
       facilityId: null,
       id: bookingId,
       prescriptionId: activePrescriptionId,
-      status: "booked",
+      title: "Upcoming exam",
     });
 
     const unauthorizedOverviewResponse = await getTestContext().app.handle(

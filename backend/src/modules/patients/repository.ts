@@ -20,9 +20,9 @@ export type PatientRecord = {
 export type PatientOverviewAppointmentRecord = {
   appointment_at: Date;
   booking_id: string;
-  booking_status: string;
   facility_id: string | null;
   prescription_id: string | null;
+  title: string;
 };
 
 export type PatientOverviewPrescriptionRecord = {
@@ -269,14 +269,13 @@ export const createPatientsRepository = (
           `
             select
               b.id as booking_id,
+              b.title,
               b.prescription_id,
               b.facility_id,
-              b.booking_status,
               b.appointment_at
             from ${qualifiedBookingsTable} as b
             where b.patient_id = $1
               and b.deleted_at is null
-              and b.booking_status not in ('completed', 'cancelled')
               and b.appointment_at is not null
               and b.appointment_at >= now()
             order by b.appointment_at asc

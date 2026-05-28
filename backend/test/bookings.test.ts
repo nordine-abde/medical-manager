@@ -44,6 +44,7 @@ const currentSchemaMigrations = [
   "0024_drop_conditions.sql",
   "0025_drop_medications.sql",
   "0026_simplify_prescriptions.sql",
+  "0027_booking_title_and_status_removal.sql",
 ] as const;
 
 type TestContext = {
@@ -79,12 +80,18 @@ type BookingPayload = {
     notes: string | null;
     patientId: string;
     prescriptionId: string | null;
-    status: string;
+    title: string;
   };
 };
 
 type BookingListPayload = {
   bookings: Array<BookingPayload["booking"]>;
+  pagination: {
+    page: number;
+    pageSize: number;
+    total: number;
+    totalPages: number;
+  };
 };
 
 let testContext: TestContext | null = null;
@@ -200,9 +207,10 @@ const insertPrescription = async (
       insert into "${schemaName}"."prescriptions" (
         id,
         patient_id,
-        prescription_type
+        prescription_type,
+        subtype
       )
-      values ($1, $2, 'exam')
+      values ($1, $2, 'exam', 'Blood panel')
     `,
     [prescriptionId, patientId],
   );
@@ -291,7 +299,7 @@ describe("bookings and facilities modules", () => {
     });
   });
 
-  it("creates facilities and supports booking CRUD with status transitions", async () => {
+  it("creates facilities and supports booking CRUD with pagination and filters", async () => {
     const createFacilityResponse = await getTestContext().app.handle(
       new Request("http://localhost/api/v1/facilities", {
         body: JSON.stringify({
@@ -359,7 +367,7 @@ describe("bookings and facilities modules", () => {
             facilityId,
             notes: "Bring paper prescription",
             prescriptionId: "55555555-5555-4555-8555-555555555555",
-            status: "booking_in_progress",
+            title: "Blood panel booking",
           }),
           headers: {
             "content-type": "application/json",
@@ -373,8 +381,8 @@ describe("bookings and facilities modules", () => {
       (await createBookingResponse.json()) as BookingPayload;
 
     expect(createBookingResponse.status).toBe(200);
-    expect(createBookingPayload.booking.status).toBe("booking_in_progress");
     expect(createBookingPayload.booking.facilityId).toBe(facilityId);
+    expect(createBookingPayload.booking.title).toBe("Blood panel booking");
 
     const bookingId = createBookingPayload.booking.id;
 
@@ -397,6 +405,7 @@ describe("bookings and facilities modules", () => {
       new Request(`http://localhost/api/v1/bookings/${bookingId}`, {
         body: JSON.stringify({
           notes: "Updated booking instructions",
+          title: "Updated blood panel booking",
         }),
         headers: {
           "content-type": "application/json",
@@ -412,28 +421,13 @@ describe("bookings and facilities modules", () => {
     expect(updateBookingPayload.booking.notes).toBe(
       "Updated booking instructions",
     );
-
-    const statusResponse = await getTestContext().app.handle(
-      new Request(`http://localhost/api/v1/bookings/${bookingId}/status`, {
-        body: JSON.stringify({
-          status: "booked",
-        }),
-        headers: {
-          "content-type": "application/json",
-          "x-test-user-id": "user-1",
-        },
-        method: "POST",
-      }),
+    expect(updateBookingPayload.booking.title).toBe(
+      "Updated blood panel booking",
     );
-    const statusPayload = (await statusResponse.json()) as BookingPayload;
-
-    expect(statusResponse.status).toBe(200);
-    expect(statusPayload.booking.status).toBe("booked");
-    expect(statusPayload.booking.bookedAt).not.toBeNull();
 
     const listBookingsResponse = await getTestContext().app.handle(
       new Request(
-        `http://localhost/api/v1/patients/11111111-1111-4111-8111-111111111111/bookings?status=booked&facilityId=${facilityId}&from=2026-04-01T00:00:00.000Z&to=2026-04-30T23:59:59.000Z`,
+        `http://localhost/api/v1/patients/11111111-1111-4111-8111-111111111111/bookings?search=blood&prescriptionType=exam&subtype=Blood%20panel&facilityId=${facilityId}&from=2026-04-01T00:00:00.000Z&to=2026-04-30T23:59:59.000Z&page=1&pageSize=10`,
         {
           headers: {
             "x-test-user-id": "user-1",
@@ -447,6 +441,12 @@ describe("bookings and facilities modules", () => {
     expect(listBookingsResponse.status).toBe(200);
     expect(listBookingsPayload.bookings).toHaveLength(1);
     expect(listBookingsPayload.bookings[0]?.id).toBe(bookingId);
+    expect(listBookingsPayload.pagination).toEqual({
+      page: 1,
+      pageSize: 10,
+      total: 1,
+      totalPages: 1,
+    });
 
     const deleteBookingResponse = await getTestContext().app.handle(
       new Request(`http://localhost/api/v1/bookings/${bookingId}`, {
@@ -465,7 +465,7 @@ describe("bookings and facilities modules", () => {
 
     const activeListAfterDeleteResponse = await getTestContext().app.handle(
       new Request(
-        `http://localhost/api/v1/patients/11111111-1111-4111-8111-111111111111/bookings?status=booked&facilityId=${facilityId}&from=2026-04-01T00:00:00.000Z&to=2026-04-30T23:59:59.000Z`,
+        `http://localhost/api/v1/patients/11111111-1111-4111-8111-111111111111/bookings?search=blood&prescriptionType=exam&subtype=Blood%20panel&facilityId=${facilityId}&from=2026-04-01T00:00:00.000Z&to=2026-04-30T23:59:59.000Z&page=1&pageSize=10`,
         {
           headers: {
             "x-test-user-id": "user-1",
@@ -481,7 +481,7 @@ describe("bookings and facilities modules", () => {
 
     const archivedListResponse = await getTestContext().app.handle(
       new Request(
-        `http://localhost/api/v1/patients/11111111-1111-4111-8111-111111111111/bookings?includeArchived=true&status=booked&facilityId=${facilityId}&from=2026-04-01T00:00:00.000Z&to=2026-04-30T23:59:59.000Z`,
+        `http://localhost/api/v1/patients/11111111-1111-4111-8111-111111111111/bookings?includeArchived=true&search=blood&prescriptionType=exam&subtype=Blood%20panel&facilityId=${facilityId}&from=2026-04-01T00:00:00.000Z&to=2026-04-30T23:59:59.000Z&page=1&pageSize=10`,
         {
           headers: {
             "x-test-user-id": "user-1",
@@ -498,13 +498,13 @@ describe("bookings and facilities modules", () => {
     expect(archivedListPayload.bookings[0]?.deletedAt).not.toBeNull();
   });
 
-  it("rejects invalid booking transitions", async () => {
+  it("autofills the title from linked prescription type and subtype when omitted", async () => {
     const createResponse = await getTestContext().app.handle(
       new Request(
         "http://localhost/api/v1/patients/11111111-1111-4111-8111-111111111111/bookings",
         {
           body: JSON.stringify({
-            notes: "Booking without an appointment yet",
+            prescriptionId: "55555555-5555-4555-8555-555555555555",
           }),
           headers: {
             "content-type": "application/json",
@@ -516,28 +516,8 @@ describe("bookings and facilities modules", () => {
     );
     const createPayload = (await createResponse.json()) as BookingPayload;
 
-    const response = await getTestContext().app.handle(
-      new Request(
-        `http://localhost/api/v1/bookings/${createPayload.booking.id}/status`,
-        {
-          body: JSON.stringify({
-            status: "completed",
-          }),
-          headers: {
-            "content-type": "application/json",
-            "x-test-user-id": "user-1",
-          },
-          method: "POST",
-        },
-      ),
-    );
-    const payload = await response.json();
-
-    expect(response.status).toBe(409);
-    expect(payload).toEqual({
-      error: "invalid_booking_status_transition",
-      message: "Booking status transition is not allowed.",
-    });
+    expect(createResponse.status).toBe(200);
+    expect(createPayload.booking.title).toBe("exam - Blood panel");
   });
 
   it("rejects cross-patient booking links", async () => {
@@ -547,6 +527,7 @@ describe("bookings and facilities modules", () => {
         {
           body: JSON.stringify({
             prescriptionId: "66666666-6666-4666-8666-666666666666",
+            title: "Cross-patient booking",
           }),
           headers: {
             "content-type": "application/json",

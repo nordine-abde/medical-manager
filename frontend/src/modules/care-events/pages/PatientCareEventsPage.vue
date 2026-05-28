@@ -166,7 +166,7 @@ const loadPage = async () => {
   try {
     await Promise.all([
       patientsStore.loadPatient(patientId.value),
-            bookingsStore.loadBookings(patientId.value),
+      bookingsStore.loadBookings(patientId.value, { pageSize: 100 }),
       bookingsStore.loadFacilities(),
       documentsStore.loadDocuments(patientId.value),
       careEventsStore.loadCareEventSubtypes(patientId.value),
