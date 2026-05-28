@@ -112,6 +112,7 @@ const bookingListQuerySchema = t.Object({
     }),
   ),
   from: t.Optional(dateTimeSchema),
+  hideCompleted: t.Optional(t.Union([t.Literal("true"), t.Literal("false")])),
   includeArchived: t.Optional(t.Union([t.Literal("true"), t.Literal("false")])),
   page: t.Optional(t.String()),
   pageSize: t.Optional(t.String()),
@@ -185,6 +186,9 @@ const mapBooking = (booking: {
 const parseIncludeArchived = (value?: "true" | "false"): boolean =>
   value === "true";
 
+const parseBooleanQuery = (value?: "true" | "false"): boolean =>
+  value === "true";
+
 const normalizeOptionalQueryText = (value?: string): string | undefined => {
   const normalized = value?.trim();
   return normalized ? normalized : undefined;
@@ -224,6 +228,7 @@ const normalizePrescriptionType = (
 const buildBookingListFilters = (query: {
   facilityId?: string;
   from?: string;
+  hideCompleted?: "true" | "false";
   includeArchived?: "true" | "false";
   page?: string;
   pageSize?: string;
@@ -235,6 +240,7 @@ const buildBookingListFilters = (query: {
 }): BookingListFilters => {
   const filters: BookingListFilters = {
     ...buildPagination(query),
+    hideCompleted: parseBooleanQuery(query.hideCompleted),
     includeArchived: parseIncludeArchived(query.includeArchived),
   };
   const from = normalizeOptionalQueryText(query.from);

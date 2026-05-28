@@ -79,6 +79,10 @@ const toQueryString = (filters: PrescriptionListFilters): string => {
     searchParams.set("from", filters.from);
   }
 
+  if (filters.hideBooked) {
+    searchParams.set("hideBooked", "true");
+  }
+
   if (filters.includeArchived) {
     searchParams.set("includeArchived", "true");
   }

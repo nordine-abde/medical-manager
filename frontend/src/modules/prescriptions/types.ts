@@ -22,6 +22,7 @@ export interface PrescriptionRecord {
 
 export interface PrescriptionListFilters {
   from?: string;
+  hideBooked?: boolean;
   includeArchived?: boolean;
   page?: number;
   pageSize?: number;

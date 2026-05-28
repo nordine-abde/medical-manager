@@ -402,6 +402,7 @@ export const it = {
       dateRangeError:
         "La data iniziale non puo essere successiva alla data finale.",
       endDateLabel: "Emessa entro",
+      hideBooked: "Nascondi gia prenotate",
       includeArchived: "Includi archiviate",
       reset: "Reimposta",
       searchLabel: "Cerca",
@@ -531,6 +532,7 @@ export const it = {
       dateRangeError: "La data iniziale deve precedere quella finale.",
       endDateLabel: "A",
       facilityLabel: "Struttura",
+      hideCompleted: "Nascondi gia effettuate",
       includeArchived: "Mostra archiviate",
       prescriptionTypeLabel: "Tipo prescrizione",
       reset: "Reimposta",

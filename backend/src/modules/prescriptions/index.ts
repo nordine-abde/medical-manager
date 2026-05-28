@@ -75,6 +75,7 @@ const prescriptionUpdateBodySchema = t.Object({
 
 const prescriptionListQuerySchema = t.Object({
   from: t.Optional(t.String()),
+  hideBooked: t.Optional(t.Union([t.Literal("true"), t.Literal("false")])),
   includeArchived: t.Optional(t.Union([t.Literal("true"), t.Literal("false")])),
   page: t.Optional(t.String()),
   pageSize: t.Optional(t.String()),
@@ -173,6 +174,9 @@ const mapPrescription = (prescription: {
 const parseIncludeArchived = (value?: "true" | "false"): boolean =>
   value === "true";
 
+const parseBooleanQuery = (value?: "true" | "false"): boolean =>
+  value === "true";
+
 const normalizeOptionalQueryText = (value?: string): string | undefined => {
   const normalized = value?.trim();
   return normalized ? normalized : undefined;
@@ -211,6 +215,7 @@ const normalizePrescriptionType = (
 
 const buildPrescriptionListFilters = (query: {
   from?: string;
+  hideBooked?: "true" | "false";
   includeArchived?: "true" | "false";
   page?: string;
   pageSize?: string;
@@ -221,6 +226,7 @@ const buildPrescriptionListFilters = (query: {
 }): PrescriptionListFilters => {
   const filters: PrescriptionListFilters = {
     ...buildPagination(query),
+    hideBooked: parseBooleanQuery(query.hideBooked),
     includeArchived: parseIncludeArchived(query.includeArchived),
   };
   const from = normalizeOptionalQueryText(query.from);

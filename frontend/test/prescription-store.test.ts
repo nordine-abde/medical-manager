@@ -179,6 +179,7 @@ describe("usePrescriptionsStore", () => {
 
     await store.loadPrescriptions("patient-1", {
       from: "2026-03-01",
+      hideBooked: true,
       page: 2,
       pageSize: 10,
       prescriptionType: "exam",
@@ -194,7 +195,7 @@ describe("usePrescriptionsStore", () => {
       totalPages: 2,
     });
     expect(mockFetch).toHaveBeenCalledWith(
-      "/api/v1/patients/patient-1/prescriptions?from=2026-03-01&page=2&pageSize=10&prescriptionType=exam&search=Blood&subtype=Blood+test&to=2026-04-01",
+      "/api/v1/patients/patient-1/prescriptions?from=2026-03-01&hideBooked=true&page=2&pageSize=10&prescriptionType=exam&search=Blood&subtype=Blood+test&to=2026-04-01",
       expect.objectContaining({
         credentials: "include",
         method: "GET",

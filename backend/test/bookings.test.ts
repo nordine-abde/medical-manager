@@ -216,6 +216,34 @@ const insertPrescription = async (
   );
 };
 
+const insertCareEvent = async (
+  sql: postgres.Sql,
+  schemaName: string,
+  patientId: string,
+  bookingId: string,
+): Promise<string> => {
+  const [careEvent] = await sql.unsafe<Array<{ id: string }>>(
+    `
+      insert into "${schemaName}"."care_events" (
+        patient_id,
+        booking_id,
+        event_type,
+        completed_at,
+        outcome_notes
+      )
+      values ($1, $2, 'exam', '2026-04-22T08:00:00.000Z', 'Completed')
+      returning id
+    `,
+    [patientId, bookingId],
+  );
+
+  if (!careEvent) {
+    throw new Error("Failed to insert care event");
+  }
+
+  return careEvent.id;
+};
+
 beforeEach(async () => {
   const schemaName = `test_bookings_${randomUUID().replaceAll("-", "")}`;
   const sql = postgres(databaseUrl, {
@@ -447,6 +475,30 @@ describe("bookings and facilities modules", () => {
       total: 1,
       totalPages: 1,
     });
+
+    await insertCareEvent(
+      getTestContext().sql,
+      getTestContext().schemaName,
+      "11111111-1111-4111-8111-111111111111",
+      bookingId,
+    );
+
+    const incompleteBookingsResponse = await getTestContext().app.handle(
+      new Request(
+        `http://localhost/api/v1/patients/11111111-1111-4111-8111-111111111111/bookings?hideCompleted=true&search=blood&prescriptionType=exam&subtype=Blood%20panel&facilityId=${facilityId}&from=2026-04-01T00:00:00.000Z&to=2026-04-30T23:59:59.000Z&page=1&pageSize=10`,
+        {
+          headers: {
+            "x-test-user-id": "user-1",
+          },
+        },
+      ),
+    );
+    const incompleteBookingsPayload =
+      (await incompleteBookingsResponse.json()) as BookingListPayload;
+
+    expect(incompleteBookingsResponse.status).toBe(200);
+    expect(incompleteBookingsPayload.bookings).toHaveLength(0);
+    expect(incompleteBookingsPayload.pagination.total).toBe(0);
 
     const deleteBookingResponse = await getTestContext().app.handle(
       new Request(`http://localhost/api/v1/bookings/${bookingId}`, {

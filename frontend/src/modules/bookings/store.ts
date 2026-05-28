@@ -134,6 +134,7 @@ const matchesFilters = (
 
 let lastPatientId = "";
 let lastListFilters: BookingListFilters = {
+  hideCompleted: false,
   includeArchived: false,
   page: 1,
   pageSize: 20,
@@ -161,6 +162,7 @@ export const useBookingsStore = defineStore("bookings", {
       lastPatientId = patientId;
       lastListFilters = {
         includeArchived: filters.includeArchived ?? false,
+        hideCompleted: filters.hideCompleted ?? false,
         page: filters.page ?? 1,
         pageSize: filters.pageSize ?? this.pagination.pageSize,
         ...(filters.facilityId ? { facilityId: filters.facilityId } : {}),
@@ -210,6 +212,7 @@ export const useBookingsStore = defineStore("bookings", {
       const booking = await createBookingRequest(patientId, payload);
       if (!lastPatientId || lastPatientId !== patientId) {
         lastListFilters = {
+          hideCompleted: false,
           includeArchived: false,
           page: 1,
           pageSize: this.pagination.pageSize,

@@ -225,6 +225,33 @@ const insertPrescription = async (
   return prescription.id;
 };
 
+const insertBooking = async (
+  sql: postgres.Sql,
+  schemaName: string,
+  patientId: string,
+  prescriptionId: string,
+): Promise<string> => {
+  const [booking] = await sql.unsafe<Array<{ id: string }>>(
+    `
+      insert into "${schemaName}"."bookings" (
+        patient_id,
+        prescription_id,
+        title,
+        appointment_at
+      )
+      values ($1, $2, 'Linked booking', '2026-05-10T09:00:00.000Z')
+      returning id
+    `,
+    [patientId, prescriptionId],
+  );
+
+  if (!booking) {
+    throw new Error("Failed to insert booking");
+  }
+
+  return booking.id;
+};
+
 beforeEach(async () => {
   const schemaName = `test_prescriptions_${randomUUID().replaceAll("-", "")}`;
   const sql = postgres(databaseUrl, {
@@ -532,6 +559,54 @@ describe("prescriptions module", () => {
       therapy: ["Physiotherapy"],
       visit: ["Cardiology"],
     });
+  });
+
+  it("can hide prescriptions that already have an active booking", async () => {
+    const { app, schemaName, sql } = getTestContext();
+    const patientId = "11111111-1111-4111-8111-111111111111";
+
+    const bookedPrescriptionId = await insertPrescription(
+      sql,
+      schemaName,
+      patientId,
+      {
+        issueDate: "2026-05-01",
+        notes: "Already scheduled",
+        prescriptionType: "visit",
+        subtype: "Cardiology",
+      },
+    );
+    const unbookedPrescriptionId = await insertPrescription(
+      sql,
+      schemaName,
+      patientId,
+      {
+        issueDate: "2026-05-02",
+        notes: "Still to book",
+        prescriptionType: "exam",
+        subtype: "Blood test",
+      },
+    );
+
+    await insertBooking(sql, schemaName, patientId, bookedPrescriptionId);
+
+    const response = await app.handle(
+      new Request(
+        `http://localhost/api/v1/patients/${patientId}/prescriptions?hideBooked=true`,
+        {
+          headers: {
+            "x-test-user-id": "user-1",
+          },
+        },
+      ),
+    );
+    const payload = (await response.json()) as PrescriptionListPayload;
+
+    expect(response.status).toBe(200);
+    expect(payload.pagination.total).toBe(1);
+    expect(
+      payload.prescriptions.map((prescription) => prescription.id),
+    ).toEqual([unbookedPrescriptionId]);
   });
 
   it("accepts every supported prescription type and normalizes the legacy alias", async () => {

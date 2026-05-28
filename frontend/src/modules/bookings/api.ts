@@ -88,6 +88,10 @@ const toQueryString = (filters: BookingListFilters): string => {
     searchParams.set("from", filters.from);
   }
 
+  if (filters.hideCompleted) {
+    searchParams.set("hideCompleted", "true");
+  }
+
   if (filters.includeArchived) {
     searchParams.set("includeArchived", "true");
   }

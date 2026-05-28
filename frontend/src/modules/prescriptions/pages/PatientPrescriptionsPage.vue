@@ -36,6 +36,7 @@ const previewDocument = ref<DocumentRecord | null>(null);
 const dateFilterError = ref("");
 const filters = reactive({
   from: "",
+  hideBooked: false,
   includeArchived: false,
   page: 1,
   pageSize: 20,
@@ -75,11 +76,13 @@ const hasActiveFilters = computed(
     Boolean(normalizeFilterText(filters.subtype)) ||
     Boolean(filters.from) ||
     Boolean(filters.to) ||
+    filters.hideBooked ||
     filters.includeArchived,
 );
 
 const buildPrescriptionFilters = (): PrescriptionListFilters => {
   const prescriptionFilters: PrescriptionListFilters = {
+    hideBooked: filters.hideBooked,
     includeArchived: filters.includeArchived,
     page: filters.page,
     pageSize: filters.pageSize,
@@ -156,6 +159,7 @@ const applyFilters = async () => {
 
 const resetFilters = async () => {
   filters.from = "";
+  filters.hideBooked = false;
   filters.includeArchived = false;
   filters.page = 1;
   filters.prescriptionType = null;
@@ -432,6 +436,11 @@ const handlePrescriptionDialogModelChange = (value: boolean) => {
               dense
               type="date"
               :label="$t('prescriptions.filters.endDateLabel')"
+            />
+            <q-toggle
+              v-model="filters.hideBooked"
+              color="primary"
+              :label="$t('prescriptions.filters.hideBooked')"
             />
             <q-toggle
               v-model="filters.includeArchived"

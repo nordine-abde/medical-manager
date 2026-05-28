@@ -25,6 +25,7 @@ export type BookingRecord = {
 export type BookingListFilters = {
   facilityId?: string;
   from?: string;
+  hideCompleted: boolean;
   includeArchived: boolean;
   page: number;
   pageSize: number;
@@ -70,6 +71,9 @@ const facilitiesTable = (schemaName: string): string =>
 const bookingsTable = (schemaName: string): string =>
   qualifyTableName(schemaName, "bookings");
 
+const careEventsTable = (schemaName: string): string =>
+  qualifyTableName(schemaName, "care_events");
+
 const qualifyTypeName = (schemaName: string, typeName: string): string =>
   `${quoteIdentifier(schemaName)}.${quoteIdentifier(typeName)}`;
 
@@ -82,6 +86,7 @@ export const createBookingsRepository = (
   const qualifiedPrescriptionsTable = prescriptionsTable(schemaName);
   const qualifiedFacilitiesTable = facilitiesTable(schemaName);
   const qualifiedBookingsTable = bookingsTable(schemaName);
+  const qualifiedCareEventsTable = careEventsTable(schemaName);
   const qualifiedPrescriptionType = qualifyTypeName(
     schemaName,
     "prescription_type",
@@ -343,6 +348,7 @@ export const createBookingsRepository = (
         subtype,
         filters.from ?? null,
         filters.to ?? null,
+        filters.hideCompleted,
       ];
       const fromClause = `
         from ${qualifiedBookingsTable} as b
@@ -369,6 +375,15 @@ export const createBookingsRepository = (
         and ($7::text is null or lower(coalesce(p.subtype, '')) = $7)
         and ($8::timestamptz is null or coalesce(b.appointment_at, b.booked_at) >= $8::timestamptz)
         and ($9::timestamptz is null or coalesce(b.appointment_at, b.booked_at) <= $9::timestamptz)
+        and (
+          not $10::boolean
+          or not exists (
+            select 1
+            from ${qualifiedCareEventsTable} as ce
+            where ce.patient_id = b.patient_id
+              and ce.booking_id = b.id
+          )
+        )
       `;
 
       const [countResult] = await sql.unsafe<Array<{ total: string }>>(
@@ -393,8 +408,8 @@ export const createBookingsRepository = (
             lower(b.title) asc,
             b.created_at asc,
             b.id asc
-          limit $10
-          offset $11
+          limit $11
+          offset $12
         `,
         [...filterParams, filters.pageSize, offset],
       );

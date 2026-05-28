@@ -48,6 +48,7 @@ const sortPrescriptions = (
 
 let lastPatientId = "";
 let lastListFilters: PrescriptionListFilters = {
+  hideBooked: false,
   includeArchived: false,
   page: 1,
   pageSize: 20,
@@ -73,6 +74,7 @@ export const usePrescriptionsStore = defineStore("prescriptions", {
       this.status = "loading";
       lastPatientId = patientId;
       lastListFilters = {
+        hideBooked: filters.hideBooked ?? false,
         includeArchived: filters.includeArchived ?? false,
         page: filters.page ?? 1,
         pageSize: filters.pageSize ?? this.pagination.pageSize,

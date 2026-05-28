@@ -40,6 +40,7 @@ const dateFilterError = ref("");
 const filters = reactive({
   facilityId: null as string | null,
   from: "",
+  hideCompleted: false,
   includeArchived: false,
   page: 1,
   pageSize: 20,
@@ -126,6 +127,7 @@ const hasActiveFilters = computed(
     Boolean(filters.from) ||
     Boolean(filters.to) ||
     Boolean(filters.facilityId) ||
+    filters.hideCompleted ||
     filters.includeArchived,
 );
 
@@ -147,6 +149,7 @@ const toFilterEndDateTime = (value: string): string | undefined => {
 
 const buildBookingFilters = (): BookingListFilters => {
   const bookingFilters: BookingListFilters = {
+    hideCompleted: filters.hideCompleted,
     includeArchived: filters.includeArchived,
     page: filters.page,
     pageSize: filters.pageSize,
@@ -227,6 +230,7 @@ const applyFilters = async () => {
 const resetFilters = async () => {
   filters.facilityId = null;
   filters.from = "";
+  filters.hideCompleted = false;
   filters.includeArchived = false;
   filters.page = 1;
   filters.prescriptionType = null;
@@ -553,6 +557,11 @@ const handleBookingDialogModelChange = (value: boolean) => {
               dense
               type="date"
               :label="$t('bookings.filters.endDateLabel')"
+            />
+            <q-toggle
+              v-model="filters.hideCompleted"
+              color="primary"
+              :label="$t('bookings.filters.hideCompleted')"
             />
             <q-toggle
               v-model="filters.includeArchived"

@@ -52,6 +52,7 @@ export type PrescriptionWithDocumentRecord = {
 };
 export type PrescriptionListFilters = {
   from?: string;
+  hideBooked: boolean;
   includeArchived: boolean;
   page: number;
   pageSize: number;
@@ -81,6 +82,9 @@ const patientUsersTable = (schemaName: string): string =>
 const prescriptionsTable = (schemaName: string): string =>
   qualifyTableName(schemaName, "prescriptions");
 
+const bookingsTable = (schemaName: string): string =>
+  qualifyTableName(schemaName, "bookings");
+
 const documentsTable = (schemaName: string): string =>
   qualifyTableName(schemaName, "documents");
 
@@ -94,6 +98,7 @@ export const createPrescriptionsRepository = (
   const qualifiedPatientsTable = patientsTable(schemaName);
   const qualifiedPatientUsersTable = patientUsersTable(schemaName);
   const qualifiedPrescriptionsTable = prescriptionsTable(schemaName);
+  const qualifiedBookingsTable = bookingsTable(schemaName);
   const qualifiedDocumentsTable = documentsTable(schemaName);
   const qualifiedPrescriptionTypeType = qualifyTypeName(
     schemaName,
@@ -391,6 +396,7 @@ export const createPrescriptionsRepository = (
         subtype,
         filters.from ?? null,
         filters.to ?? null,
+        filters.hideBooked,
       ];
       const whereClause = `
         p.patient_id = $1
@@ -405,6 +411,16 @@ export const createPrescriptionsRepository = (
         and ($5::text is null or lower(coalesce(p.subtype, '')) = $5)
         and ($6::date is null or p.issue_date >= $6::date)
         and ($7::date is null or p.issue_date <= $7::date)
+        and (
+          not $8::boolean
+          or not exists (
+            select 1
+            from ${qualifiedBookingsTable} as b
+            where b.patient_id = p.patient_id
+              and b.prescription_id = p.id
+              and b.deleted_at is null
+          )
+        )
       `;
 
       const [countResult] = await sql.unsafe<Array<{ total: string }>>(
@@ -436,8 +452,8 @@ export const createPrescriptionsRepository = (
             p.issue_date desc nulls last,
             p.created_at desc,
             p.id desc
-          limit $8
-          offset $9
+          limit $9
+          offset $10
         `,
         [...filterParams, filters.pageSize, offset],
       );

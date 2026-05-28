@@ -315,4 +315,43 @@ describe("useBookingsStore", () => {
       method: "DELETE",
     });
   });
+
+  it("loads patient bookings with filters for not-yet-completed bookings", async () => {
+    const store = useBookingsStore();
+
+    mockFetch.mockResolvedValueOnce(
+      bookingsResponse([], {
+        page: 2,
+        pageSize: 10,
+        total: 0,
+        totalPages: 0,
+      }),
+    );
+
+    await store.loadBookings("patient-1", {
+      facilityId: "facility-1",
+      from: "2026-03-01T00:00:00.000Z",
+      hideCompleted: true,
+      page: 2,
+      pageSize: 10,
+      prescriptionType: "exam",
+      search: "Blood",
+      subtype: "Blood test",
+      to: "2026-04-01T23:59:59.999Z",
+    });
+
+    expect(store.pagination).toEqual({
+      page: 2,
+      pageSize: 10,
+      total: 0,
+      totalPages: 0,
+    });
+    expect(mockFetch).toHaveBeenCalledWith(
+      "/api/v1/patients/patient-1/bookings?facilityId=facility-1&from=2026-03-01T00%3A00%3A00.000Z&hideCompleted=true&page=2&pageSize=10&prescriptionType=exam&search=Blood&subtype=Blood+test&to=2026-04-01T23%3A59%3A59.999Z",
+      expect.objectContaining({
+        credentials: "include",
+        method: "GET",
+      }),
+    );
+  });
 });

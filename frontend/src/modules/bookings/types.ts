@@ -37,6 +37,7 @@ export interface BookingRecord {
 export interface BookingListFilters {
   facilityId?: string;
   from?: string;
+  hideCompleted?: boolean;
   includeArchived?: boolean;
   page?: number;
   pageSize?: number;
