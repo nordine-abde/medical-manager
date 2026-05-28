@@ -264,6 +264,7 @@ export const it = {
       "Carica e recupera referti, prescrizioni e allegati per {patientName}.",
     description:
       "Mantieni i file caricati organizzati per tipo e flusso collegato, cosi la documentazione resta nel contesto del paziente.",
+    summaryCount: "{count} documenti registrati",
     uploadEyebrow: "Nuovo caricamento",
     uploadTitle: "Carica un documento",
     uploadDescription:
@@ -284,8 +285,24 @@ export const it = {
     emptyTitle: "Nessun documento",
     emptyDescription:
       "Carica il primo file del paziente per mantenere referti, prescrizioni e allegati disponibili per ogni caregiver collegato.",
+    emptyFilteredTitle: "Nessun documento corrisponde ai filtri",
+    emptyFilteredDescription:
+      "Modifica i filtri o carica un nuovo file collegato al paziente.",
     genericError:
       "Si e verificato un problema durante il caricamento dei documenti.",
+    filters: {
+      allRelatedEntityTypes: "Tutti i collegamenti",
+      allTypes: "Tutti i tipi documento",
+      apply: "Applica filtri",
+      dateRangeError: "La data iniziale deve precedere quella finale.",
+      endDateLabel: "Caricato entro",
+      relatedEntityTypeLabel: "Collegamento",
+      reset: "Reimposta",
+      searchLabel: "Cerca",
+      searchPlaceholder: "Cerca nome file, note, tipo o record collegato",
+      startDateLabel: "Caricato dal",
+      typeLabel: "Tipo documento",
+    },
     fields: {
       documentType: "Tipo di documento",
       file: "File",

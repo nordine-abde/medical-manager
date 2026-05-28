@@ -272,6 +272,7 @@ export const en = {
       "Upload and retrieve reports, prescriptions, and attachments for {patientName}.",
     description:
       "Keep uploaded files organized by type and linked workflow so supporting paperwork stays in patient context.",
+    summaryCount: "{count} recorded documents",
     uploadEyebrow: "New upload",
     uploadTitle: "Upload a document",
     uploadDescription:
@@ -292,7 +293,23 @@ export const en = {
     emptyTitle: "No documents yet",
     emptyDescription:
       "Upload the first patient file to keep reports, prescriptions, and attachments available to every linked caregiver.",
+    emptyFilteredTitle: "No documents match these filters",
+    emptyFilteredDescription:
+      "Adjust the filters or upload a new file linked to this patient.",
     genericError: "Something went wrong while loading documents.",
+    filters: {
+      allRelatedEntityTypes: "All linked records",
+      allTypes: "All document types",
+      apply: "Apply filters",
+      dateRangeError: "Start date must be before end date.",
+      endDateLabel: "Uploaded by",
+      relatedEntityTypeLabel: "Linked record",
+      reset: "Reset",
+      searchLabel: "Search",
+      searchPlaceholder: "Search filename, notes, type, or linked record",
+      startDateLabel: "Uploaded from",
+      typeLabel: "Document type",
+    },
     fields: {
       documentType: "Document type",
       file: "File",

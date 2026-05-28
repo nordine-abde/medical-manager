@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref, watch } from "vue";
+import { computed, reactive, ref, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { useI18n } from "vue-i18n";
 
@@ -9,6 +9,7 @@ import { formatBookingDisplayLabel } from "../../bookings/utils";
 import { useDocumentsStore } from "../store";
 import {
   documentTypes,
+  relatedEntityTypes,
   type DocumentRecord,
   type DocumentType,
   type RelatedEntityType,
@@ -24,6 +25,19 @@ interface RelatedEntityOption {
   relatedEntityId: string;
   relatedEntityType: RelatedEntityType;
   value: string;
+}
+
+interface DocumentFilterValues {
+  documentType: DocumentType | null;
+  from: string;
+  relatedEntityType: RelatedEntityType | null;
+  search: string;
+  to: string;
+}
+
+interface DocumentFilterState extends DocumentFilterValues {
+  page: number;
+  pageSize: number;
 }
 
 const route = useRoute();
@@ -44,6 +58,22 @@ const selectedFile = ref<File | null>(null);
 const selectedDocumentType = ref<DocumentType>("general_attachment");
 const selectedRelatedEntity = ref("");
 const uploadNotes = ref("");
+const dateFilterError = ref("");
+const createDefaultDocumentFilters = (): DocumentFilterValues => ({
+  documentType: null,
+  from: "",
+  relatedEntityType: null,
+  search: "",
+  to: "",
+});
+const filters = reactive<DocumentFilterState>({
+  ...createDefaultDocumentFilters(),
+  page: 1,
+  pageSize: 20,
+});
+const appliedFilters = reactive<DocumentFilterValues>(
+  createDefaultDocumentFilters(),
+);
 
 const patientId = computed(() => route.params.patientId as string);
 const patient = computed(() => patientsStore.currentPatient);
@@ -58,6 +88,25 @@ const documentTypeOptions = computed(() =>
     value: documentType,
   })),
 );
+
+const documentTypeFilterOptions = computed(() => [
+  {
+    label: t("documents.filters.allTypes"),
+    value: null,
+  },
+  ...documentTypeOptions.value,
+]);
+
+const relatedEntityTypeFilterOptions = computed(() => [
+  {
+    label: t("documents.filters.allRelatedEntityTypes"),
+    value: null,
+  },
+  ...relatedEntityTypes.map((relatedEntityType) => ({
+    label: t(`documents.relatedEntityLabels.${relatedEntityType}`),
+    value: relatedEntityType,
+  })),
+]);
 
 const relatedEntityOptions = computed<RelatedEntityOption[]>(() => {
   const options: RelatedEntityOption[] = [];
@@ -105,6 +154,52 @@ const canUpload = computed(
     selectedDocumentType.value.length > 0 &&
     selectedRelatedEntity.value.length > 0,
 );
+
+const normalizeFilterText = (value: string): string => value.trim();
+
+const hasFilterValues = (values: DocumentFilterValues): boolean =>
+  Boolean(normalizeFilterText(values.search)) ||
+  Boolean(values.documentType) ||
+  Boolean(values.relatedEntityType) ||
+  Boolean(values.from) ||
+  Boolean(values.to);
+
+const hasActiveFilters = computed(() => hasFilterValues(filters));
+const hasAppliedFilters = computed(() => hasFilterValues(appliedFilters));
+
+const buildAppliedDocumentFilters = (): DocumentFilterValues => ({
+  documentType: filters.documentType,
+  from: filters.from,
+  relatedEntityType: filters.relatedEntityType,
+  search: normalizeFilterText(filters.search),
+  to: filters.to,
+});
+
+const applyFilters = () => {
+  dateFilterError.value = "";
+
+  if (filters.from && filters.to && filters.from > filters.to) {
+    dateFilterError.value = t("documents.filters.dateRangeError");
+    return;
+  }
+
+  Object.assign(appliedFilters, buildAppliedDocumentFilters());
+  filters.page = 1;
+};
+
+const resetFilters = () => {
+  Object.assign(filters, {
+    ...createDefaultDocumentFilters(),
+    page: 1,
+    pageSize: filters.pageSize,
+  });
+  Object.assign(appliedFilters, createDefaultDocumentFilters());
+  dateFilterError.value = "";
+};
+
+const handlePageChange = (page: number) => {
+  filters.page = page;
+};
 
 const loadPage = async () => {
   isLoading.value = true;
@@ -275,6 +370,87 @@ const resolveLinkedEntityCaption = (document: DocumentRecord): string => {
   return t("documents.fallbacks.relatedEntity");
 };
 
+const matchesDocumentFilters = (document: DocumentRecord): boolean => {
+  if (
+    appliedFilters.documentType &&
+    document.documentType !== appliedFilters.documentType
+  ) {
+    return false;
+  }
+
+  if (
+    appliedFilters.relatedEntityType &&
+    document.relatedEntityType !== appliedFilters.relatedEntityType
+  ) {
+    return false;
+  }
+
+  const uploadedDate = document.uploadedAt.slice(0, 10);
+
+  if (appliedFilters.from && uploadedDate < appliedFilters.from) {
+    return false;
+  }
+
+  if (appliedFilters.to && uploadedDate > appliedFilters.to) {
+    return false;
+  }
+
+  const search = appliedFilters.search.toLowerCase();
+
+  if (!search) {
+    return true;
+  }
+
+  const searchableText = [
+    document.originalFilename,
+    document.notes ?? "",
+    t(`documents.types.${document.documentType}`),
+    t(`documents.relatedEntityLabels.${document.relatedEntityType}`),
+    resolveLinkedEntityLabel(document),
+    resolveLinkedEntityCaption(document),
+  ]
+    .join(" ")
+    .toLowerCase();
+
+  return searchableText.includes(search);
+};
+
+const filteredDocuments = computed(() =>
+  documents.value.filter(matchesDocumentFilters),
+);
+
+const documentPagination = computed(() => {
+  const total = filteredDocuments.value.length;
+  const totalPages = Math.ceil(total / filters.pageSize);
+
+  return {
+    page: Math.min(filters.page, Math.max(totalPages, 1)),
+    pageSize: filters.pageSize,
+    total,
+    totalPages,
+  };
+});
+
+const paginatedDocuments = computed(() => {
+  const start = (documentPagination.value.page - 1) * filters.pageSize;
+
+  return filteredDocuments.value.slice(start, start + filters.pageSize);
+});
+
+watch(
+  () => filteredDocuments.value.length,
+  () => {
+    const maxPage = Math.max(
+      Math.ceil(filteredDocuments.value.length / filters.pageSize),
+      1,
+    );
+
+    if (filters.page > maxPage) {
+      filters.page = maxPage;
+    }
+  },
+);
+
 const formatUploadedAt = (value: string): string => d(new Date(value), "short");
 
 const formatFileSize = (value: number): string => {
@@ -309,19 +485,15 @@ const formatFileSize = (value: number): string => {
       {{ errorMessage }}
     </q-banner>
 
-    <q-card
-      flat
-      bordered
-      class="patient-documents-page__hero"
-    >
-      <q-card-section
+    <section class="patient-documents-page__hero">
+      <div
         v-if="isLoading"
         class="patient-documents-page__loading"
       >
         <q-spinner color="primary" size="2rem" />
-      </q-card-section>
+      </div>
 
-      <q-card-section v-else-if="patient">
+      <template v-else-if="patient">
         <div class="patient-documents-page__header">
           <div>
             <p class="patient-documents-page__eyebrow">
@@ -349,6 +521,91 @@ const formatFileSize = (value: number): string => {
             />
           </div>
         </div>
+
+        <div class="patient-documents-page__summary">
+          <q-chip square color="white" text-color="primary" icon="folder_open">
+            {{
+              $t("documents.summaryCount", {
+                count: documentPagination.total,
+              })
+            }}
+          </q-chip>
+        </div>
+
+        <q-card flat class="patient-documents-page__filters">
+          <div class="patient-documents-page__filter-grid">
+            <q-input
+              v-model="filters.search"
+              outlined
+              dense
+              clearable
+              :label="$t('documents.filters.searchLabel')"
+              :placeholder="$t('documents.filters.searchPlaceholder')"
+              @keyup.enter="applyFilters"
+            />
+            <q-select
+              v-model="filters.documentType"
+              outlined
+              dense
+              emit-value
+              map-options
+              :label="$t('documents.filters.typeLabel')"
+              :options="documentTypeFilterOptions"
+            />
+            <q-select
+              v-model="filters.relatedEntityType"
+              outlined
+              dense
+              emit-value
+              map-options
+              :label="$t('documents.filters.relatedEntityTypeLabel')"
+              :options="relatedEntityTypeFilterOptions"
+            />
+            <q-input
+              v-model="filters.from"
+              outlined
+              dense
+              type="date"
+              :label="$t('documents.filters.startDateLabel')"
+            />
+            <q-input
+              v-model="filters.to"
+              outlined
+              dense
+              type="date"
+              :label="$t('documents.filters.endDateLabel')"
+            />
+          </div>
+
+          <q-banner
+            v-if="dateFilterError"
+            dense
+            rounded
+            class="bg-warning text-white"
+          >
+            {{ dateFilterError }}
+          </q-banner>
+
+          <div class="patient-documents-page__filter-actions">
+            <q-btn
+              color="primary"
+              unelevated
+              no-caps
+              icon="search"
+              :label="$t('documents.filters.apply')"
+              @click="applyFilters"
+            />
+            <q-btn
+              flat
+              no-caps
+              color="primary"
+              icon="restart_alt"
+              :disable="!hasActiveFilters"
+              :label="$t('documents.filters.reset')"
+              @click="resetFilters"
+            />
+          </div>
+        </q-card>
 
         <div class="patient-documents-page__content">
           <q-card flat class="patient-documents-page__upload-card">
@@ -447,10 +704,10 @@ const formatFileSize = (value: number): string => {
               </div>
             </q-card-section>
 
-            <q-card-section v-if="documents.length">
+            <q-card-section v-if="paginatedDocuments.length">
               <div class="patient-documents-page__list">
                 <q-card
-                  v-for="document in documents"
+                  v-for="document in paginatedDocuments"
                   :key="document.id"
                   flat
                   class="patient-documents-page__document-card"
@@ -523,6 +780,20 @@ const formatFileSize = (value: number): string => {
                   </div>
                 </q-card>
               </div>
+
+              <div
+                v-if="documentPagination.totalPages > 1"
+                class="patient-documents-page__pagination"
+              >
+                <q-pagination
+                  :model-value="documentPagination.page"
+                  :max="documentPagination.totalPages"
+                  :max-pages="7"
+                  boundary-numbers
+                  direction-links
+                  @update:model-value="handlePageChange"
+                />
+              </div>
             </q-card-section>
 
             <q-card-section v-else>
@@ -531,17 +802,25 @@ const formatFileSize = (value: number): string => {
                   {{ $t("documents.emptyEyebrow") }}
                 </p>
                 <h3 class="patient-documents-page__empty-title">
-                  {{ $t("documents.emptyTitle") }}
+                  {{
+                    hasAppliedFilters
+                      ? $t("documents.emptyFilteredTitle")
+                      : $t("documents.emptyTitle")
+                  }}
                 </h3>
                 <p class="patient-documents-page__section-copy">
-                  {{ $t("documents.emptyDescription") }}
+                  {{
+                    hasAppliedFilters
+                      ? $t("documents.emptyFilteredDescription")
+                      : $t("documents.emptyDescription")
+                  }}
                 </p>
               </q-card>
             </q-card-section>
           </q-card>
         </div>
-      </q-card-section>
-    </q-card>
+      </template>
+    </section>
   </q-page>
 </template>
 
@@ -557,10 +836,8 @@ const formatFileSize = (value: number): string => {
 }
 
 .patient-documents-page__hero {
-  border-radius: 1.5rem;
-  background:
-    linear-gradient(135deg, rgba(20, 50, 63, 0.04), transparent 40%),
-    rgba(255, 255, 255, 0.94);
+  display: grid;
+  gap: 1.25rem;
 }
 
 .patient-documents-page__loading {
@@ -581,6 +858,12 @@ const formatFileSize = (value: number): string => {
 .patient-documents-page__header {
   align-items: start;
   justify-content: space-between;
+  padding: 1.5rem;
+  border-radius: 1.5rem;
+  background:
+    linear-gradient(135deg, rgba(20, 50, 63, 0.92), rgba(36, 89, 110, 0.88)),
+    #16313f;
+  color: white;
 }
 
 .patient-documents-page__eyebrow,
@@ -593,12 +876,23 @@ const formatFileSize = (value: number): string => {
   text-transform: uppercase;
 }
 
+.patient-documents-page__header .patient-documents-page__eyebrow {
+  color: #d99866;
+  letter-spacing: 0.18em;
+}
+
 .patient-documents-page__title,
 .patient-documents-page__section-title,
 .patient-documents-page__empty-title,
 .patient-documents-page__document-title {
   margin: 0;
   color: #14323f;
+}
+
+.patient-documents-page__title {
+  color: white;
+  font-family: "Fraunces", serif;
+  font-size: clamp(2rem, 4vw, 2.8rem);
 }
 
 .patient-documents-page__subtitle,
@@ -611,10 +905,43 @@ const formatFileSize = (value: number): string => {
   line-height: 1.5;
 }
 
+.patient-documents-page__subtitle {
+  max-width: 42rem;
+  color: rgba(255, 255, 255, 0.82);
+}
+
+.patient-documents-page__summary {
+  display: flex;
+}
+
+.patient-documents-page__filters {
+  display: grid;
+  gap: 1rem;
+  padding: 1rem;
+  border: 1px solid rgba(20, 50, 63, 0.08);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.9);
+}
+
+.patient-documents-page__filter-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.85rem;
+}
+
+.patient-documents-page__filter-actions,
+.patient-documents-page__pagination {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.75rem;
+}
+
 .patient-documents-page__content {
   display: grid;
   grid-template-columns: minmax(18rem, 24rem) minmax(0, 1fr);
   align-items: start;
+  gap: 1rem;
 }
 
 .patient-documents-page__upload-card,
@@ -635,6 +962,10 @@ const formatFileSize = (value: number): string => {
   gap: 0.9rem;
 }
 
+.patient-documents-page__pagination {
+  margin-top: 1rem;
+}
+
 .patient-documents-page__document-head {
   align-items: start;
   justify-content: space-between;
@@ -651,6 +982,13 @@ const formatFileSize = (value: number): string => {
   flex-wrap: wrap;
   gap: 0.75rem;
   align-items: center;
+}
+
+.patient-documents-page__document-title {
+  max-width: min(42rem, 100%);
+  overflow-wrap: anywhere;
+  font-size: 1.05rem;
+  line-height: 1.35;
 }
 
 .patient-documents-page__document-link {
@@ -683,6 +1021,26 @@ const formatFileSize = (value: number): string => {
 @media (max-width: 960px) {
   .patient-documents-page__content {
     grid-template-columns: 1fr;
+  }
+
+  .patient-documents-page__filter-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 720px) {
+  .patient-documents-page__header {
+    flex-direction: column;
+  }
+
+  .patient-documents-page__filter-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .patient-documents-page__filter-actions,
+  .patient-documents-page__pagination {
+    justify-content: flex-start;
+    flex-wrap: wrap;
   }
 }
 </style>
