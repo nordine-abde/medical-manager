@@ -284,6 +284,7 @@ export const en = {
     listTitle: "Document library",
     uploadedAt: "Uploaded",
     linkedTo: "Linked to",
+    previewAction: "Preview",
     downloadAction: "Download",
     deleteAction: "Delete",
     deleteConfirm:
@@ -297,6 +298,14 @@ export const en = {
     emptyFilteredDescription:
       "Adjust the filters or upload a new file linked to this patient.",
     genericError: "Something went wrong while loading documents.",
+    previewDialog: {
+      close: "Close preview",
+      frameTitle: "Preview of {filename}",
+      title: "Document preview",
+      unsupportedDescription:
+        "This file format cannot be read in the popup. Download the file to open it.",
+      unsupportedTitle: "Preview unavailable",
+    },
     filters: {
       allRelatedEntityTypes: "All linked records",
       allTypes: "All document types",

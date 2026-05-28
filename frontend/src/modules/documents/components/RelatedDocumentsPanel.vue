@@ -3,6 +3,7 @@ import { computed, ref } from "vue";
 import { useI18n } from "vue-i18n";
 
 import { useDocumentsStore } from "../store";
+import DocumentPreviewDialog from "./DocumentPreviewDialog.vue";
 import {
   documentTypes,
   type DocumentRecord,
@@ -36,7 +37,9 @@ const { d, t } = useI18n();
 
 const errorMessage = ref("");
 const isDeleting = ref(false);
+const isPreviewOpen = ref(false);
 const isSaving = ref(false);
+const previewDocument = ref<DocumentRecord | null>(null);
 const selectedDocumentType = ref<DocumentType>("general_attachment");
 const selectedFile = ref<File | null>(null);
 const uploadNotes = ref("");
@@ -58,6 +61,11 @@ const canUpload = computed(
 );
 
 const formatUploadedAt = (value: string) => d(new Date(value), "short");
+
+const openDocumentPreview = (document: DocumentRecord) => {
+  previewDocument.value = document;
+  isPreviewOpen.value = true;
+};
 
 const resetUploadForm = () => {
   selectedDocumentType.value = "general_attachment";
@@ -184,6 +192,14 @@ const handleDeleteDocument = async (document: DocumentRecord) => {
             color="primary"
             flat
             no-caps
+            icon="visibility"
+            :label="$t('documents.previewAction')"
+            @click="openDocumentPreview(document)"
+          />
+          <q-btn
+            color="primary"
+            flat
+            no-caps
             icon="download"
             :href="document.downloadUrl"
             :label="$t('documents.downloadAction')"
@@ -264,6 +280,11 @@ const handleDeleteDocument = async (document: DocumentRecord) => {
         />
       </q-card-actions>
     </q-card>
+
+    <DocumentPreviewDialog
+      v-model="isPreviewOpen"
+      :document="previewDocument"
+    />
   </div>
 </template>
 
@@ -335,6 +356,7 @@ const handleDeleteDocument = async (document: DocumentRecord) => {
 .related-documents-panel__item-main {
   display: grid;
   gap: 0.5rem;
+  min-width: 0;
 }
 
 .related-documents-panel__item-title-row {
@@ -342,6 +364,10 @@ const handleDeleteDocument = async (document: DocumentRecord) => {
   flex-wrap: wrap;
   gap: 0.75rem;
   align-items: center;
+}
+
+.related-documents-panel__item-title {
+  overflow-wrap: anywhere;
 }
 
 .related-documents-panel__item-meta span {

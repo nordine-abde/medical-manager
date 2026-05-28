@@ -395,6 +395,7 @@ describe("usePrescriptionsStore", () => {
             document: {
               documentType: "prescription",
               downloadUrl: "/api/v1/documents/document-1/download",
+              previewUrl: "/api/v1/documents/document-1/preview",
               fileSizeBytes: 12,
               id: "document-1",
               mimeType: "application/pdf",

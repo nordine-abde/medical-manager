@@ -23,6 +23,7 @@ export const mapDocument = (document: {
   notes: document.notes,
   originalFilename: document.original_filename,
   patientId: document.patient_id,
+  previewUrl: `/api/v1/documents/${document.id}/preview`,
   relatedEntityId: document.related_entity_id,
   relatedEntityType: document.related_entity_type,
   uploadedAt: formatDateTime(document.uploaded_at),

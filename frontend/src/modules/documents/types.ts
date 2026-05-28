@@ -26,6 +26,7 @@ export interface DocumentRecord {
   notes: string | null;
   originalFilename: string;
   patientId: string;
+  previewUrl: string;
   relatedEntityId: string;
   relatedEntityType: RelatedEntityType;
   uploadedAt: string;

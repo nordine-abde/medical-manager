@@ -7,6 +7,7 @@ import { useBookingsStore } from "../../bookings/store";
 import type { BookingRecord } from "../../bookings/types";
 import { formatBookingDisplayLabel } from "../../bookings/utils";
 import { useDocumentsStore } from "../store";
+import DocumentPreviewDialog from "../components/DocumentPreviewDialog.vue";
 import {
   documentTypes,
   relatedEntityTypes,
@@ -52,8 +53,10 @@ const bookingsStore = useBookingsStore();
 const isLoading = ref(false);
 const isSaving = ref(false);
 const isDeleting = ref(false);
+const isPreviewOpen = ref(false);
 const errorMessage = ref("");
 const successMessage = ref("");
+const previewDocument = ref<DocumentRecord | null>(null);
 const selectedFile = ref<File | null>(null);
 const selectedDocumentType = ref<DocumentType>("general_attachment");
 const selectedRelatedEntity = ref("");
@@ -314,6 +317,11 @@ const handleDeleteDocument = async (document: DocumentRecord) => {
   } finally {
     isDeleting.value = false;
   }
+};
+
+const openDocumentPreview = (document: DocumentRecord) => {
+  previewDocument.value = document;
+  isPreviewOpen.value = true;
 };
 
 function formatPrescriptionCaption(prescription: PrescriptionRecord): string {
@@ -762,6 +770,14 @@ const formatFileSize = (value: number): string => {
                         color="primary"
                         flat
                         no-caps
+                        icon="visibility"
+                        :label="$t('documents.previewAction')"
+                        @click="openDocumentPreview(document)"
+                      />
+                      <q-btn
+                        color="primary"
+                        flat
+                        no-caps
                         icon="download"
                         :href="document.downloadUrl"
                         :label="$t('documents.downloadAction')"
@@ -821,6 +837,11 @@ const formatFileSize = (value: number): string => {
         </div>
       </template>
     </section>
+
+    <DocumentPreviewDialog
+      v-model="isPreviewOpen"
+      :document="previewDocument"
+    />
   </q-page>
 </template>
 

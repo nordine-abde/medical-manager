@@ -5,6 +5,7 @@ import { useI18n } from "vue-i18n";
 
 import { useBookingsStore } from "../../bookings/store";
 import { formatBookingDisplayLabel } from "../../bookings/utils";
+import DocumentPreviewDialog from "../../documents/components/DocumentPreviewDialog.vue";
 import { useDocumentsStore } from "../../documents/store";
 import type { DocumentRecord, DocumentType } from "../../documents/types";
 import { usePatientsStore } from "../../patients/store";
@@ -32,8 +33,10 @@ const isLoading = ref(false);
 const isSaving = ref(false);
 const isDeleting = ref(false);
 const isFormOpen = ref(false);
+const isPreviewOpen = ref(false);
 const editingCareEvent = ref<CareEventRecord | null>(null);
 const errorMessage = ref("");
+const previewDocument = ref<DocumentRecord | null>(null);
 const filters = reactive({
   eventType: null as CareEventType | null,
   facilityId: null as string | null,
@@ -285,6 +288,11 @@ const resolveDocumentsList = (careEventId: string): DocumentRecord[] =>
       document.relatedEntityType === "care_event" &&
       document.relatedEntityId === careEventId,
   );
+
+const openDocumentPreview = (document: DocumentRecord) => {
+  previewDocument.value = document;
+  isPreviewOpen.value = true;
+};
 
 const resolveCareEventTitle = (careEvent: CareEventRecord): string => {
   const titleParts = [t(`careEvents.types.${careEvent.eventType}`)];
@@ -636,21 +644,34 @@ const openOverviewAnchor = async (anchor: string) => {
                     :label="$t('careEvents.openBookingLink')"
                     @click="openOverviewAnchor(`#booking-${careEvent.bookingId}`)"
                   />
-                  <q-btn
+                  <template
                     v-for="document in resolveDocumentsList(careEvent.id)"
                     :key="document.id"
-                    flat
-                    color="positive"
-                    icon="download"
-                    no-caps
-                    :href="document.downloadUrl"
-                    :label="
-                      $t('careEvents.downloadDocumentLink', {
-                        filename: document.originalFilename,
-                      })
-                    "
-                    target="_blank"
-                  />
+                  >
+                    <q-btn
+                      flat
+                      color="positive"
+                      icon="visibility"
+                      no-caps
+                      :label="$t('documents.previewAction')"
+                      @click="openDocumentPreview(document)"
+                    >
+                      <q-tooltip>{{ document.originalFilename }}</q-tooltip>
+                    </q-btn>
+                    <q-btn
+                      flat
+                      color="positive"
+                      icon="download"
+                      no-caps
+                      :href="document.downloadUrl"
+                      :label="
+                        $t('careEvents.downloadDocumentLink', {
+                          filename: document.originalFilename,
+                        })
+                      "
+                      target="_blank"
+                    />
+                  </template>
                 </div>
               </div>
 
@@ -729,6 +750,11 @@ const openOverviewAnchor = async (anchor: string) => {
       "
       @submit="handleSubmit"
       @update:model-value="handleDialogModelChange"
+    />
+
+    <DocumentPreviewDialog
+      v-model="isPreviewOpen"
+      :document="previewDocument"
     />
   </q-page>
 </template>

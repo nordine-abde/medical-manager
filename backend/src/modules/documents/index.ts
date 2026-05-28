@@ -119,18 +119,35 @@ const parseUploadFormData = async (request: Request) => {
   };
 };
 
+const buildDocumentResponseHeaders = (
+  document: {
+    file_size_bytes: number;
+    id: string;
+    mime_type: string;
+    original_filename: string;
+  },
+  disposition: "attachment" | "inline",
+) =>
+  new Headers({
+    "content-disposition": `${disposition}; filename*=UTF-8''${encodeURIComponent(document.original_filename)}`,
+    "content-length": document.file_size_bytes.toString(),
+    "content-type": document.mime_type,
+    "x-document-id": document.id,
+  });
+
 const buildDownloadHeaders = (document: {
   file_size_bytes: number;
   id: string;
   mime_type: string;
   original_filename: string;
-}) =>
-  new Headers({
-    "content-disposition": `attachment; filename*=UTF-8''${encodeURIComponent(document.original_filename)}`,
-    "content-length": document.file_size_bytes.toString(),
-    "content-type": document.mime_type,
-    "x-document-id": document.id,
-  });
+}) => buildDocumentResponseHeaders(document, "attachment");
+
+const buildPreviewHeaders = (document: {
+  file_size_bytes: number;
+  id: string;
+  mime_type: string;
+  original_filename: string;
+}) => buildDocumentResponseHeaders(document, "inline");
 
 export const createDocumentsModule = (
   authInstance: typeof auth,
@@ -301,6 +318,36 @@ export const createDocumentsModule = (
 
           return new Response(bytes, {
             headers: buildDownloadHeaders(document),
+            status: 200,
+          });
+        } catch (error) {
+          if (error instanceof DocumentAccessError) {
+            return status(404, documentNotFoundPayload);
+          }
+
+          if (isAuthenticationRequiredError(error)) {
+            return status(401, unauthorizedPayload);
+          }
+
+          throw error;
+        }
+      },
+      {
+        params: documentIdParamsSchema,
+      },
+    )
+    .get(
+      "/documents/:documentId/preview",
+      async ({ params, request, status }) => {
+        try {
+          const session = await requireRequestSession(authInstance, request);
+          const { bytes, document } = await service.downloadDocument(
+            session.user.id,
+            params.documentId,
+          );
+
+          return new Response(bytes, {
+            headers: buildPreviewHeaders(document),
             status: 200,
           });
         } catch (error) {

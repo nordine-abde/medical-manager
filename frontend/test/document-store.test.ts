@@ -23,6 +23,7 @@ describe("useDocumentsStore", () => {
             {
               documentType: "general_attachment",
               downloadUrl: "/api/v1/documents/document-1/download",
+              previewUrl: "/api/v1/documents/document-1/preview",
               fileSizeBytes: 512000,
               id: "document-1",
               mimeType: "application/pdf",
@@ -37,6 +38,7 @@ describe("useDocumentsStore", () => {
             {
               documentType: "visit_report",
               downloadUrl: "/api/v1/documents/document-2/download",
+              previewUrl: "/api/v1/documents/document-2/preview",
               fileSizeBytes: 128000,
               id: "document-2",
               mimeType: "image/png",
@@ -100,6 +102,7 @@ describe("useDocumentsStore", () => {
             document: {
               documentType: "exam_result",
               downloadUrl: "/api/v1/documents/document-3/download",
+              previewUrl: "/api/v1/documents/document-3/preview",
               fileSizeBytes: 3,
               id: "document-3",
               mimeType: "application/pdf",
@@ -158,6 +161,7 @@ describe("useDocumentsStore", () => {
               {
                 documentType: "general_attachment",
                 downloadUrl: "/api/v1/documents/document-1/download",
+                previewUrl: "/api/v1/documents/document-1/preview",
                 fileSizeBytes: 512000,
                 id: "document-1",
                 mimeType: "application/pdf",
@@ -185,6 +189,7 @@ describe("useDocumentsStore", () => {
             document: {
               documentType: "general_attachment",
               downloadUrl: "/api/v1/documents/document-1/download",
+              previewUrl: "/api/v1/documents/document-1/preview",
               fileSizeBytes: 512000,
               id: "document-1",
               mimeType: "application/pdf",

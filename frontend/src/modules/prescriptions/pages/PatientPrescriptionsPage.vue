@@ -3,6 +3,7 @@ import { computed, onMounted, reactive, ref, watch } from "vue";
 import { useI18n } from "vue-i18n";
 import { useRoute, useRouter } from "vue-router";
 
+import DocumentPreviewDialog from "../../documents/components/DocumentPreviewDialog.vue";
 import { useDocumentsStore } from "../../documents/store";
 import type { DocumentRecord } from "../../documents/types";
 import { filterDocumentsByRelatedEntity } from "../../documents/utils";
@@ -28,8 +29,10 @@ const isLoading = ref(false);
 const isPrescriptionSaving = ref(false);
 const isPrescriptionDeleting = ref(false);
 const isPrescriptionFormOpen = ref(false);
+const isPreviewOpen = ref(false);
 const editingPrescription = ref<PrescriptionRecord | null>(null);
 const errorMessage = ref("");
+const previewDocument = ref<DocumentRecord | null>(null);
 const dateFilterError = ref("");
 const filters = reactive({
   from: "",
@@ -207,6 +210,11 @@ const resolveDocumentsList = (prescriptionId: string): DocumentRecord[] =>
     "prescription",
     prescriptionId,
   );
+
+const openDocumentPreview = (document: DocumentRecord) => {
+  previewDocument.value = document;
+  isPreviewOpen.value = true;
+};
 
 const openCreatePrescriptionDialog = () => {
   editingPrescription.value = null;
@@ -510,21 +518,34 @@ const handlePrescriptionDialogModelChange = (value: boolean) => {
                   v-if="resolveDocumentsList(prescription.id).length"
                   class="patient-prescriptions-page__related-links"
                 >
-                  <q-btn
+                  <template
                     v-for="document in resolveDocumentsList(prescription.id)"
                     :key="document.id"
-                    flat
-                    color="positive"
-                    icon="download"
-                    no-caps
-                    :href="document.downloadUrl"
-                    :label="
-                      $t('prescriptions.downloadDocumentLink', {
-                        filename: document.originalFilename,
-                      })
-                    "
-                    target="_blank"
-                  />
+                  >
+                    <q-btn
+                      flat
+                      color="positive"
+                      icon="visibility"
+                      no-caps
+                      :label="$t('documents.previewAction')"
+                      @click="openDocumentPreview(document)"
+                    >
+                      <q-tooltip>{{ document.originalFilename }}</q-tooltip>
+                    </q-btn>
+                    <q-btn
+                      flat
+                      color="positive"
+                      icon="download"
+                      no-caps
+                      :href="document.downloadUrl"
+                      :label="
+                        $t('prescriptions.downloadDocumentLink', {
+                          filename: document.originalFilename,
+                        })
+                      "
+                      target="_blank"
+                    />
+                  </template>
                 </div>
               </div>
 
@@ -603,6 +624,11 @@ const handlePrescriptionDialogModelChange = (value: boolean) => {
       "
       @submit="handlePrescriptionSubmit"
       @update:model-value="handlePrescriptionDialogModelChange"
+    />
+
+    <DocumentPreviewDialog
+      v-model="isPreviewOpen"
+      :document="previewDocument"
     />
   </q-page>
 </template>

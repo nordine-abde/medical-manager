@@ -256,6 +256,7 @@ describe("useCareEventsStore", () => {
             document: {
               documentType: "visit_report",
               downloadUrl: "/api/v1/documents/document-9/download",
+              previewUrl: "/api/v1/documents/document-9/preview",
               fileSizeBytes: 6,
               id: "document-9",
               mimeType: "application/pdf",

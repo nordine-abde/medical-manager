@@ -37,6 +37,7 @@ type DocumentPayload = {
     notes: string | null;
     originalFilename: string;
     patientId: string;
+    previewUrl: string;
     relatedEntityId: string;
     relatedEntityType: string;
     uploadedAt: string;
@@ -322,6 +323,9 @@ describe("documents module", () => {
     expect(createPayload.document.downloadUrl).toBe(
       `/api/v1/documents/${documentId}/download`,
     );
+    expect(createPayload.document.previewUrl).toBe(
+      `/api/v1/documents/${documentId}/preview`,
+    );
 
     const listResponse = await app.handle(
       new Request(`http://localhost/api/v1/patients/${patientId}/documents`, {
@@ -362,9 +366,30 @@ describe("documents module", () => {
       "application/pdf",
     );
     expect(downloadResponse.headers.get("content-disposition")).toContain(
+      "attachment",
+    );
+    expect(downloadResponse.headers.get("content-disposition")).toContain(
       "report.pdf",
     );
     expect(await downloadResponse.text()).toBe("pdf-binary-content");
+
+    const previewResponse = await app.handle(
+      new Request(`http://localhost/api/v1/documents/${documentId}/preview`, {
+        headers: {
+          "x-test-user-id": "user-1",
+        },
+      }),
+    );
+
+    expect(previewResponse.status).toBe(200);
+    expect(previewResponse.headers.get("content-type")).toBe("application/pdf");
+    expect(previewResponse.headers.get("content-disposition")).toContain(
+      "inline",
+    );
+    expect(previewResponse.headers.get("content-disposition")).toContain(
+      "report.pdf",
+    );
+    expect(await previewResponse.text()).toBe("pdf-binary-content");
 
     const deleteResponse = await app.handle(
       new Request(`http://localhost/api/v1/documents/${documentId}`, {

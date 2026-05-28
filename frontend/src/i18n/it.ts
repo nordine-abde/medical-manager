@@ -276,6 +276,7 @@ export const it = {
     listTitle: "Archivio documenti",
     uploadedAt: "Caricato",
     linkedTo: "Collegato a",
+    previewAction: "Anteprima",
     downloadAction: "Scarica",
     deleteAction: "Elimina",
     deleteConfirm:
@@ -290,6 +291,14 @@ export const it = {
       "Modifica i filtri o carica un nuovo file collegato al paziente.",
     genericError:
       "Si e verificato un problema durante il caricamento dei documenti.",
+    previewDialog: {
+      close: "Chiudi anteprima",
+      frameTitle: "Anteprima di {filename}",
+      title: "Anteprima documento",
+      unsupportedDescription:
+        "Questo formato non puo essere letto nel popup. Scarica il file per aprirlo.",
+      unsupportedTitle: "Anteprima non disponibile",
+    },
     filters: {
       allRelatedEntityTypes: "Tutti i collegamenti",
       allTypes: "Tutti i tipi documento",
