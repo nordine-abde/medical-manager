@@ -16,6 +16,7 @@ import {
 import BookingFormDialog from "../components/BookingFormDialog.vue";
 import { useBookingsStore } from "../store";
 import type {
+  BookingAttachedDocumentPayload,
   BookingListFilters,
   BookingRecord,
   BookingUpsertPayload,
@@ -337,6 +338,7 @@ const handleDeleteBooking = async (booking: BookingRecord) => {
 const handleBookingSubmit = async (
   payload: BookingUpsertPayload,
   facilityPayload: FacilityUpsertPayload | null,
+  attachedDocument: BookingAttachedDocumentPayload | null,
 ) => {
   isBookingSaving.value = true;
 
@@ -348,9 +350,10 @@ const handleBookingSubmit = async (
       facility: facilityPayload,
       facilityId: facilityPayload ? null : payload.facilityId,
     };
+    let savedBooking: BookingRecord;
 
     if (editingBooking.value) {
-      await bookingsStore.updateBooking(
+      savedBooking = await bookingsStore.updateBooking(
         editingBooking.value.id,
         {
           appointmentAt: bookingPayload.appointmentAt,
@@ -363,7 +366,31 @@ const handleBookingSubmit = async (
         },
       );
     } else {
-      await bookingsStore.createBooking(patientId.value, bookingPayload);
+      savedBooking = await bookingsStore.createBooking(
+        patientId.value,
+        bookingPayload,
+      );
+    }
+
+    let documentUploadError = "";
+
+    if (attachedDocument) {
+      try {
+        await documentsStore.uploadDocument(patientId.value, {
+          documentType: attachedDocument.documentType,
+          file: attachedDocument.file,
+          notes: attachedDocument.notes,
+          relatedEntityId: savedBooking.id,
+          relatedEntityType: "booking",
+        });
+      } catch (error) {
+        documentUploadError =
+          error instanceof Error
+            ? t("bookings.document.uploadErrorWithDetail", {
+                detail: error.message,
+              })
+            : t("bookings.document.uploadError");
+      }
     }
 
     if (facilityPayload) {
@@ -372,6 +399,10 @@ const handleBookingSubmit = async (
 
     isBookingFormOpen.value = false;
     editingBooking.value = null;
+
+    if (documentUploadError) {
+      errorMessage.value = documentUploadError;
+    }
   } catch (error) {
     errorMessage.value =
       error instanceof Error ? error.message : t("bookings.genericError");

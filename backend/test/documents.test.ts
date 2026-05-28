@@ -169,6 +169,50 @@ const insertCareEvent = async (
   );
 };
 
+const insertTask = async (
+  sql: postgres.Sql,
+  schemaName: string,
+  taskId: string,
+  patientId: string,
+): Promise<void> => {
+  await sql.unsafe(
+    `
+      insert into "${schemaName}"."tasks" (
+        id,
+        patient_id,
+        title,
+        task_type
+      )
+      values ($1, $2, 'Booking follow-up', 'booking')
+    `,
+    [taskId, patientId],
+  );
+};
+
+const insertBooking = async (
+  sql: postgres.Sql,
+  schemaName: string,
+  bookingId: string,
+  patientId: string,
+  taskId: string,
+): Promise<void> => {
+  await insertTask(sql, schemaName, taskId, patientId);
+
+  await sql.unsafe(
+    `
+      insert into "${schemaName}"."bookings" (
+        id,
+        patient_id,
+        task_id,
+        appointment_at,
+        notes
+      )
+      values ($1, $2, $3, now(), 'Seeded booking')
+    `,
+    [bookingId, patientId, taskId],
+  );
+};
+
 beforeEach(async () => {
   const schemaName = `test_documents_api_${randomUUID().replaceAll("-", "")}`;
   const sql = postgres(databaseUrl, {
@@ -399,6 +443,48 @@ describe("documents module", () => {
     expect(payload.document.relatedEntityType).toBe("care_event");
     expect(payload.document.relatedEntityId).toBe(careEventId);
     expect(payload.document.documentType).toBe("exam_result");
+  });
+
+  it("uploads a document linked to a persisted booking", async () => {
+    const { app, schemaName, sql } = getTestContext();
+    const patientId = "99999999-9999-4999-8999-999999999999";
+    const bookingId = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
+    const taskId = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
+
+    await insertPatient(sql, schemaName, patientId, "user-1");
+    await insertBooking(sql, schemaName, bookingId, patientId, taskId);
+
+    const formData = new FormData();
+    formData.set(
+      "file",
+      new File(
+        [new TextEncoder().encode("booking-confirmation")],
+        "booking-confirmation.pdf",
+        {
+          type: "application/pdf",
+        },
+      ),
+    );
+    formData.set("documentType", "general_attachment");
+    formData.set("relatedEntityType", "booking");
+    formData.set("relatedEntityId", bookingId);
+    formData.set("notes", "Uploaded from booking creation flow");
+
+    const response = await app.handle(
+      new Request(`http://localhost/api/v1/patients/${patientId}/documents`, {
+        body: formData,
+        headers: {
+          "x-test-user-id": "user-1",
+        },
+        method: "POST",
+      }),
+    );
+    const payload = (await response.json()) as DocumentPayload;
+
+    expect(response.status).toBe(200);
+    expect(payload.document.relatedEntityType).toBe("booking");
+    expect(payload.document.relatedEntityId).toBe(bookingId);
+    expect(payload.document.originalFilename).toBe("booking-confirmation.pdf");
   });
 
   it("rejects cross-patient related entity links and inaccessible reads", async () => {

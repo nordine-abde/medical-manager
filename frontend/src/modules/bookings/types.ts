@@ -1,3 +1,4 @@
+import type { DocumentType } from "../documents/types";
 import type { PrescriptionType } from "../prescriptions/types";
 
 export interface FacilityRecord {
@@ -66,4 +67,10 @@ export interface BookingUpsertPayload {
   notes: string | null;
   prescriptionId: string | null;
   title: string;
+}
+
+export interface BookingAttachedDocumentPayload {
+  documentType: DocumentType;
+  file: File;
+  notes: string | null;
 }

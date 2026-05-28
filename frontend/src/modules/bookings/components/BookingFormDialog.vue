@@ -2,7 +2,9 @@
 import { computed, reactive, ref, watch } from "vue";
 import { useI18n } from "vue-i18n";
 
+import { documentTypes } from "../../documents/types";
 import {
+  type BookingAttachedDocumentPayload,
   type BookingRecord,
   type BookingUpsertPayload,
   type FacilityUpsertPayload,
@@ -31,6 +33,7 @@ const emit = defineEmits<{
   submit: [
     payload: BookingUpsertPayload,
     facilityPayload: FacilityUpsertPayload | null,
+    attachedDocument: BookingAttachedDocumentPayload | null,
   ];
   "update:modelValue": [value: boolean];
 }>();
@@ -42,6 +45,10 @@ const formError = ref("");
 const form = reactive({
   appointmentAt: "",
   bookedAt: "",
+  documentFile: null as File | null,
+  documentNotes: "",
+  documentType:
+    "general_attachment" as BookingAttachedDocumentPayload["documentType"],
   facilityId: null as string | null,
   notes: "",
   prescriptionId: null as string | null,
@@ -76,6 +83,13 @@ const normalizedFacilityOptions = computed(() => [
     value: "__create__",
   },
 ]);
+
+const documentTypeOptions = computed(() =>
+  documentTypes.map((documentType) => ({
+    label: t(`documents.types.${documentType}`),
+    value: documentType,
+  })),
+);
 
 const selectedPrescriptionDefaultTitle = computed(() => {
   if (!form.prescriptionId) {
@@ -121,6 +135,9 @@ const lastAutoTitle = ref("");
 const syncForm = () => {
   form.appointmentAt = toInputDateTime(props.booking?.appointmentAt ?? null);
   form.bookedAt = toInputDateTime(props.booking?.bookedAt ?? null);
+  form.documentFile = null;
+  form.documentNotes = "";
+  form.documentType = "general_attachment";
   form.facilityId = props.booking?.facilityId ?? null;
   form.notes = props.booking?.notes ?? "";
   form.prescriptionId = props.booking?.prescriptionId ?? null;
@@ -196,6 +213,13 @@ const handleSubmit = async () => {
           facilityType: facilityForm.facilityType.trim() || null,
           name: facilityForm.name.trim(),
           notes: facilityForm.notes.trim() || null,
+        }
+      : null,
+    form.documentFile instanceof File
+      ? {
+          documentType: form.documentType,
+          file: form.documentFile,
+          notes: form.documentNotes.trim() || null,
         }
       : null,
   );
@@ -339,6 +363,43 @@ const handleSubmit = async () => {
             :label="$t('bookings.fields.notes')"
           />
 
+          <div class="booking-form-dialog__section">
+            <p class="booking-form-dialog__section-title">
+              {{ $t("bookings.document.title") }}
+            </p>
+            <p class="booking-form-dialog__helper">
+              {{ $t("bookings.document.helper") }}
+            </p>
+            <div class="booking-form-dialog__grid">
+              <q-file
+                v-model="form.documentFile"
+                clearable
+                outlined
+                accept="application/pdf,image/jpeg,image/png,image/webp"
+                :disable="loading"
+                :hint="$t('documents.fields.fileHint')"
+                :label="$t('bookings.document.fields.file')"
+              />
+              <q-select
+                v-model="form.documentType"
+                outlined
+                emit-value
+                map-options
+                :disable="loading"
+                :label="$t('bookings.document.fields.documentType')"
+                :options="documentTypeOptions"
+              />
+            </div>
+            <q-input
+              v-model="form.documentNotes"
+              outlined
+              autogrow
+              type="textarea"
+              :disable="loading"
+              :label="$t('bookings.document.fields.notes')"
+            />
+          </div>
+
           <q-banner
             v-if="formError"
             dense
@@ -418,6 +479,28 @@ const handleSubmit = async () => {
   padding: 1rem;
   border-radius: 1.1rem;
   background: rgba(244, 246, 243, 0.9);
+}
+
+.booking-form-dialog__section {
+  display: grid;
+  gap: 0.85rem;
+  padding: 1rem;
+  border: 1px solid rgba(20, 50, 63, 0.08);
+  border-radius: 8px;
+  background: rgba(244, 246, 243, 0.78);
+}
+
+.booking-form-dialog__section-title {
+  margin: 0;
+  color: #14323f;
+  font-size: 0.98rem;
+  font-weight: 700;
+}
+
+.booking-form-dialog__helper {
+  margin: 0;
+  color: #32505d;
+  line-height: 1.5;
 }
 
 .booking-form-dialog__actions {

@@ -474,7 +474,7 @@ export const it = {
     linkedDocumentsTitle: "File allegati",
     linkedDocumentsEmptyTitle: "Nessun documento per questa prenotazione",
     linkedDocumentsEmptyDescription:
-      "Carica un file dalla pagina documenti per mantenere conferme e referti visibili accanto a questa prenotazione.",
+      "Carica un file dal modulo prenotazione o dalla pagina documenti per mantenere conferme e referti visibili accanto a questa prenotazione.",
     unlinkedFacility: "Nessuna struttura collegata",
     missingFacility: "Struttura non disponibile",
     unlinkedPrescription: "Nessuna prescrizione collegata",
@@ -500,6 +500,20 @@ export const it = {
       facilityNameRequired: "Inserisci il nome della struttura.",
       taskRequired: "Seleziona l'attivita collegata.",
       titleRequired: "Inserisci il titolo della prenotazione.",
+    },
+    document: {
+      title: "Documento prenotazione",
+      helper:
+        "Carica facoltativamente una conferma, una richiesta o un allegato da collegare appena la prenotazione viene salvata.",
+      uploadError:
+        "Prenotazione salvata, ma il documento non e stato caricato.",
+      uploadErrorWithDetail:
+        "Prenotazione salvata, ma il documento non e stato caricato: {detail}",
+      fields: {
+        documentType: "Tipo documento",
+        file: "File prenotazione",
+        notes: "Note documento",
+      },
     },
     filters: {
       allFacilities: "Tutte le strutture",

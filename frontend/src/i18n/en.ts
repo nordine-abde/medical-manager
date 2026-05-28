@@ -478,7 +478,7 @@ export const en = {
     linkedDocumentsTitle: "Attached files",
     linkedDocumentsEmptyTitle: "No booking documents yet",
     linkedDocumentsEmptyDescription:
-      "Upload a file from the documents page to keep confirmations and visit paperwork visible with this booking.",
+      "Upload a file from the booking form or documents page to keep confirmations and visit paperwork visible with this booking.",
     unlinkedFacility: "No linked facility",
     missingFacility: "Facility unavailable",
     unlinkedPrescription: "No linked prescription",
@@ -504,6 +504,19 @@ export const en = {
       facilityNameRequired: "Enter the facility name.",
       taskRequired: "Select the related task.",
       titleRequired: "Enter the booking title.",
+    },
+    document: {
+      title: "Booking document",
+      helper:
+        "Optionally upload a confirmation, request, or attachment so it is linked as soon as the booking is saved.",
+      uploadError: "Booking saved, but the document was not uploaded.",
+      uploadErrorWithDetail:
+        "Booking saved, but the document was not uploaded: {detail}",
+      fields: {
+        documentType: "Document type",
+        file: "Booking file",
+        notes: "Document notes",
+      },
     },
     filters: {
       allFacilities: "All facilities",
