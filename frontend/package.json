@@ -15,6 +15,7 @@
     "@fontsource-variable/manrope": "^5.2.8",
     "@fontsource/newsreader": "^5.2.10",
     "@quasar/extras": "^1.17.0",
+    "jspdf": "^4.2.1",
     "pinia": "^3.0.4",
     "quasar": "^2.18.7",
     "vue": "^3.5.30",

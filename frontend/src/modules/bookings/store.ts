@@ -188,6 +188,35 @@ export const useBookingsStore = defineStore("bookings", {
         throw error;
       }
     },
+    async loadBookingsForExport(
+      patientId: string,
+      filters: BookingListFilters = {},
+    ): Promise<BookingRecord[]> {
+      const pageSize = 100;
+      let page = 1;
+      const bookings: BookingRecord[] = [];
+
+      while (true) {
+        const result = await listBookingsRequest(patientId, {
+          ...filters,
+          page,
+          pageSize,
+        });
+
+        bookings.push(...result.bookings);
+
+        if (
+          result.pagination.totalPages <= page ||
+          result.bookings.length === 0
+        ) {
+          break;
+        }
+
+        page += 1;
+      }
+
+      return sortBookings(bookings);
+    },
     async loadFacilities() {
       this.facilities = sortFacilities(await listFacilitiesRequest());
     },

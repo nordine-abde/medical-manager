@@ -354,4 +354,59 @@ describe("useBookingsStore", () => {
       }),
     );
   });
+
+  it("loads all matching booking pages for PDF export without replacing the visible list", async () => {
+    const store = useBookingsStore();
+    const laterBooking = {
+      ...bookingPayload,
+      appointmentAt: "2026-04-24T10:00:00.000Z",
+      id: "booking-2",
+      title: "Cardiology review",
+    };
+
+    mockFetch
+      .mockResolvedValueOnce(
+        bookingsResponse([bookingPayload], {
+          page: 1,
+          pageSize: 100,
+          total: 2,
+          totalPages: 2,
+        }),
+      )
+      .mockResolvedValueOnce(
+        bookingsResponse([laterBooking], {
+          page: 2,
+          pageSize: 100,
+          total: 2,
+          totalPages: 2,
+        }),
+      );
+
+    const exportedBookings = await store.loadBookingsForExport("patient-1", {
+      includeArchived: true,
+      search: "review",
+    });
+
+    expect(exportedBookings.map((booking) => booking.id)).toEqual([
+      "booking-1",
+      "booking-2",
+    ]);
+    expect(store.bookings).toHaveLength(0);
+    expect(mockFetch).toHaveBeenNthCalledWith(
+      1,
+      "/api/v1/patients/patient-1/bookings?includeArchived=true&page=1&pageSize=100&search=review",
+      expect.objectContaining({
+        credentials: "include",
+        method: "GET",
+      }),
+    );
+    expect(mockFetch).toHaveBeenNthCalledWith(
+      2,
+      "/api/v1/patients/patient-1/bookings?includeArchived=true&page=2&pageSize=100&search=review",
+      expect.objectContaining({
+        credentials: "include",
+        method: "GET",
+      }),
+    );
+  });
 });

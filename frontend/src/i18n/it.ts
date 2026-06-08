@@ -498,6 +498,7 @@ export const it = {
       prescription: "Collegamento prescrizione",
       task: "Collegamento attivita",
       title: "Titolo",
+      visitType: "Tipo visita",
     },
     facilityFields: {
       address: "Indirizzo",
@@ -544,6 +545,18 @@ export const it = {
     labels: {
       appointment: "Appuntamento {date}",
       booked: "Prenotata {date}",
+    },
+    export: {
+      action: "Scarica PDF",
+      bookingCount:
+        "{count} prenotazione in elenco | {count} prenotazioni in elenco",
+      error: "Non e stato possibile generare il PDF delle prenotazioni.",
+      generatedAt: "Generato il",
+      noBookings: "Nessuna prenotazione disponibile per i filtri correnti.",
+      pageLabel: "Pagina {page} di {total}",
+      patient: "Paziente",
+      title: "Calendario prenotazioni",
+      unscheduledDate: "Senza data",
     },
   },
   tasks: {

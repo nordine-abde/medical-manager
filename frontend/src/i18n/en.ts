@@ -502,6 +502,7 @@ export const en = {
       prescription: "Linked prescription",
       task: "Task link",
       title: "Title",
+      visitType: "Visit type",
     },
     facilityFields: {
       address: "Address",
@@ -547,6 +548,18 @@ export const en = {
     labels: {
       appointment: "Appointment {date}",
       booked: "Booked {date}",
+    },
+    export: {
+      action: "Download PDF",
+      bookingCount:
+        "{count} booking in the list | {count} bookings in the list",
+      error: "Unable to generate the bookings PDF.",
+      generatedAt: "Generated at",
+      noBookings: "No bookings available for the current filters.",
+      pageLabel: "Page {page} of {total}",
+      patient: "Patient",
+      title: "Booking calendar",
+      unscheduledDate: "No date",
     },
   },
   tasks: {

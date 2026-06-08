@@ -6,6 +6,7 @@ import { useI18n } from "vue-i18n";
 import { useDocumentsStore } from "../../documents/store";
 import { filterDocumentsByRelatedEntity } from "../../documents/utils";
 import RelatedDocumentsPanel from "../../documents/components/RelatedDocumentsPanel.vue";
+import { usePatientsStore } from "../../patients/store";
 import { usePrescriptionsStore } from "../../prescriptions/store";
 import { formatPrescriptionDisplayLabel } from "../../prescriptions/utils";
 import {
@@ -22,8 +23,13 @@ import type {
   BookingUpsertPayload,
   FacilityUpsertPayload,
 } from "../types";
+import {
+  buildBookingCalendarPdf,
+  type BookingCalendarPdfEntry,
+} from "../pdf";
 
 const bookingsStore = useBookingsStore();
+const patientsStore = usePatientsStore();
 const prescriptionsStore = usePrescriptionsStore();
 const documentsStore = useDocumentsStore();
 const route = useRoute();
@@ -32,6 +38,7 @@ const { d, t } = useI18n();
 
 const errorMessage = ref("");
 const isLoading = ref(false);
+const isExportingPdf = ref(false);
 const isBookingSaving = ref(false);
 const isBookingDeleting = ref(false);
 const isBookingFormOpen = ref(false);
@@ -45,12 +52,16 @@ const filters = reactive({
   page: 1,
   pageSize: 20,
   prescriptionType: null as PrescriptionType | null,
-  search: "",
-  subtype: "",
+  search: "" as string | null,
+  subtype: "" as string | null,
   to: "",
 });
 
 const patientId = computed(() => route.params.patientId as string);
+const patient = computed(() => patientsStore.currentPatient);
+const currentPatientName = computed(() =>
+  patient.value?.id === patientId.value ? patient.value.fullName : null,
+);
 const bookings = computed(() => bookingsStore.bookings);
 const pagination = computed(() => bookingsStore.pagination);
 const prescriptions = computed(() => prescriptionsStore.prescriptions);
@@ -121,9 +132,9 @@ const prescriptionTypeFilterOptions = computed(() => [
 
 const hasActiveFilters = computed(
   () =>
-    Boolean(filters.search.trim()) ||
+    Boolean(filters.search?.trim()) ||
     Boolean(filters.prescriptionType) ||
-    Boolean(filters.subtype.trim()) ||
+    Boolean(filters.subtype?.trim()) ||
     Boolean(filters.from) ||
     Boolean(filters.to) ||
     Boolean(filters.facilityId) ||
@@ -155,8 +166,8 @@ const buildBookingFilters = (): BookingListFilters => {
     pageSize: filters.pageSize,
   };
   const from = toFilterStartDateTime(filters.from);
-  const search = filters.search.trim();
-  const subtype = filters.subtype.trim();
+  const search = filters.search?.trim() ?? "";
+  const subtype = filters.subtype?.trim() ?? "";
   const to = toFilterEndDateTime(filters.to);
 
   if (filters.facilityId) {
@@ -196,6 +207,7 @@ const loadPage = async () => {
 
   try {
     await Promise.all([
+      patientsStore.loadPatient(patientId.value),
       loadBookings(),
       bookingsStore.loadFacilities(),
       prescriptionsStore.loadPrescriptions(patientId.value, { pageSize: 100 }),
@@ -210,10 +222,7 @@ const loadPage = async () => {
 };
 
 const applyFilters = async () => {
-  dateFilterError.value = "";
-
-  if (filters.from && filters.to && filters.from > filters.to) {
-    dateFilterError.value = t("bookings.filters.dateRangeError");
+  if (!validateDateFilters()) {
     return;
   }
 
@@ -225,6 +234,26 @@ const applyFilters = async () => {
     errorMessage.value =
       error instanceof Error ? error.message : t("bookings.genericError");
   }
+};
+
+const validateDateFilters = (): boolean => {
+  dateFilterError.value = "";
+
+  if (filters.from && filters.to && filters.from > filters.to) {
+    dateFilterError.value = t("bookings.filters.dateRangeError");
+    return false;
+  }
+
+  return true;
+};
+
+const buildBookingExportFilters = (): BookingListFilters => {
+  const exportFilters = buildBookingFilters();
+
+  delete exportFilters.page;
+  delete exportFilters.pageSize;
+
+  return exportFilters;
 };
 
 const resetFilters = async () => {
@@ -268,6 +297,22 @@ const formatBookingDateTime = (value: string | null) => {
   return d(new Date(value), "short");
 };
 
+const formatBookingPdfDateTime = (value: string | null) => {
+  if (!value) {
+    return t("bookings.emptyDate");
+  }
+
+  return d(new Date(value), "long");
+};
+
+const formatBookingPdfDateHeading = (value: string | null) => {
+  if (!value) {
+    return t("bookings.export.unscheduledDate");
+  }
+
+  return d(new Date(value), "short");
+};
+
 const resolveBookingFacilityLabel = (facilityId: string | null) => {
   if (!facilityId) {
     return t("bookings.unlinkedFacility");
@@ -281,6 +326,8 @@ const resolveBookingFacilityLabel = (facilityId: string | null) => {
 
   return [facility.name, facility.city].filter(Boolean).join(" · ");
 };
+
+const toPdfLabel = (value: string): string => value.replace(/\s+·\s+/g, " - ");
 
 const resolveBookingPrescriptionLabel = (prescriptionId: string | null) => {
   if (!prescriptionId) {
@@ -300,6 +347,117 @@ const resolveBookingPrescriptionLabel = (prescriptionId: string | null) => {
 
 const resolveBookingTitle = (booking: BookingRecord): string => {
   return booking.title;
+};
+
+const resolveBookingVisitTypeLabel = (booking: BookingRecord): string => {
+  const prescription = prescriptions.value.find(
+    (item) => item.id === booking.prescriptionId,
+  );
+
+  if (!prescription) {
+    return booking.title;
+  }
+
+  return [
+    t(`prescriptions.types.${prescription.prescriptionType}`),
+    prescription.subtype?.trim(),
+  ]
+    .filter(Boolean)
+    .join(" - ");
+};
+
+const buildBookingPdfEntries = (
+  bookingRecords: BookingRecord[],
+): BookingCalendarPdfEntry[] =>
+  bookingRecords.map((booking) => {
+    const calendarDate = booking.appointmentAt ?? booking.bookedAt;
+
+    return {
+      appointmentAt: formatBookingPdfDateTime(booking.appointmentAt),
+      archived: Boolean(booking.deletedAt),
+      bookedAt: formatBookingPdfDateTime(booking.bookedAt),
+      calendarDateLabel: formatBookingPdfDateHeading(calendarDate),
+      facility: toPdfLabel(resolveBookingFacilityLabel(booking.facilityId)),
+      id: booking.id,
+      notes: booking.notes?.trim() || t("bookings.emptyNotes"),
+      prescription: toPdfLabel(
+        resolveBookingPrescriptionLabel(booking.prescriptionId),
+      ),
+      sortValue: calendarDate ?? "",
+      title: resolveBookingTitle(booking),
+      visitType: resolveBookingVisitTypeLabel(booking),
+    };
+  });
+
+const buildBookingPdfFileName = (): string => {
+  const patientName = currentPatientName.value ?? t("bookings.export.patient");
+  const patientSlug =
+    patientName
+      .toLowerCase()
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/(^-|-$)/g, "") || "paziente";
+  const dateSlug = new Date().toISOString().slice(0, 10);
+
+  return `prenotazioni-${patientSlug}-${dateSlug}.pdf`;
+};
+
+const downloadBlob = (blob: Blob, fileName: string) => {
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement("a");
+
+  anchor.href = url;
+  anchor.download = fileName;
+  document.body.append(anchor);
+  anchor.click();
+  anchor.remove();
+  window.setTimeout(() => URL.revokeObjectURL(url), 0);
+};
+
+const handleBookingPdfExport = async () => {
+  if (!validateDateFilters()) {
+    return;
+  }
+
+  isExportingPdf.value = true;
+  errorMessage.value = "";
+
+  try {
+    const exportBookings = await bookingsStore.loadBookingsForExport(
+      patientId.value,
+      buildBookingExportFilters(),
+    );
+    const pdfBlob = buildBookingCalendarPdf({
+      entries: buildBookingPdfEntries(exportBookings),
+      generatedAt: d(new Date(), "long"),
+      labels: {
+        appointmentAt: t("bookings.fields.appointmentAt"),
+        archived: t("bookings.archivedBadge"),
+        bookedAt: t("bookings.fields.bookedAt"),
+        bookingCount: t("bookings.export.bookingCount", {
+          count: exportBookings.length,
+        }),
+        facility: t("bookings.fields.facility"),
+        generatedAt: t("bookings.export.generatedAt"),
+        noBookings: t("bookings.export.noBookings"),
+        notes: t("bookings.fields.notes"),
+        page: t("bookings.export.pageLabel"),
+        patient: t("bookings.export.patient"),
+        prescription: t("bookings.fields.prescription"),
+        visitType: t("bookings.fields.visitType"),
+      },
+      patientName: currentPatientName.value,
+      title: t("bookings.export.title"),
+    });
+
+    downloadBlob(pdfBlob, buildBookingPdfFileName());
+  } catch (error) {
+    errorMessage.value =
+      error instanceof Error ? error.message : t("bookings.export.error");
+  } finally {
+    isExportingPdf.value = false;
+  }
 };
 
 const getBookingDocuments = (bookingId: string) =>
@@ -474,6 +632,16 @@ const handleBookingDialogModelChange = (value: boolean) => {
               icon="insights"
               :label="$t('nav.overview')"
               @click="router.push(`/app/patients/${patientId}/overview`)"
+            />
+            <q-btn
+              outline
+              color="primary"
+              no-caps
+              icon="picture_as_pdf"
+              :loading="isExportingPdf"
+              :disable="isLoading"
+              :label="$t('bookings.export.action')"
+              @click="handleBookingPdfExport"
             />
             <q-btn
               color="primary"
