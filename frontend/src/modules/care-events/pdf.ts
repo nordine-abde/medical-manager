@@ -55,14 +55,18 @@ export interface BuildCareEventReportsPdfInput {
   documentCount: number;
   entries: CareEventReportPdfEntry[];
   eventCount: number;
+  entryIndexOffset?: number;
+  entryTotal?: number;
   filtersSummary: string[];
   generatedAt: string;
   labels: CareEventReportPdfLabels;
   patientName: string | null;
+  renderMode?: "entriesOnly" | "full" | "overviewOnly";
   title: string;
 }
 
 export interface CareEventReportPdfAttachment {
+  entryId: string;
   filename: string;
   url: string;
 }
@@ -111,10 +115,13 @@ export const buildCareEventReportsPdf = ({
   documentCount,
   entries,
   eventCount,
+  entryIndexOffset = 0,
+  entryTotal,
   filtersSummary,
   generatedAt,
   labels,
   patientName,
+  renderMode = "full",
   title,
 }: BuildCareEventReportsPdfInput): Blob => {
   const doc = new jsPDF({
@@ -172,34 +179,56 @@ export const buildCareEventReportsPdf = ({
   ) => {
     const indent = options.indent ?? 0;
     const color = options.color ?? [20, 50, 63];
-    doc.setFont("helvetica", options.style ?? "normal");
-    doc.setFontSize(options.fontSize);
-    doc.setTextColor(...color);
+    const style = options.style ?? "normal";
 
+    doc.setFont("helvetica", style);
+    doc.setFontSize(options.fontSize);
     const lines = doc.splitTextToSize(
-      normalizePdfText(text),
+      normalizePdfText(text) || " ",
       contentWidth - indent,
     ) as string[];
+    const blockHeight = lines.length * options.lineHeight;
+
+    if (blockHeight <= bottomY - 116) {
+      ensureSpace(blockHeight);
+    }
 
     for (const line of lines) {
-      ensureSpace(options.lineHeight);
+      if (blockHeight > bottomY - 116) {
+        ensureSpace(options.lineHeight);
+      }
+
+      doc.setFont("helvetica", style);
+      doc.setFontSize(options.fontSize);
+      doc.setTextColor(...color);
       doc.text(line, margin + indent, y);
       y += options.lineHeight;
     }
   };
 
   const writeSectionTitle = (text: string) => {
-    ensureSpace(28);
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(11);
+    const lines = doc.splitTextToSize(
+      normalizePdfText(text) || " ",
+      contentWidth - 16,
+    ) as string[];
+    const lineHeight = 14;
+    const blockHeight = Math.max(24, lines.length * lineHeight + 10);
+
+    ensureSpace(blockHeight + 8);
     y += 4;
     doc.setFillColor(232, 244, 249);
-    doc.roundedRect(margin, y - 17, contentWidth, 24, 4, 4, "F");
-    writeWrappedText(text, {
-      color: [40, 83, 107],
-      fontSize: 11,
-      indent: 8,
-      lineHeight: 17,
-      style: "bold",
-    });
+    doc.roundedRect(margin, y - 17, contentWidth, blockHeight, 4, 4, "F");
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(11);
+    doc.setTextColor(40, 83, 107);
+
+    for (const line of lines) {
+      doc.text(line, margin + 8, y);
+      y += lineHeight;
+    }
+
     y += 8;
   };
 
@@ -213,60 +242,24 @@ export const buildCareEventReportsPdf = ({
   };
 
   const sortedEntries = sortCareEventReportPdfEntries(entries);
+  const resolvedEntryTotal = entryTotal ?? sortedEntries.length;
+  const shouldRenderOverview = renderMode !== "entriesOnly";
+  const shouldRenderEntryPages = renderMode !== "overviewOnly";
 
-  addPageHeader(labels.initialSummary);
-  writeSectionTitle(labels.initialSummary);
-  writeField(labels.patient, patientName ?? labels.patient);
-  writeField(labels.generatedAt, generatedAt);
-  writeField(labels.reportCount, String(sortedEntries.length));
-  writeField(labels.eventCount, String(eventCount));
-  writeField(labels.documentCount, String(documentCount));
+  const writeEntryPage = (
+    entry: CareEventReportPdfEntry,
+    index: number,
+    total: number,
+    shouldAddPage: boolean,
+  ) => {
+    const subtitle = `${labels.document} ${index}/${total}`;
 
-  writeSectionTitle(labels.filters);
-
-  if (filtersSummary.length === 0) {
-    writeWrappedText("-", {
-      color: [50, 80, 93],
-      fontSize: 9,
-      indent: 12,
-      lineHeight: 12,
-    });
-  } else {
-    for (const filter of filtersSummary) {
-      writeWrappedText(filter, {
-        color: [50, 80, 93],
-        fontSize: 9,
-        indent: 12,
-        lineHeight: 12,
-      });
+    if (shouldAddPage) {
+      addPage(subtitle);
+    } else {
+      addPageHeader(subtitle);
     }
-  }
 
-  writeSectionTitle(labels.indexTitle);
-
-  if (sortedEntries.length === 0) {
-    writeWrappedText(labels.noEntries, {
-      fontSize: 11,
-      lineHeight: 15,
-    });
-  }
-
-  sortedEntries.forEach((entry, index) => {
-    writeWrappedText(
-      `${index + 1}. ${entry.completedAt} - ${entry.title}${
-        entry.document ? ` - ${entry.document.filename}` : ""
-      }`,
-      {
-        color: [50, 80, 93],
-        fontSize: 9,
-        indent: 12,
-        lineHeight: 12,
-      },
-    );
-  });
-
-  sortedEntries.forEach((entry, index) => {
-    addPage(`${labels.document} ${index + 1}/${sortedEntries.length}`);
     writeWrappedText(entry.document?.filename ?? entry.title, {
       fontSize: 16,
       lineHeight: 20,
@@ -299,7 +292,73 @@ export const buildCareEventReportsPdf = ({
         lineHeight: 14,
       });
     }
-  });
+  };
+
+  if (shouldRenderOverview) {
+    addPageHeader(labels.initialSummary);
+    writeSectionTitle(labels.initialSummary);
+    writeField(labels.patient, patientName ?? labels.patient);
+    writeField(labels.generatedAt, generatedAt);
+    writeField(labels.reportCount, String(sortedEntries.length));
+    writeField(labels.eventCount, String(eventCount));
+    writeField(labels.documentCount, String(documentCount));
+
+    writeSectionTitle(labels.filters);
+
+    if (filtersSummary.length === 0) {
+      writeWrappedText("-", {
+        color: [50, 80, 93],
+        fontSize: 9,
+        indent: 12,
+        lineHeight: 12,
+      });
+    } else {
+      for (const filter of filtersSummary) {
+        writeWrappedText(filter, {
+          color: [50, 80, 93],
+          fontSize: 9,
+          indent: 12,
+          lineHeight: 12,
+        });
+      }
+    }
+
+    writeSectionTitle(labels.indexTitle);
+
+    if (sortedEntries.length === 0) {
+      writeWrappedText(labels.noEntries, {
+        fontSize: 11,
+        lineHeight: 15,
+      });
+    }
+
+    sortedEntries.forEach((entry, index) => {
+      writeWrappedText(
+        `${index + 1}. ${entry.completedAt} - ${entry.title}${
+          entry.document ? ` - ${entry.document.filename}` : ""
+        }`,
+        {
+          color: [50, 80, 93],
+          fontSize: 9,
+          indent: 12,
+          lineHeight: 12,
+        },
+      );
+    });
+  }
+
+  if (shouldRenderEntryPages) {
+    sortedEntries.forEach((entry, index) => {
+      const entryIndex = entryIndexOffset + index + 1;
+
+      writeEntryPage(
+        entry,
+        entryIndex,
+        resolvedEntryTotal,
+        shouldRenderOverview || index > 0,
+      );
+    });
+  }
 
   const pageCount = doc.getNumberOfPages();
 
@@ -350,26 +409,54 @@ export const buildCareEventReportsPdfWithAttachments = async ({
   loadAttachment,
   ...input
 }: BuildCareEventReportsPdfWithAttachmentsInput): Promise<Blob> => {
-  const summaryBlob = buildCareEventReportsPdf(input);
+  const sortedEntries = sortCareEventReportPdfEntries(input.entries);
 
   if (attachments.length === 0) {
-    return summaryBlob;
+    return buildCareEventReportsPdf({
+      ...input,
+      entries: sortedEntries,
+    });
   }
 
   const targetDocument = await PDFDocument.create();
+  const attachmentsByEntryId = new Map(
+    attachments.map((attachment) => [attachment.entryId, attachment]),
+  );
+  const overviewBlob = buildCareEventReportsPdf({
+    ...input,
+    entries: sortedEntries,
+    renderMode: "overviewOnly",
+  });
 
   await appendPdfBytes(
     targetDocument,
-    await summaryBlob.arrayBuffer(),
+    await overviewBlob.arrayBuffer(),
     input.title,
   );
 
-  for (const attachment of attachments) {
+  for (const [index, entry] of sortedEntries.entries()) {
+    const entryBlob = buildCareEventReportsPdf({
+      ...input,
+      entries: [entry],
+      entryIndexOffset: index,
+      entryTotal: sortedEntries.length,
+      renderMode: "entriesOnly",
+    });
+    const attachment = attachmentsByEntryId.get(entry.id);
+
     await appendPdfBytes(
       targetDocument,
-      await loadAttachment(attachment),
-      attachment.filename,
+      await entryBlob.arrayBuffer(),
+      entry.document?.filename ?? entry.title,
     );
+
+    if (attachment) {
+      await appendPdfBytes(
+        targetDocument,
+        await loadAttachment(attachment),
+        attachment.filename,
+      );
+    }
   }
 
   const mergedBytes = await targetDocument.save();

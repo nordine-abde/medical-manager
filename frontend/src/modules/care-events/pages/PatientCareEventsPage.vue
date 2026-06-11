@@ -481,6 +481,7 @@ const buildCareEventReportPdfAttachments = (
 
     return [
       {
+        entryId: entry.id,
         filename: document.originalFilename,
         url: document.downloadUrl,
       },

@@ -88,7 +88,7 @@ describe("care event PDF utilities", () => {
     expect(await blob.text()).toMatch(/^%PDF-/);
   });
 
-  it("appends original PDF attachments after the dossier summary", async () => {
+  it("appends original PDF attachments after their matching summary page", async () => {
     const attachmentBlob = buildCareEventReportsPdf({
       documentCount: 0,
       entries: [],
@@ -102,6 +102,7 @@ describe("care event PDF utilities", () => {
     const blob = await buildCareEventReportsPdfWithAttachments({
       attachments: [
         {
+          entryId: "care-event-1:document-1",
           filename: "original-report.pdf",
           url: "/api/v1/documents/document-1/download",
         },
@@ -119,6 +120,6 @@ describe("care event PDF utilities", () => {
     const mergedDocument = await PDFDocument.load(await blob.arrayBuffer());
 
     expect(blob.type).toBe("application/pdf");
-    expect(mergedDocument.getPageCount()).toBeGreaterThan(2);
+    expect(mergedDocument.getPageCount()).toBe(3);
   });
 });
