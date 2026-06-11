@@ -4,12 +4,19 @@ import { useRoute, useRouter } from "vue-router";
 import { useI18n } from "vue-i18n";
 
 import { useBookingsStore } from "../../bookings/store";
+import type { FacilityUpsertPayload } from "../../bookings/types";
 import { formatBookingDisplayLabel } from "../../bookings/utils";
 import DocumentPreviewDialog from "../../documents/components/DocumentPreviewDialog.vue";
 import { useDocumentsStore } from "../../documents/store";
 import type { DocumentRecord, DocumentType } from "../../documents/types";
 import { usePatientsStore } from "../../patients/store";
+import { downloadBlob } from "../../../utils/download";
+import { slugifyFilePart } from "../../../utils/file-names";
 import CareEventFormDialog from "../components/CareEventFormDialog.vue";
+import {
+  buildCareEventReportsPdf,
+  type CareEventReportPdfEntry,
+} from "../pdf";
 import { useCareEventsStore } from "../store";
 import type {
   CareEventListFilters,
@@ -18,7 +25,6 @@ import type {
   CareEventUpsertPayload,
 } from "../types";
 import { careEventTypes } from "../types";
-import type { FacilityUpsertPayload } from "../../bookings/types";
 
 const route = useRoute();
 const router = useRouter();
@@ -32,8 +38,10 @@ const careEventsStore = useCareEventsStore();
 const isLoading = ref(false);
 const isSaving = ref(false);
 const isDeleting = ref(false);
+const isExportingReportsPdf = ref(false);
 const isFormOpen = ref(false);
 const isPreviewOpen = ref(false);
+const isReportExportOpen = ref(false);
 const editingCareEvent = ref<CareEventRecord | null>(null);
 const errorMessage = ref("");
 const previewDocument = ref<DocumentRecord | null>(null);
@@ -47,9 +55,16 @@ const filters = reactive({
   subtype: "",
   to: "",
 });
+const reportExportForm = reactive({
+  eventTypes: [] as CareEventType[],
+  subtypeKeys: [] as string[],
+});
 
 const patientId = computed(() => route.params.patientId as string);
 const patient = computed(() => patientsStore.currentPatient);
+const currentPatientName = computed(() =>
+  patient.value?.id === patientId.value ? patient.value.fullName : null,
+);
 const bookings = computed(() => bookingsStore.activeBookings);
 const facilities = computed(() => bookingsStore.facilities);
 const careEvents = computed(() => careEventsStore.careEvents);
@@ -86,6 +101,48 @@ const eventTypeFilterOptions = computed(() => [
     value: eventType,
   })),
 ]);
+
+const reportEventTypeOptions = computed(() =>
+  careEventTypes.map((eventType) => ({
+    label: t(`careEvents.types.${eventType}`),
+    value: eventType,
+  })),
+);
+
+const buildSubtypeSelectionKey = (
+  eventType: CareEventType,
+  subtype: string,
+): string => `${eventType}:${encodeURIComponent(subtype)}`;
+
+const parseSubtypeSelectionKey = (
+  key: string,
+): { eventType: CareEventType; subtype: string } | null => {
+  const separatorIndex = key.indexOf(":");
+
+  if (separatorIndex === -1) {
+    return null;
+  }
+
+  const eventType = key.slice(0, separatorIndex) as CareEventType;
+
+  if (!careEventTypes.includes(eventType)) {
+    return null;
+  }
+
+  return {
+    eventType,
+    subtype: decodeURIComponent(key.slice(separatorIndex + 1)),
+  };
+};
+
+const reportSubtypeOptions = computed(() =>
+  careEventTypes.flatMap((eventType) =>
+    careEventSubtypeOptionsByType.value[eventType].map((subtype) => ({
+      label: `${subtype} (${t(`careEvents.types.${eventType}`)})`,
+      value: buildSubtypeSelectionKey(eventType, subtype),
+    })),
+  ),
+);
 
 const facilityFilterOptions = computed(() => [
   {
@@ -289,6 +346,9 @@ const resolveDocumentsList = (careEventId: string): DocumentRecord[] =>
       document.relatedEntityId === careEventId,
   );
 
+const normalizeSubtypeForMatch = (value: string | null | undefined): string =>
+  value?.trim().toLowerCase() ?? "";
+
 const openDocumentPreview = (document: DocumentRecord) => {
   previewDocument.value = document;
   isPreviewOpen.value = true;
@@ -305,6 +365,198 @@ const resolveCareEventTitle = (careEvent: CareEventRecord): string => {
   titleParts.push(formatDateTimeWithTime(careEvent.completedAt));
 
   return titleParts.join(" · ");
+};
+
+const toPdfLabel = (value: string): string => value.replace(/\s+·\s+/g, " - ");
+
+const formatFileSize = (value: number): string => {
+  if (value < 1024) {
+    return `${value} B`;
+  }
+
+  if (value < 1024 * 1024) {
+    return `${(value / 1024).toFixed(1)} KB`;
+  }
+
+  return `${(value / (1024 * 1024)).toFixed(1)} MB`;
+};
+
+const matchesReportExportSelection = (
+  careEvent: CareEventRecord,
+  selectedSubtypeKeys: string[],
+): boolean => {
+  const eventTypeMatches =
+    reportExportForm.eventTypes.length === 0 ||
+    reportExportForm.eventTypes.includes(careEvent.eventType);
+
+  if (!eventTypeMatches) {
+    return false;
+  }
+
+  const selectedSubtypes = selectedSubtypeKeys
+    .map(parseSubtypeSelectionKey)
+    .filter((selection) => selection !== null);
+
+  if (selectedSubtypes.length === 0) {
+    return true;
+  }
+
+  const careEventSubtype = normalizeSubtypeForMatch(careEvent.subtype);
+
+  return selectedSubtypes.some(
+    (selection) =>
+      selection.eventType === careEvent.eventType &&
+      normalizeSubtypeForMatch(selection.subtype) === careEventSubtype,
+  );
+};
+
+const buildCareEventReportPdfEntries = (
+  selectedCareEvents: CareEventRecord[],
+): CareEventReportPdfEntry[] =>
+  selectedCareEvents.flatMap((careEvent) => {
+    const linkedDocuments = resolveDocumentsList(careEvent.id);
+    const baseEntry: Omit<CareEventReportPdfEntry, "document" | "id"> = {
+      booking: toPdfLabel(resolveBookingLabel(careEvent.bookingId)),
+      careEventId: careEvent.id,
+      completedAt: formatDateTimeWithTime(careEvent.completedAt),
+      eventType: t(`careEvents.types.${careEvent.eventType}`),
+      facility: toPdfLabel(resolveFacilityLabel(careEvent.facilityId)),
+      notes: careEvent.outcomeNotes?.trim() || t("careEvents.emptyOutcomeNotes"),
+      provider:
+        careEvent.providerName?.trim() || t("careEvents.emptyProviderName"),
+      sortValue: careEvent.completedAt,
+      subtype: careEvent.subtype?.trim() || t("careEvents.emptySubtype"),
+      title: toPdfLabel(resolveCareEventTitle(careEvent)),
+    };
+
+    if (linkedDocuments.length === 0) {
+      return [
+        {
+          ...baseEntry,
+          document: null,
+          id: `${careEvent.id}:summary`,
+        },
+      ] satisfies CareEventReportPdfEntry[];
+    }
+
+    return linkedDocuments.map(
+      (document): CareEventReportPdfEntry => ({
+        ...baseEntry,
+        document: {
+          documentType: t(`documents.types.${document.documentType}`),
+          fileSize: formatFileSize(document.fileSizeBytes),
+          filename: document.originalFilename,
+          notes:
+            document.notes?.trim() || t("careEvents.export.emptyDocumentNotes"),
+          uploadedAt: formatDateTimeWithTime(document.uploadedAt),
+        },
+        id: `${careEvent.id}:${document.id}`,
+      }),
+    );
+  });
+
+const buildReportExportFiltersSummary = (): string[] => [
+  `${t("careEvents.export.selectedEventTypes")}: ${
+    reportExportForm.eventTypes.length
+      ? reportExportForm.eventTypes
+          .map((eventType) => t(`careEvents.types.${eventType}`))
+          .join(", ")
+      : t("careEvents.export.allEventTypes")
+  }`,
+  `${t("careEvents.export.selectedSubtypes")}: ${
+    reportExportForm.subtypeKeys.length
+      ? reportExportForm.subtypeKeys
+          .map((key) => {
+            const option = reportSubtypeOptions.value.find(
+              (item) => item.value === key,
+            );
+
+            return option?.label ?? key;
+          })
+          .join(", ")
+      : t("careEvents.export.allSubtypes")
+  }`,
+];
+
+const buildReportPdfFileName = (): string => {
+  const patientName =
+    currentPatientName.value ?? t("careEvents.export.patient");
+  const patientSlug = slugifyFilePart(patientName, "paziente");
+  const dateSlug = new Date().toISOString().slice(0, 10);
+
+  return `dossier-referti-${patientSlug}-${dateSlug}.pdf`;
+};
+
+const openReportExportDialog = () => {
+  isReportExportOpen.value = true;
+};
+
+const resetReportExportForm = () => {
+  reportExportForm.eventTypes = [];
+  reportExportForm.subtypeKeys = [];
+};
+
+const handleReportsPdfExport = async () => {
+  isExportingReportsPdf.value = true;
+  errorMessage.value = "";
+
+  try {
+    const exportCareEvents = await careEventsStore.loadCareEventsForExport(
+      patientId.value,
+      {},
+    );
+    const selectedSubtypeKeys = [...reportExportForm.subtypeKeys];
+    const selectedCareEvents = exportCareEvents.filter((careEvent) =>
+      matchesReportExportSelection(careEvent, selectedSubtypeKeys),
+    );
+    const selectedDocumentCount = selectedCareEvents.reduce(
+      (count, careEvent) => count + resolveDocumentsList(careEvent.id).length,
+      0,
+    );
+    const pdfBlob = buildCareEventReportsPdf({
+      documentCount: selectedDocumentCount,
+      entries: buildCareEventReportPdfEntries(selectedCareEvents),
+      eventCount: selectedCareEvents.length,
+      filtersSummary: buildReportExportFiltersSummary(),
+      generatedAt: d(new Date(), "long"),
+      labels: {
+        booking: t("careEvents.fields.booking"),
+        completedAt: t("careEvents.fields.completedAt"),
+        document: t("careEvents.export.document"),
+        documentCount: t("careEvents.export.documentCount"),
+        documentNotes: t("careEvents.export.documentNotes"),
+        documentType: t("documents.fields.documentType"),
+        emptyDocument: t("careEvents.export.emptyDocument"),
+        eventCount: t("careEvents.export.eventCount"),
+        eventType: t("careEvents.fields.eventType"),
+        facility: t("careEvents.fields.facility"),
+        fileSize: t("careEvents.export.fileSize"),
+        filters: t("careEvents.export.filters"),
+        generatedAt: t("careEvents.export.generatedAt"),
+        indexTitle: t("careEvents.export.indexTitle"),
+        initialSummary: t("careEvents.export.initialSummary"),
+        noEntries: t("careEvents.export.noEntries"),
+        notes: t("careEvents.fields.outcomeNotes"),
+        page: t("careEvents.export.pageLabel"),
+        patient: t("careEvents.export.patient"),
+        provider: t("careEvents.fields.providerName"),
+        reportCount: t("careEvents.export.reportCount"),
+        sourceEvent: t("careEvents.export.sourceEvent"),
+        subtype: t("careEvents.fields.subtype"),
+        uploadedAt: t("documents.uploadedAt"),
+      },
+      patientName: currentPatientName.value,
+      title: t("careEvents.export.title"),
+    });
+
+    downloadBlob(pdfBlob, buildReportPdfFileName());
+    isReportExportOpen.value = false;
+  } catch (error) {
+    errorMessage.value =
+      error instanceof Error ? error.message : t("careEvents.export.error");
+  } finally {
+    isExportingReportsPdf.value = false;
+  }
 };
 
 const openCreateDialog = () => {
@@ -475,6 +727,16 @@ const openOverviewAnchor = async (anchor: string) => {
               icon="arrow_back"
               :label="$t('careEvents.backToOverview')"
               @click="router.push(`/app/patients/${patientId}/overview`)"
+            />
+            <q-btn
+              outline
+              no-caps
+              color="primary"
+              icon="picture_as_pdf"
+              :loading="isExportingReportsPdf"
+              :disable="isLoading"
+              :label="$t('careEvents.export.openAction')"
+              @click="openReportExportDialog"
             />
             <q-btn
               color="primary"
@@ -752,6 +1014,78 @@ const openOverviewAnchor = async (anchor: string) => {
       @update:model-value="handleDialogModelChange"
     />
 
+    <q-dialog v-model="isReportExportOpen">
+      <q-card class="care-event-report-dialog">
+        <q-card-section class="care-event-report-dialog__header">
+          <h2 class="care-event-report-dialog__title">
+            {{ $t("careEvents.export.dialogTitle") }}
+          </h2>
+          <q-btn
+            flat
+            round
+            dense
+            icon="close"
+            :aria-label="$t('common.close')"
+            @click="isReportExportOpen = false"
+          />
+        </q-card-section>
+
+        <q-card-section class="care-event-report-dialog__body">
+          <q-select
+            v-model="reportExportForm.eventTypes"
+            outlined
+            multiple
+            use-chips
+            emit-value
+            map-options
+            :disable="isExportingReportsPdf"
+            :label="$t('careEvents.export.eventTypesLabel')"
+            :options="reportEventTypeOptions"
+          />
+
+          <q-select
+            v-model="reportExportForm.subtypeKeys"
+            outlined
+            multiple
+            use-chips
+            emit-value
+            map-options
+            :disable="isExportingReportsPdf || reportSubtypeOptions.length === 0"
+            :label="$t('careEvents.export.subtypesLabel')"
+            :options="reportSubtypeOptions"
+          />
+        </q-card-section>
+
+        <q-card-actions align="right">
+          <q-btn
+            flat
+            no-caps
+            color="primary"
+            icon="restart_alt"
+            :disable="isExportingReportsPdf"
+            :label="$t('careEvents.export.resetSelection')"
+            @click="resetReportExportForm"
+          />
+          <q-btn
+            flat
+            no-caps
+            :disable="isExportingReportsPdf"
+            :label="$t('common.cancel')"
+            @click="isReportExportOpen = false"
+          />
+          <q-btn
+            color="primary"
+            unelevated
+            no-caps
+            icon="picture_as_pdf"
+            :loading="isExportingReportsPdf"
+            :label="$t('careEvents.export.generateAction')"
+            @click="handleReportsPdfExport"
+          />
+        </q-card-actions>
+      </q-card>
+    </q-dialog>
+
     <DocumentPreviewDialog
       v-model="isPreviewOpen"
       :document="previewDocument"
@@ -921,6 +1255,29 @@ const openOverviewAnchor = async (anchor: string) => {
 .patient-care-events-page__related-links {
   justify-content: flex-start;
   flex-wrap: wrap;
+}
+
+.care-event-report-dialog {
+  width: min(42rem, calc(100vw - 2rem));
+  border-radius: 8px;
+}
+
+.care-event-report-dialog__header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.care-event-report-dialog__title {
+  margin: 0;
+  color: #16313f;
+  font-size: 1.25rem;
+}
+
+.care-event-report-dialog__body {
+  display: grid;
+  gap: 1rem;
 }
 
 @media (max-width: 900px) {

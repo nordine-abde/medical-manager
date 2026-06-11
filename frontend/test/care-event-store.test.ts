@@ -457,6 +457,103 @@ describe("useCareEventsStore", () => {
     );
   });
 
+  it("loads all care event pages for export", async () => {
+    const store = useCareEventsStore();
+
+    mockFetch
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            careEvents: [
+              {
+                bookingId: null,
+                completedAt: "2026-03-18T10:00:00.000Z",
+                createdAt: "2026-03-18T10:05:00.000Z",
+                eventType: "exam",
+                facilityId: null,
+                id: "care-event-1",
+                outcomeNotes: "Blood work completed.",
+                patientId: "patient-1",
+                providerName: "Dr. Rossi",
+                subtype: "Blood test",
+                updatedAt: "2026-03-18T10:05:00.000Z",
+              },
+            ],
+            pagination: {
+              page: 1,
+              pageSize: 100,
+              total: 2,
+              totalPages: 2,
+            },
+          }),
+          {
+            headers: {
+              "content-type": "application/json",
+            },
+            status: 200,
+          },
+        ),
+      )
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            careEvents: [
+              {
+                bookingId: null,
+                completedAt: "2026-03-20T10:00:00.000Z",
+                createdAt: "2026-03-20T10:05:00.000Z",
+                eventType: "specialist_visit",
+                facilityId: null,
+                id: "care-event-2",
+                outcomeNotes: "Diabetology checkup completed.",
+                patientId: "patient-1",
+                providerName: "Dr. Verdi",
+                subtype: "Diabetology",
+                updatedAt: "2026-03-20T10:05:00.000Z",
+              },
+            ],
+            pagination: {
+              page: 2,
+              pageSize: 100,
+              total: 2,
+              totalPages: 2,
+            },
+          }),
+          {
+            headers: {
+              "content-type": "application/json",
+            },
+            status: 200,
+          },
+        ),
+      );
+
+    const careEvents = await store.loadCareEventsForExport("patient-1", {
+      eventType: "specialist_visit",
+    });
+
+    expect(careEvents.map((careEvent) => careEvent.id)).toEqual([
+      "care-event-2",
+      "care-event-1",
+    ]);
+    expect(mockFetch).toHaveBeenNthCalledWith(
+      1,
+      "/api/v1/patients/patient-1/care-events?eventType=specialist_visit&page=1&pageSize=100",
+      expect.objectContaining({
+        credentials: "include",
+        method: "GET",
+      }),
+    );
+    expect(mockFetch).toHaveBeenNthCalledWith(
+      2,
+      "/api/v1/patients/patient-1/care-events?eventType=specialist_visit&page=2&pageSize=100",
+      expect.objectContaining({
+        credentials: "include",
+        method: "GET",
+      }),
+    );
+  });
+
   it("deletes a care event and refreshes the filtered list", async () => {
     const store = useCareEventsStore();
 

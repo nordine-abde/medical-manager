@@ -110,6 +110,35 @@ export const useCareEventsStore = defineStore("care-events", {
       lastPatientId = patientId;
       this.subtypesByType = await listCareEventSubtypesRequest(patientId);
     },
+    async loadCareEventsForExport(
+      patientId: string,
+      filters: CareEventListFilters = {},
+    ): Promise<CareEventRecord[]> {
+      const pageSize = 100;
+      let page = 1;
+      const careEvents: CareEventRecord[] = [];
+
+      while (true) {
+        const result = await listCareEventsRequest(patientId, {
+          ...filters,
+          page,
+          pageSize,
+        });
+
+        careEvents.push(...result.careEvents);
+
+        if (
+          result.pagination.totalPages <= page ||
+          result.careEvents.length === 0
+        ) {
+          break;
+        }
+
+        page += 1;
+      }
+
+      return sortCareEvents(careEvents);
+    },
     async refreshCareEvents() {
       if (!lastPatientId) {
         return;

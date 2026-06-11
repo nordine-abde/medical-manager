@@ -1,0 +1,310 @@
+import { jsPDF } from "jspdf";
+
+export interface CareEventReportPdfDocument {
+  documentType: string;
+  fileSize: string;
+  filename: string;
+  notes: string;
+  uploadedAt: string;
+}
+
+export interface CareEventReportPdfEntry {
+  booking: string;
+  careEventId: string;
+  completedAt: string;
+  document: CareEventReportPdfDocument | null;
+  eventType: string;
+  facility: string;
+  id: string;
+  notes: string;
+  provider: string;
+  sortValue: string;
+  subtype: string;
+  title: string;
+}
+
+export interface CareEventReportPdfLabels {
+  booking: string;
+  completedAt: string;
+  document: string;
+  documentCount: string;
+  documentNotes: string;
+  documentType: string;
+  emptyDocument: string;
+  eventCount: string;
+  eventType: string;
+  facility: string;
+  fileSize: string;
+  filters: string;
+  generatedAt: string;
+  indexTitle: string;
+  initialSummary: string;
+  notes: string;
+  noEntries: string;
+  page: string;
+  patient: string;
+  provider: string;
+  reportCount: string;
+  sourceEvent: string;
+  subtype: string;
+  uploadedAt: string;
+}
+
+export interface BuildCareEventReportsPdfInput {
+  documentCount: number;
+  entries: CareEventReportPdfEntry[];
+  eventCount: number;
+  filtersSummary: string[];
+  generatedAt: string;
+  labels: CareEventReportPdfLabels;
+  patientName: string | null;
+  title: string;
+}
+
+const normalizePdfText = (value: string): string =>
+  value.replace(/\s+/g, " ").trim();
+
+export const sortCareEventReportPdfEntries = (
+  entries: CareEventReportPdfEntry[],
+): CareEventReportPdfEntry[] =>
+  [...entries].sort((left, right) => {
+    if (left.sortValue && !right.sortValue) {
+      return -1;
+    }
+
+    if (!left.sortValue && right.sortValue) {
+      return 1;
+    }
+
+    const dateOrder = right.sortValue.localeCompare(left.sortValue);
+
+    if (dateOrder !== 0) {
+      return dateOrder;
+    }
+
+    const titleOrder = left.title.localeCompare(right.title);
+
+    if (titleOrder !== 0) {
+      return titleOrder;
+    }
+
+    return (left.document?.filename ?? "").localeCompare(
+      right.document?.filename ?? "",
+    );
+  });
+
+export const buildCareEventReportsPdf = ({
+  documentCount,
+  entries,
+  eventCount,
+  filtersSummary,
+  generatedAt,
+  labels,
+  patientName,
+  title,
+}: BuildCareEventReportsPdfInput): Blob => {
+  const doc = new jsPDF({
+    format: "a4",
+    orientation: "portrait",
+    unit: "pt",
+  });
+  const pageWidth = doc.internal.pageSize.getWidth();
+  const pageHeight = doc.internal.pageSize.getHeight();
+  const margin = 42;
+  const contentWidth = pageWidth - margin * 2;
+  const bottomY = pageHeight - 56;
+  let y = margin;
+  let activeSubtitle = labels.initialSummary;
+
+  const addPageHeader = (subtitle: string) => {
+    activeSubtitle = subtitle;
+    doc.setFillColor(40, 83, 107);
+    doc.rect(0, 0, pageWidth, 88, "F");
+    doc.setTextColor(255, 255, 255);
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(20);
+    doc.text(normalizePdfText(title), margin, 36);
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(9);
+    doc.text(normalizePdfText(subtitle), margin, 58, {
+      maxWidth: contentWidth,
+    });
+    doc.setTextColor(20, 50, 63);
+    y = 116;
+  };
+
+  const addPage = (subtitle: string) => {
+    doc.addPage();
+    addPageHeader(subtitle);
+  };
+
+  const ensureSpace = (height: number) => {
+    if (y + height <= bottomY) {
+      return;
+    }
+
+    addPage(activeSubtitle);
+  };
+
+  const writeWrappedText = (
+    text: string,
+    options: {
+      color?: [number, number, number];
+      fontSize: number;
+      indent?: number;
+      lineHeight: number;
+      style?: "bold" | "normal";
+    },
+  ) => {
+    const indent = options.indent ?? 0;
+    const color = options.color ?? [20, 50, 63];
+    doc.setFont("helvetica", options.style ?? "normal");
+    doc.setFontSize(options.fontSize);
+    doc.setTextColor(...color);
+
+    const lines = doc.splitTextToSize(
+      normalizePdfText(text),
+      contentWidth - indent,
+    ) as string[];
+
+    for (const line of lines) {
+      ensureSpace(options.lineHeight);
+      doc.text(line, margin + indent, y);
+      y += options.lineHeight;
+    }
+  };
+
+  const writeSectionTitle = (text: string) => {
+    ensureSpace(28);
+    y += 4;
+    doc.setFillColor(232, 244, 249);
+    doc.roundedRect(margin, y - 17, contentWidth, 24, 4, 4, "F");
+    writeWrappedText(text, {
+      color: [40, 83, 107],
+      fontSize: 11,
+      indent: 8,
+      lineHeight: 17,
+      style: "bold",
+    });
+    y += 8;
+  };
+
+  const writeField = (label: string, value: string) => {
+    writeWrappedText(`${label}: ${value}`, {
+      color: [50, 80, 93],
+      fontSize: 9,
+      indent: 12,
+      lineHeight: 12,
+    });
+  };
+
+  const sortedEntries = sortCareEventReportPdfEntries(entries);
+
+  addPageHeader(labels.initialSummary);
+  writeSectionTitle(labels.initialSummary);
+  writeField(labels.patient, patientName ?? labels.patient);
+  writeField(labels.generatedAt, generatedAt);
+  writeField(labels.reportCount, String(sortedEntries.length));
+  writeField(labels.eventCount, String(eventCount));
+  writeField(labels.documentCount, String(documentCount));
+
+  writeSectionTitle(labels.filters);
+
+  if (filtersSummary.length === 0) {
+    writeWrappedText("-", {
+      color: [50, 80, 93],
+      fontSize: 9,
+      indent: 12,
+      lineHeight: 12,
+    });
+  } else {
+    for (const filter of filtersSummary) {
+      writeWrappedText(filter, {
+        color: [50, 80, 93],
+        fontSize: 9,
+        indent: 12,
+        lineHeight: 12,
+      });
+    }
+  }
+
+  writeSectionTitle(labels.indexTitle);
+
+  if (sortedEntries.length === 0) {
+    writeWrappedText(labels.noEntries, {
+      fontSize: 11,
+      lineHeight: 15,
+    });
+  }
+
+  sortedEntries.forEach((entry, index) => {
+    writeWrappedText(
+      `${index + 1}. ${entry.completedAt} - ${entry.title}${
+        entry.document ? ` - ${entry.document.filename}` : ""
+      }`,
+      {
+        color: [50, 80, 93],
+        fontSize: 9,
+        indent: 12,
+        lineHeight: 12,
+      },
+    );
+  });
+
+  sortedEntries.forEach((entry, index) => {
+    addPage(`${labels.document} ${index + 1}/${sortedEntries.length}`);
+    writeWrappedText(entry.document?.filename ?? entry.title, {
+      fontSize: 16,
+      lineHeight: 20,
+      style: "bold",
+    });
+    y += 6;
+
+    writeSectionTitle(labels.sourceEvent);
+    writeField(labels.completedAt, entry.completedAt);
+    writeField(labels.eventType, entry.eventType);
+    writeField(labels.subtype, entry.subtype);
+    writeField(labels.provider, entry.provider);
+    writeField(labels.facility, entry.facility);
+    writeField(labels.booking, entry.booking);
+    writeField(labels.notes, entry.notes);
+
+    writeSectionTitle(labels.document);
+
+    if (entry.document) {
+      writeField(labels.document, entry.document.filename);
+      writeField(labels.documentType, entry.document.documentType);
+      writeField(labels.uploadedAt, entry.document.uploadedAt);
+      writeField(labels.fileSize, entry.document.fileSize);
+      writeField(labels.documentNotes, entry.document.notes);
+    } else {
+      writeWrappedText(labels.emptyDocument, {
+        color: [50, 80, 93],
+        fontSize: 10,
+        indent: 12,
+        lineHeight: 14,
+      });
+    }
+  });
+
+  const pageCount = doc.getNumberOfPages();
+
+  for (let page = 1; page <= pageCount; page += 1) {
+    doc.setPage(page);
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(8);
+    doc.setTextColor(89, 111, 121);
+    doc.text(
+      labels.page
+        .replace("{page}", String(page))
+        .replace("{total}", String(pageCount)),
+      pageWidth - margin,
+      pageHeight - 24,
+      { align: "right" },
+    );
+  }
+
+  const arrayBuffer = doc.output("arraybuffer");
+
+  return new Blob([arrayBuffer], { type: "application/pdf" });
+};

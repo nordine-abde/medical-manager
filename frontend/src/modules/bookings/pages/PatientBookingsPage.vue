@@ -27,6 +27,8 @@ import {
   buildBookingCalendarPdf,
   type BookingCalendarPdfEntry,
 } from "../pdf";
+import { downloadBlob } from "../../../utils/download";
+import { slugifyFilePart } from "../../../utils/file-names";
 
 const bookingsStore = useBookingsStore();
 const patientsStore = usePatientsStore();
@@ -391,28 +393,10 @@ const buildBookingPdfEntries = (
 
 const buildBookingPdfFileName = (): string => {
   const patientName = currentPatientName.value ?? t("bookings.export.patient");
-  const patientSlug =
-    patientName
-      .toLowerCase()
-      .normalize("NFD")
-      .replace(/[\u0300-\u036f]/g, "")
-      .replace(/[^a-z0-9]+/g, "-")
-      .replace(/(^-|-$)/g, "") || "paziente";
+  const patientSlug = slugifyFilePart(patientName, "paziente");
   const dateSlug = new Date().toISOString().slice(0, 10);
 
   return `prenotazioni-${patientSlug}-${dateSlug}.pdf`;
-};
-
-const downloadBlob = (blob: Blob, fileName: string) => {
-  const url = URL.createObjectURL(blob);
-  const anchor = document.createElement("a");
-
-  anchor.href = url;
-  anchor.download = fileName;
-  document.body.append(anchor);
-  anchor.click();
-  anchor.remove();
-  window.setTimeout(() => URL.revokeObjectURL(url), 0);
 };
 
 const handleBookingPdfExport = async () => {
