@@ -1,7 +1,9 @@
+import { PDFDocument } from "pdf-lib";
 import { describe, expect, it } from "vitest";
 
 import {
   buildCareEventReportsPdf,
+  buildCareEventReportsPdfWithAttachments,
   type CareEventReportPdfEntry,
   sortCareEventReportPdfEntries,
 } from "../src/modules/care-events/pdf";
@@ -55,7 +57,7 @@ const labels = {
 };
 
 describe("care event PDF utilities", () => {
-  it("sorts newest report entries first", () => {
+  it("sorts oldest report entries first", () => {
     const olderEntry = {
       ...baseEntry,
       id: "care-event-2:document-2",
@@ -67,7 +69,7 @@ describe("care event PDF utilities", () => {
       sortCareEventReportPdfEntries([olderEntry, baseEntry]).map(
         (entry) => entry.id,
       ),
-    ).toEqual(["care-event-1:document-1", "care-event-2:document-2"]);
+    ).toEqual(["care-event-2:document-2", "care-event-1:document-1"]);
   });
 
   it("builds a PDF blob for printable care event dossiers", async () => {
@@ -84,5 +86,39 @@ describe("care event PDF utilities", () => {
 
     expect(blob.type).toBe("application/pdf");
     expect(await blob.text()).toMatch(/^%PDF-/);
+  });
+
+  it("appends original PDF attachments after the dossier summary", async () => {
+    const attachmentBlob = buildCareEventReportsPdf({
+      documentCount: 0,
+      entries: [],
+      eventCount: 0,
+      filtersSummary: [],
+      generatedAt: "24 Mar 2026, 12:00",
+      labels,
+      patientName: "Maria Rossi",
+      title: "Original report",
+    });
+    const blob = await buildCareEventReportsPdfWithAttachments({
+      attachments: [
+        {
+          filename: "original-report.pdf",
+          url: "/api/v1/documents/document-1/download",
+        },
+      ],
+      documentCount: 1,
+      entries: [baseEntry],
+      eventCount: 1,
+      filtersSummary: ["Subtypes: Diabetology (Specialist visit)"],
+      generatedAt: "24 Mar 2026, 12:00",
+      labels,
+      loadAttachment: () => attachmentBlob.arrayBuffer(),
+      patientName: "Maria Rossi",
+      title: "Clinical reports dossier",
+    });
+    const mergedDocument = await PDFDocument.load(await blob.arrayBuffer());
+
+    expect(blob.type).toBe("application/pdf");
+    expect(mergedDocument.getPageCount()).toBeGreaterThan(2);
   });
 });

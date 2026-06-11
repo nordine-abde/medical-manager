@@ -14,7 +14,9 @@ import { downloadBlob } from "../../../utils/download";
 import { slugifyFilePart } from "../../../utils/file-names";
 import CareEventFormDialog from "../components/CareEventFormDialog.vue";
 import {
-  buildCareEventReportsPdf,
+  buildCareEventReportsPdfWithAttachments,
+  sortCareEventReportPdfEntries,
+  type CareEventReportPdfAttachment,
   type CareEventReportPdfEntry,
 } from "../pdf";
 import { useCareEventsStore } from "../store";
@@ -455,6 +457,55 @@ const buildCareEventReportPdfEntries = (
     );
   });
 
+const buildCareEventReportPdfAttachments = (
+  entries: CareEventReportPdfEntry[],
+): CareEventReportPdfAttachment[] =>
+  sortCareEventReportPdfEntries(entries).flatMap((entry) => {
+    const [careEventId, documentId] = entry.id.split(":");
+
+    if (!careEventId || !documentId || documentId === "summary") {
+      return [];
+    }
+
+    const document = documents.value.find(
+      (item) =>
+        item.id === documentId &&
+        item.relatedEntityType === "care_event" &&
+        item.relatedEntityId === careEventId &&
+        item.mimeType === "application/pdf",
+    );
+
+    if (!document) {
+      return [];
+    }
+
+    return [
+      {
+        filename: document.originalFilename,
+        url: document.downloadUrl,
+      },
+    ];
+  });
+
+const loadOriginalPdfAttachment = async (
+  attachment: CareEventReportPdfAttachment,
+): Promise<ArrayBuffer> => {
+  const response = await fetch(attachment.url, {
+    credentials: "include",
+    method: "GET",
+  });
+
+  if (!response.ok) {
+    throw new Error(
+      t("careEvents.export.originalPdfLoadError", {
+        filename: attachment.filename,
+      }),
+    );
+  }
+
+  return response.arrayBuffer();
+};
+
 const buildReportExportFiltersSummary = (): string[] => [
   `${t("careEvents.export.selectedEventTypes")}: ${
     reportExportForm.eventTypes.length
@@ -513,9 +564,11 @@ const handleReportsPdfExport = async () => {
       (count, careEvent) => count + resolveDocumentsList(careEvent.id).length,
       0,
     );
-    const pdfBlob = buildCareEventReportsPdf({
+    const entries = buildCareEventReportPdfEntries(selectedCareEvents);
+    const pdfBlob = await buildCareEventReportsPdfWithAttachments({
+      attachments: buildCareEventReportPdfAttachments(entries),
       documentCount: selectedDocumentCount,
-      entries: buildCareEventReportPdfEntries(selectedCareEvents),
+      entries,
       eventCount: selectedCareEvents.length,
       filtersSummary: buildReportExportFiltersSummary(),
       generatedAt: d(new Date(), "long"),
@@ -545,6 +598,7 @@ const handleReportsPdfExport = async () => {
         subtype: t("careEvents.fields.subtype"),
         uploadedAt: t("documents.uploadedAt"),
       },
+      loadAttachment: loadOriginalPdfAttachment,
       patientName: currentPatientName.value,
       title: t("careEvents.export.title"),
     });

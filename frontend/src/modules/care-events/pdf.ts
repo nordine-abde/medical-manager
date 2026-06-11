@@ -1,4 +1,5 @@
 import { jsPDF } from "jspdf";
+import { PDFDocument } from "pdf-lib";
 
 export interface CareEventReportPdfDocument {
   documentType: string;
@@ -61,6 +62,19 @@ export interface BuildCareEventReportsPdfInput {
   title: string;
 }
 
+export interface CareEventReportPdfAttachment {
+  filename: string;
+  url: string;
+}
+
+export interface BuildCareEventReportsPdfWithAttachmentsInput
+  extends BuildCareEventReportsPdfInput {
+  attachments: CareEventReportPdfAttachment[];
+  loadAttachment: (
+    attachment: CareEventReportPdfAttachment,
+  ) => Promise<ArrayBuffer | Uint8Array>;
+}
+
 const normalizePdfText = (value: string): string =>
   value.replace(/\s+/g, " ").trim();
 
@@ -76,7 +90,7 @@ export const sortCareEventReportPdfEntries = (
       return 1;
     }
 
-    const dateOrder = right.sortValue.localeCompare(left.sortValue);
+    const dateOrder = left.sortValue.localeCompare(right.sortValue);
 
     if (dateOrder !== 0) {
       return dateOrder;
@@ -307,4 +321,60 @@ export const buildCareEventReportsPdf = ({
   const arrayBuffer = doc.output("arraybuffer");
 
   return new Blob([arrayBuffer], { type: "application/pdf" });
+};
+
+const appendPdfBytes = async (
+  targetDocument: PDFDocument,
+  pdfBytes: ArrayBuffer | Uint8Array,
+  filename: string,
+) => {
+  try {
+    const sourceDocument = await PDFDocument.load(pdfBytes, {
+      ignoreEncryption: true,
+    });
+    const sourcePages = await targetDocument.copyPages(
+      sourceDocument,
+      sourceDocument.getPageIndices(),
+    );
+
+    for (const page of sourcePages) {
+      targetDocument.addPage(page);
+    }
+  } catch {
+    throw new Error(`Unable to append original PDF "${filename}".`);
+  }
+};
+
+export const buildCareEventReportsPdfWithAttachments = async ({
+  attachments,
+  loadAttachment,
+  ...input
+}: BuildCareEventReportsPdfWithAttachmentsInput): Promise<Blob> => {
+  const summaryBlob = buildCareEventReportsPdf(input);
+
+  if (attachments.length === 0) {
+    return summaryBlob;
+  }
+
+  const targetDocument = await PDFDocument.create();
+
+  await appendPdfBytes(
+    targetDocument,
+    await summaryBlob.arrayBuffer(),
+    input.title,
+  );
+
+  for (const attachment of attachments) {
+    await appendPdfBytes(
+      targetDocument,
+      await loadAttachment(attachment),
+      attachment.filename,
+    );
+  }
+
+  const mergedBytes = await targetDocument.save();
+  const mergedArrayBuffer = new ArrayBuffer(mergedBytes.byteLength);
+  new Uint8Array(mergedArrayBuffer).set(mergedBytes);
+
+  return new Blob([mergedArrayBuffer], { type: "application/pdf" });
 };

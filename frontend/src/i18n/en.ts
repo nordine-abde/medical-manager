@@ -283,6 +283,7 @@ export const en = {
       initialSummary: "Initial summary",
       noEntries: "No care events match this selection.",
       openAction: "Print reports",
+      originalPdfLoadError: 'Unable to load original PDF "{filename}".',
       pageLabel: "Page {page} of {total}",
       patient: "Patient",
       reportCount: "Dossier pages",

@@ -276,6 +276,8 @@ export const it = {
       initialSummary: "Riepilogo iniziale",
       noEntries: "Nessun evento corrisponde alla selezione.",
       openAction: "Stampa referti",
+      originalPdfLoadError:
+        'Non e stato possibile caricare il PDF originale "{filename}".',
       pageLabel: "Pagina {page} di {total}",
       patient: "Paziente",
       reportCount: "Schede nel dossier",
